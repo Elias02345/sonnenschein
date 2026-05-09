@@ -1,0 +1,45 @@
+name: Feature-Vorschlag
+description: Neue Idee oder Verbesserung
+title: "[Feature] "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke für deinen Vorschlag. Bitte beschreibe das Problem zuerst, dann die Lösung.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Erste Checks
+      options:
+        - label: Ich habe in den [bestehenden Issues](https://github.com/Elias02345/sonnenschein/issues?q=is%3Aissue) gesucht und keinen Duplikat gefunden.
+          required: true
+        - label: Ich habe die [Roadmap](https://github.com/Elias02345/sonnenschein/blob/main/docs/ROADMAP.md) gelesen — mein Vorschlag ist nicht schon dort.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Welches Problem löst das?
+      description: Was kannst du heute nicht (gut) tun?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Vorschlag
+      description: Wie könnte die Lösung aussehen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativen, die du in Betracht gezogen hast
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Zusätzlicher Kontext

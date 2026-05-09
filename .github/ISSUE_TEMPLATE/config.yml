@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Frage / Diskussion
+    url: https://github.com/Elias02345/sonnenschein/discussions
+    about: Für allgemeine Fragen oder Setup-Hilfe — Issues sind für Bugs und Feature-Requests.
+  - name: Sicherheits­problem
+    url: mailto:elias-kanakidis@gmx.de
+    about: Sicherheits­lücken bitte NICHT öffentlich melden, sondern per Mail.

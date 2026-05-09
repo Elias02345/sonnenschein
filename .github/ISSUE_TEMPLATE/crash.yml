@@ -1,0 +1,81 @@
+name: Crash-Report
+description: Sonnenschein ist abgestürzt — wird i.d.R. vom WebUI-Crash-Reporter pre-filled
+title: "[Crash] "
+labels: ["crash", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Dieses Template wird normalerweise vom **In-WebUI-Crash-Reporter** automatisch
+        ausgefüllt. Wenn du es manuell ausfüllst: schau bitte in
+        `~/.local/state/sonnenschein/crashes/<timestamp>/` nach dem letzten Crash-Bundle.
+
+        **Privacy-Hinweis**: Bitte keine personen­identifizierbaren Daten (Hostname,
+        Benutzername, IP-Adresse, gespeicherte Pairings, Passwörter) einreichen. Der
+        eingebaute Reporter anonymisiert das automatisch.
+
+  - type: input
+    id: version
+    attributes:
+      label: Sonnenschein-Version (Build-Hash)
+      placeholder: "z.B. 0.1.0+abc1234"
+    validations:
+      required: true
+
+  - type: input
+    id: kernel
+    attributes:
+      label: Kernel-Version
+      placeholder: "Output von `uname -r`, z.B. 6.12.5-arch1-1"
+
+  - type: input
+    id: distro
+    attributes:
+      label: Distro + Version
+      placeholder: "z.B. CachyOS 2025.04, Fedora 41"
+
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU + Treiber
+      placeholder: "z.B. RTX 3070 / nvidia 580.94.11"
+
+  - type: input
+    id: compositor
+    attributes:
+      label: Compositor + Version
+      placeholder: "z.B. KWin 6.4.2 (Wayland)"
+
+  - type: textarea
+    id: stack
+    attributes:
+      label: Stack-Trace / Coredump-Auszug
+      description: Aus `coredumpctl info` oder `gdb` extrahiert. Bitte in Code-Blöcke.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Sonnenschein-Log-Auszug (letzte ~200 Zeilen)
+      description: Aus `journalctl --user -u sonnenschein-server -n 200` oder Crash-Bundle.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Was hast du gemacht, als es crashte?
+      description: Spiel gestartet, Pairing, Stream lief seit X Min, etc.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: anonymized
+    attributes:
+      label: Anonymisierung
+      options:
+        - label: Ich habe Hostname, Username, IP-Adressen und Pairing-Tokens aus den Logs entfernt (oder der WebUI-Reporter hat das gemacht).
+          required: true

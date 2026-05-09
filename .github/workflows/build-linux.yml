@@ -1,0 +1,106 @@
+name: Build (Linux)
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+# Pre-Alpha: this workflow is intentionally permissive — many Apollo/Sunshine
+# CMake paths still need adapting before clean builds work everywhere. We mark
+# distros as `continue-on-error: true` while we stabilise (Phase 1 milestone).
+# Once a distro builds reliably, drop the flag for that matrix entry.
+
+jobs:
+  build:
+    name: ${{ matrix.distro.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          - name: Arch
+            image: archlinux:latest
+            setup: |
+              pacman -Syu --noconfirm
+              pacman -S --noconfirm --needed \
+                base-devel cmake git ninja \
+                boost ffmpeg openssl curl miniupnpc \
+                libdrm libva libpipewire libevdev \
+                vulkan-icd-loader vulkan-headers \
+                wayland wayland-protocols \
+                libnotify libcap nodejs npm
+          - name: Ubuntu-24.04
+            image: ubuntu:24.04
+            setup: |
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                build-essential cmake git ninja-build pkg-config \
+                libboost-all-dev libssl-dev libcurl4-openssl-dev libminiupnpc-dev \
+                libavcodec-dev libavformat-dev libavutil-dev libavfilter-dev libswscale-dev \
+                libdrm-dev libva-dev libpipewire-0.3-dev libevdev-dev \
+                libvulkan-dev libwayland-dev wayland-protocols \
+                libnotify-dev libcap-dev nodejs npm \
+                ca-certificates
+          - name: Fedora-41
+            image: fedora:41
+            setup: |
+              dnf install -y --setopt=install_weak_deps=False \
+                gcc-c++ cmake git ninja-build pkgconfig \
+                boost-devel openssl-devel libcurl-devel miniupnpc-devel \
+                libdrm-devel libva-devel pipewire-devel libevdev-devel \
+                vulkan-loader-devel vulkan-headers \
+                wayland-devel wayland-protocols-devel \
+                libnotify-devel libcap-devel nodejs npm \
+                ffmpeg-free-devel || true
+              # Note: ffmpeg-full needs RPM Fusion, see docs/building.md (TODO).
+
+    container:
+      image: ${{ matrix.distro.image }}
+      options: --user 0
+    continue-on-error: true   # remove once distro stabilises (see header comment)
+
+    steps:
+      - name: Distro setup
+        run: ${{ matrix.distro.setup }}
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: false   # Phase 0: third-party is vendored. Re-enable in Phase 1.
+          fetch-depth: 0
+
+      - name: WebUI deps
+        run: |
+          npm ci || npm install
+
+      - name: WebUI build
+        run: npm run build || echo "::warning::WebUI build failed — Phase 1 task."
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=OFF \
+            || echo "::warning::CMake configure failed — Phase 1 task."
+
+      - name: Compile
+        run: |
+          if [ -f build/build.ninja ]; then
+            cmake --build build -j$(nproc) || echo "::warning::Compile failed — Phase 1 task."
+          else
+            echo "Skipping compile (configure did not succeed)."
+          fi
+
+      - name: Upload build dir on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ matrix.distro.name }}
+          path: |
+            build/CMakeFiles/CMakeOutput.log
+            build/CMakeFiles/CMakeError.log
+            build/CMakeCache.txt
+          if-no-files-found: ignore

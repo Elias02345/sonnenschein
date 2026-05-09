@@ -1,0 +1,36 @@
+Sonnenschein
+=================================================================
+
+Sonnenschein is derived from and inspired by the following projects, all
+licensed under GPL-3.0-only:
+
+  * Sunshine    — Copyright (c) 2018–present LizardByte and contributors
+                  https://github.com/LizardByte/Sunshine
+
+  * Apollo      — Copyright (c) 2024–present ClassicOldSong and contributors
+                  https://github.com/ClassicOldSong/Apollo
+                  (Sunshine fork, source of the headless / virtual-display
+                  concepts adapted here for Linux.)
+
+Sonnenschein additionally takes setup-pattern inspiration (no code) from:
+
+  * docker-steam-headless — Copyright (c) Josh Sunnex (josh5) and contributors
+                  https://github.com/josh5/docker-steam-headless
+
+-----------------------------------------------------------------
+
+Steam-related trademark notice (carried over from Sunshine/Apollo):
+
+  © 2018 Valve Corporation. Steam and the Steam logo are trademarks
+  and/or registered trademarks of Valve Corporation in the U.S. and/or
+  other countries. All rights reserved.
+
+-----------------------------------------------------------------
+
+This product includes third-party libraries listed in third-party/ and
+documented in their respective licenses. Major dependencies include
+FFmpeg (LGPL/GPL), Boost (BSL-1.0), inputtino, libdisplaydevice, and
+moonlight-common-c.
+
+For the full text of the GNU General Public License, see the LICENSE
+file in the root of this distribution.

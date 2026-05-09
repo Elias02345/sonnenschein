@@ -1,0 +1,124 @@
+name: Bug-Report
+description: Etwas funktioniert nicht wie erwartet
+title: "[Bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke für deinen Bug-Report. Bitte fülle die Felder so genau wie möglich aus —
+        je mehr Kontext, desto schneller können wir helfen.
+
+        **Hinweis**: Bei Crashes nutze bitte das *Crash-Report-Template* statt diesem hier.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Erste Checks
+      options:
+        - label: Ich habe in den [bestehenden Issues](https://github.com/Elias02345/sonnenschein/issues?q=is%3Aissue) gesucht und keinen Duplikat gefunden.
+          required: true
+        - label: Ich nutze die aktuellste Version (`main` oder ein konkretes Release-Tag).
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Sonnenschein-Version
+      description: Output von `sonnenschein --version` oder die Versionsanzeige in der WebUI.
+      placeholder: "z.B. 0.1.0 oder commit abc1234"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: distro
+    attributes:
+      label: Distro
+      options:
+        - Arch / EndeavourOS / CachyOS / Manjaro
+        - SteamOS
+        - Fedora / Nobara
+        - Ubuntu
+        - Debian
+        - openSUSE
+        - ZorinOS
+        - Andere (in Beschreibung nennen)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: compositor
+    attributes:
+      label: Compositor / Sitzung
+      options:
+        - KDE Plasma 6 (Wayland)
+        - KDE Plasma (X11)
+        - GNOME (Wayland)
+        - GNOME (X11)
+        - Sway
+        - Hyprland
+        - Cosmic
+        - Andere
+    validations:
+      required: true
+
+  - type: dropdown
+    id: gpu
+    attributes:
+      label: GPU
+      options:
+        - NVIDIA
+        - AMD
+        - Intel
+        - Hybrid (mehrere)
+    validations:
+      required: true
+
+  - type: input
+    id: gpu_model
+    attributes:
+      label: GPU-Modell + Treiber-Version
+      placeholder: "z.B. RTX 3070 mit nvidia 580.94.11 / RX 7800 XT mit Mesa 25.0.2"
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: Was ist passiert?
+      description: Beschreibe den Bug so klar wie möglich.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Was war erwartet?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduktions-Schritte
+      description: Schritt-für-Schritt, sodass wir es nachstellen können.
+      placeholder: |
+        1. Sonnenschein installiert mit `install.sh`
+        2. Moonlight-Client gepairt
+        3. Spiel X gestartet
+        4. Bild bleibt schwarz nach 10 Sek
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevante Logs
+      description: |
+        `journalctl --user -u sonnenschein-server -n 200` oder den entsprechenden Auszug.
+        Bitte in Code-Blöcke (```...```) packen.
+      render: shell
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Zusätzlicher Kontext
+      description: Screenshots, Configs (sensitive Daten entfernen!), alles was hilft.

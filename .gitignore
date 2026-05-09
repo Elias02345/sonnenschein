@@ -1,0 +1,81 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# JetBrains IDE
+.idea/
+
+# VSCode IDE
+.vscode/
+
+# build directories
+build/
+cmake-*/
+docs/doxyconfig*
+
+# npm
+node_modules/
+package-lock.json
+
+# Translations
+*.mo
+*.pot
+
+# Dummy macOS files
+.DS_Store
+
+# Python
+*.pyc
+venv/
+
+# Sonnenschein-specific
+# Reference materials (Apollo/Sunshine/docker-steam-headless source ZIPs and extracts)
+_reference/
+
+# Local install / dev artifacts
+/opt/
+*.log
+.env
+.env.local
+
+# WebUI build output
+src_assets/common/assets/web/dist/
+build/assets/web/
+
+# Editor leftovers
+*~
+.\#*
+\#*\#
+.idea/
+.vscode/
+*.swp
+*.swo

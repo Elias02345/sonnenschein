@@ -1,0 +1,3 @@
+# Submodules will be re-introduced in Phase 1.
+# For now, third-party/ is vendored as snapshot from Apollo.
+# Original .gitmodules: _reference/Apollo-master/.gitmodules.original

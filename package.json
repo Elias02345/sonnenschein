@@ -1,0 +1,33 @@
+{
+  "name": "sonnenschein",
+  "version": "0.0.0",
+  "description": "Linux-native, headless Moonlight streaming backend with auto-matching virtual displays.",
+  "homepage": "https://github.com/Elias02345/sonnenschein",
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Elias02345/sonnenschein.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Elias02345/sonnenschein/issues"
+  },
+  "scripts": {
+    "build": "vite build --debug",
+    "build-clean": "vite build --debug --emptyOutDir",
+    "dev": "vite build --watch",
+    "serve": "serve ./tests/fixtures/http --no-port-switching"
+  },
+  "type": "module",
+  "dependencies": {
+    "@lizardbyte/shared-web": "2025.922.181114",
+    "vue": "3.5.22",
+    "vue-i18n": "11.1.12"
+  },
+  "devDependencies": {
+    "@codecov/vite-plugin": "1.9.1",
+    "@vitejs/plugin-vue": "6.0.1",
+    "serve": "14.2.5",
+    "vite": "6.3.6",
+    "vite-plugin-ejs": "1.7.0"
+  }
+}

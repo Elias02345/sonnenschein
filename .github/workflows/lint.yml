@@ -1,0 +1,56 @@
+name: Lint
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run shellcheck on all .sh files
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          severity: warning
+          ignore_paths: third-party _reference
+
+  prettier:
+    name: Prettier (WebUI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install prettier
+        run: npm install --no-save prettier@3
+      - name: Check formatting
+        run: |
+          npx prettier --check \
+            "src_assets/**/*.{js,ts,vue,html,css}" \
+            "*.{js,json,md}" || \
+            echo "::warning::Prettier finds unformatted files. Run 'npx prettier --write ...' locally to fix."
+
+  clang-format:
+    name: clang-format (C++)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format-18
+      - name: Check formatting on changed C++ files
+        run: |
+          # Compare against the merge-base; if no PR, compare against HEAD~1
+          BASE="${{ github.event.pull_request.base.sha || 'HEAD~1' }}"
+          FILES=$(git diff --name-only --diff-filter=ACMRT "$BASE" -- '*.cpp' '*.h' '*.hpp' | grep -vE '^(third-party|_reference)/' || true)
+          if [ -z "$FILES" ]; then
+            echo "No C++ files changed."
+            exit 0
+          fi
+          echo "Checking: $FILES"
+          clang-format-18 --dry-run --Werror $FILES || \
+            echo "::warning::clang-format finds unformatted C++. Run 'clang-format-18 -i' locally to fix."
