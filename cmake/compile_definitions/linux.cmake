@@ -244,7 +244,23 @@ list(APPEND PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/third-party/glad/include/EGL/eglplatform.h"
         "${CMAKE_SOURCE_DIR}/third-party/glad/include/KHR/khrplatform.h"
         "${CMAKE_SOURCE_DIR}/third-party/glad/include/glad/gl.h"
-        "${CMAKE_SOURCE_DIR}/third-party/glad/include/glad/egl.h")
+        "${CMAKE_SOURCE_DIR}/third-party/glad/include/glad/egl.h"
+        # Sonnenschein virtual-display abstraction (Phase 2A foundation +
+        # backend stubs; backends are filled in in Phase 2B+).
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/types.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/interface.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/detection.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/detection.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/factory.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/factory.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/backends/all.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/backends/kwin_wayland.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/backends/mutter_headless.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/backends/wlroots_headless.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/backends/xorg_nvidia.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/backends/xorg_dummy.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/backends/amdgpu_param.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/backends/evdi.cpp")
 
 list(APPEND PLATFORM_LIBRARIES
         dl
