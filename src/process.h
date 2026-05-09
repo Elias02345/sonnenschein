@@ -32,6 +32,8 @@
 
 #ifdef _WIN32
   #include "platform/windows/virtual_display.h"
+#elif __linux__
+  #include "platform/linux/virtual_display/interface.h"
 #endif
 
 #define VIRTUAL_DISPLAY_UUID "8902CB19-674A-403D-A587-41B092E900BA"
@@ -162,6 +164,16 @@ namespace proc {
     file_t _pipe;
     std::vector<cmd_t>::const_iterator _app_prep_it;
     std::vector<cmd_t>::const_iterator _app_prep_begin;
+
+#ifdef __linux__
+    // Sonnenschein virtual-display state. Created in execute() when the
+    // session needs a virtual output, destroyed in terminate(). Lives
+    // here so destroy() runs on the same backend instance that created
+    // the display, even if multiple sessions cycle through the same
+    // proc_t.
+    std::unique_ptr<sonnenschein::vdisplay::IBackend> _vdisplay_backend;
+    std::optional<sonnenschein::vdisplay::Handle> _vdisplay_handle;
+#endif
   };
 
   boost::filesystem::path

@@ -44,6 +44,10 @@
 
   // _SH constants for _wfsopen()
   #include <share.h>
+#elif __linux__
+  // Sonnenschein virtual-display abstraction (Linux only).
+  #include "platform/linux/virtual_display/detection.h"
+  #include "platform/linux/virtual_display/factory.h"
 #endif
 
 #define DEFAULT_APP_IMAGE_PATH SUNSHINE_ASSETS_DIR "/box.png"
@@ -333,11 +337,80 @@ namespace proc {
         launch_session->virtual_display = false;
       }
     }
+#elif __linux__
+    // Sonnenschein Linux virtual-display path. Apollo's Windows code above
+    // calls SudoVDA. On Linux, we use the IBackend abstraction in
+    // src/platform/linux/virtual_display/ — currently only kwin_wayland
+    // is implemented (Phase 2B), other compositors are stubs that fall
+    // through to streaming the existing primary display until Phase 2D+.
+    if (
+      config::video.headless_mode        // Headless mode
+      || launch_session->virtual_display // User requested virtual display
+      || _app.virtual_display            // App is configured to use virtual display
+    ) {
+      const auto env = sonnenschein::vdisplay::detect();
+      sonnenschein::vdisplay::Config vd_cfg;
+      // TODO(Phase 5): wire vd_cfg.preferred_backend / preferred_gpu_pci
+      // from config::video / sonnenschein.conf. For now: pure auto-select.
+
+      _vdisplay_backend = sonnenschein::vdisplay::select_backend(env, vd_cfg);
+      if (_vdisplay_backend) {
+        // Compute target_fps the same way the Windows path does.
+        int target_fps = launch_session->fps ? launch_session->fps : 60000;
+        if (target_fps < 1000) {
+          target_fps *= 1000;
+        }
+        if (config::video.double_refreshrate) {
+          target_fps *= 2;
+        }
+
+        // Stable per-client UID. We don't yet do Apollo's
+        // per-client/per-app XOR mixing — Phase 4 brings that back.
+        const std::string device_uuid_str = launch_session->unique_id;
+        const std::string device_name = _app.use_app_identity
+                                            ? _app.name
+                                            : launch_session->device_name;
+
+        sonnenschein::vdisplay::CreateRequest req;
+        req.client_uid = device_uuid_str;
+        req.client_name = device_name;
+        req.width = render_width;
+        req.height = render_height;
+        req.refresh_mhz = static_cast<uint32_t>(target_fps);
+        req.hdr_capable = launch_session->enable_hdr;
+
+        _vdisplay_handle = _vdisplay_backend->create(req);
+        if (_vdisplay_handle) {
+          BOOST_LOG(info) << "Sonnenschein: virtual display '"sv
+                          << _vdisplay_handle->display_id
+                          << "' created via backend '"sv
+                          << _vdisplay_backend->name() << "'."sv;
+
+          launch_session->virtual_display = true;
+          this->virtual_display = true;
+          this->display_name = _vdisplay_handle->output_name;
+          // Mirror the Windows path: route capture/probe to our new output.
+          config::video.output_name = display_device::map_display_name(this->display_name);
+        } else {
+          BOOST_LOG(warning) << "Sonnenschein: virtual-display backend '"sv
+                             << _vdisplay_backend->name()
+                             << "' returned no handle. Falling back to "
+                                "primary display."sv;
+          // Drop the backend so terminate() doesn't try to clean up
+          // a display we never actually created.
+          _vdisplay_backend.reset();
+          launch_session->virtual_display = false;
+        }
+      } else {
+        // No backend matched — log already emitted by select_backend.
+        launch_session->virtual_display = false;
+      }
+    }
 
     display_device::configure_display(config::video, *launch_session);
 
-    // We should not preserve display state when using virtual display.
-    // It is already handled by Windows properly.
+    // When a virtual display is active we own its state; let
+    // display_device skip its persistence dance.
     if (this->virtual_display) {
       display_device::reset_persistence();
     }
@@ -769,6 +842,24 @@ namespace proc {
 
     // Only show the Stopped notification if we actually have an app to stop
     // Since terminate() is always run when a new app has started
+    if (proc::proc.get_last_run_app_name().length() > 0 && has_run) {
+      if (used_virtual_display) {
+        display_device::reset_persistence();
+      } else {
+        display_device::revert_configuration();
+      }
+#elif __linux__
+    // Sonnenschein Linux virtual-display cleanup. Mirrors the Windows
+    // SudoVDA removeVirtualDisplay path above, but goes through whichever
+    // IBackend created the display.
+    bool used_virtual_display = false;
+    if (_vdisplay_handle && _vdisplay_backend) {
+      used_virtual_display = true;
+      _vdisplay_backend->destroy(_vdisplay_handle->display_id);
+      _vdisplay_handle.reset();
+      _vdisplay_backend.reset();
+    }
+
     if (proc::proc.get_last_run_app_name().length() > 0 && has_run) {
       if (used_virtual_display) {
         display_device::reset_persistence();
