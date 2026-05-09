@@ -253,6 +253,8 @@ list(APPEND PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/detection.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/factory.h"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/factory.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/subprocess.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/subprocess.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/backends/all.h"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/backends/kwin_wayland.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/virtual_display/backends/mutter_headless.cpp"
