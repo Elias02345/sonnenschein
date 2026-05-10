@@ -165,7 +165,7 @@ namespace pw {
       return true;
     }
 
-    bool start(const std::string &target_output_name) {
+    bool start(const std::string &target_output_name, int requested_width, int requested_height) {
       wl_output *target = nullptr;
       output_t *params = nullptr;
       
@@ -205,18 +205,29 @@ namespace pw {
         find_target(); // Try again after syncing
       }
 
-      if (!target || !params) {
-        BOOST_LOG(warning) << "KWin direct capture: target output '"sv
-                           << target_output_name << "' not found; refusing portal VIRTUAL fallback"sv;
-        return false;
+      if (target && params) {
+        stream = zkde_screencast_unstable_v1_stream_output(
+          screencast,
+          target,
+          ZKDE_SCREENCAST_UNSTABLE_V1_POINTER_EMBEDDED);
+        width = params->width;
+        height = params->height;
+      } else {
+        BOOST_LOG(info) << "KWin direct capture: output '"sv << target_output_name
+                        << "' not found in Wayland registry. Requesting KWin to create a stream_virtual_output directly.";
+        stream = zkde_screencast_unstable_v1_stream_virtual_output(
+          screencast,
+          target_output_name.c_str(),
+          requested_width > 0 ? requested_width : 1920,
+          requested_height > 0 ? requested_height : 1080,
+          wl_fixed_from_double(1.0),
+          ZKDE_SCREENCAST_UNSTABLE_V1_POINTER_EMBEDDED);
+        width = requested_width > 0 ? requested_width : 1920;
+        height = requested_height > 0 ? requested_height : 1080;
       }
 
-      stream = zkde_screencast_unstable_v1_stream_output(
-        screencast,
-        target,
-        ZKDE_SCREENCAST_UNSTABLE_V1_POINTER_EMBEDDED);
       if (!stream) {
-        BOOST_LOG(warning) << "KWin direct capture: stream_output returned null"sv;
+        BOOST_LOG(warning) << "KWin direct capture: stream_output or stream_virtual_output returned null"sv;
         return false;
       }
       zkde_screencast_stream_unstable_v1_add_listener(stream, &stream_listener, this);
@@ -226,10 +237,8 @@ namespace pw {
         return false;
       }
 
-      width = params->width;
-      height = params->height;
       BOOST_LOG(info) << "KWin direct capture: streaming output '"sv
-                      << params->name << "' "sv << width << "x"sv << height
+                      << target_output_name << "' "sv << width << "x"sv << height
                       << " node_id="sv << node_id;
       return node_id != PW_ID_ANY && width > 0 && height > 0;
     }
@@ -1019,7 +1028,7 @@ namespace pw {
       // the same output and has been observed to negotiate 1920x1080.
       if (!display_name.empty()) {
         kwin_direct = std::make_unique<kwin_session_t>();
-        if (kwin_direct->init() && kwin_direct->start(display_name)) {
+        if (kwin_direct->init() && kwin_direct->start(display_name, config.width, config.height)) {
           pipewire_fd = -1;
           pipewire_node_id = kwin_direct->node_id;
           BOOST_LOG(info) << "KWin direct capture: selected for output '"sv << display_name << "'"sv;
