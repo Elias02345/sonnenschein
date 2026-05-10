@@ -491,6 +491,18 @@ namespace pw {
       mem_type = hwdevice_type;
       delay = std::chrono::nanoseconds{1s} / config.framerate;
 
+      if (::config::video.capture != "pipewire") {
+        // This is a boot-time encoder probe.
+        // We don't want to pop up a Portal dialog just to probe encoders.
+        // Skip Portal init, set dummy resolution.
+        width = config.width ? config.width : 1920;
+        height = config.height ? config.height : 1080;
+        env_width = width;
+        env_height = height;
+        BOOST_LOG(info) << "PipeWire: Skipping portal init for boot probe (dummy mode)"sv;
+        return 0;
+      }
+
       // Phase 1: Portal session
       portal = std::make_unique<portal_session_t>();
       if (!portal->init()) return -1;
@@ -526,6 +538,14 @@ namespace pw {
       const pull_free_image_cb_t &pull_free_image_cb,
       bool *cursor
     ) override {
+      if (!pw_cap) {
+        std::this_thread::sleep_for(delay);
+        std::shared_ptr<platf::img_t> img_out;
+        if (!pull_free_image_cb(img_out)) return platf::capture_e::interrupted;
+        if (!push_captured_image_cb(std::move(img_out), false)) return platf::capture_e::interrupted;
+        return platf::capture_e::ok;
+      }
+
       auto next_frame = std::chrono::steady_clock::now();
       sleep_overshoot_logger.reset();
 
@@ -626,18 +646,22 @@ namespace pw {
 
 namespace platf {
   std::shared_ptr<display_t> pw_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-    if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi) {
+    // PipeWire always delivers system memory (SHM) frames. Encoders like NVENC request CUDA,
+    // but the Sunshine encoder framework will automatically fallback to GPU->RAM->GPU copy
+    // if the display provides system memory.
+    auto effective_type = (hwdevice_type == platf::mem_type_e::cuda) ? platf::mem_type_e::system : hwdevice_type;
+
+    if (effective_type != platf::mem_type_e::system && effective_type != platf::mem_type_e::vaapi) {
       BOOST_LOG(error) << "PipeWire: unsupported hw device type"sv;
       return nullptr;
     }
 
     auto disp = std::make_shared<pw::pw_display_t>();
-    if (disp->init(hwdevice_type, display_name, config)) {
+    if (disp->init(effective_type, display_name, config)) {
       return nullptr;
     }
     return disp;
   }
-
   std::vector<std::string> pw_display_names() {
     // PipeWire portal doesn't enumerate — returns a single virtual entry
     return {"pipewire-virtual"};
