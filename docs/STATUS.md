@@ -761,6 +761,10 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
 - `pwgrab.cpp` prüft nun zusätzlich `wl_output::description` und nutzt einen Fallback auf `Virtual-*`, falls kein exakter Name gefunden wird.
 - Behebung eines C++-Formatierungsfehlers, bei dem `kwin_wayland.cpp` ungültige Strings ins Log schrieb (`@third-party\build-deps...`).
 
+**Weiterer Fix (2026-05-10 19:15)**:
+- Ein weiterer CachyOS-Test zeigte, dass der Output noch immer nicht in der `wl_output`-Liste auftauchte. Grund: KWin erstellt das virtuelle Display asynchron, und unsere initialen `wl_display_roundtrip`-Aufrufe in `init()` fanden statt, *bevor* KWin das neue Display broadcasten konnte.
+- `pwgrab.cpp` wurde angepasst: Wenn `start()` den Output im ersten Durchlauf nicht findet, werden nun gezielt weitere `wl_display_roundtrip`-Aufrufe durchgeführt, um die Hotplug-Events aus der Wayland-Queue abzurufen, bevor der zweite Such-Durchlauf startet.
+
 ### 9.14 PipeWire-Virtual-Display: Touch/Maus fehlt
 
 **Symptom**: Im funktionierenden Virtual-Display-Stream auf SteamDeck sind keine Touch-Eingaben möglich und der Mauszeiger wird nicht angezeigt.
