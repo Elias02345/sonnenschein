@@ -243,14 +243,18 @@ namespace pw {
       if (requested_framerate > 0) {
         std::string hz_str = std::to_string(static_cast<int>(requested_framerate));
 
+        // Wait a bit for KWin to register the newly created virtual output in its config system
+        std::this_thread::sleep_for(500ms);
+
         std::ostringstream mode_arg;
+        const char at_sign = 0x40; // '@' character, avoided as literal to prevent weird macro/compiler corruption
         mode_arg << "output." << target_output_name << ".mode."
-                 << width << "x" << height << "@" << hz_str;
+                 << width << "x" << height << at_sign << hz_str;
                  
         BOOST_LOG(info) << "KWin direct capture: setting refresh rate via " << mode_arg.str();
         auto mode_res = sonnenschein::vdisplay::run_args({"kscreen-doctor", mode_arg.str()}, "kscreen-doctor mode set");
         if (!mode_res.ok) {
-          BOOST_LOG(warning) << "KWin direct capture: mode set failed: "sv << mode_res.output;
+          BOOST_LOG(warning) << "KWin direct capture: mode set failed: " << mode_res.output;
         }
       }
 

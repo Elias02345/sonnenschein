@@ -780,11 +780,10 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
   - **HDR Option**: HDR wird auf dem Stream noch nicht angeboten.
 
 **E2E Refresh Rate & Headless Fix (2026-05-10 20:45)**:
-- Das hartnäckige Problem der korrupten Refresh-Rate-Strings (`@third-party\build-deps...`) wurde identifiziert: Eine ungünstige Interaktion zwischen C++ `string_view` Literalen (`sv`), dem `@` Zeichen und dem `BOOST_LOG` Makro führte dazu, dass Speicherbereiche des Build-Pfads in den String gemischt wurden.
-- Lösung: Alle `sv` Suffixe in den betroffenen Logging-Statements wurden entfernt.
-- Der `kscreen-doctor mode set` Befehl wird nun sauber als `output.Sonnenschein-XXX.mode.1280x800@90` ausgeführt.
-- KWin reagiert auf diesen Befehl on-the-fly und hebt die Framerate des virtuellen Displays für den laufenden PipeWire-Stream von 60Hz auf 90Hz an.
-- Headless-Mode (Physische Monitore aus) ist voll funktionsfähig und schaltet bei Stream-Ende zurück.
+- Das hartnäckige Problem der korrupten Refresh-Rate-Strings (`@third-party\build-deps...`) wurde identifiziert: In der Windows/WSL Build-Umgebung mit den speziellen `build-deps` Submodules führt das Zeichen `@` in C++ String-Literalen unter bestimmten Bedingungen zu einer Fehlinterpretation durch den Compiler oder das Build-System, wodurch der String durch einen internen Pfad (`sys390.h` aus Boost Predef) ersetzt wird.
+- Lösung: Das `@` Zeichen wird nun nicht mehr als Literal im Source-Code verwendet, sondern zur Laufzeit als Zeichen (`0x40`) eingefügt.
+- Zudem wurde eine Verzögerung von 500ms vor dem `kscreen-doctor mode set` eingebaut, um KWin Zeit zu geben, das neue virtuelle Display in seinem Konfigurationssystem zu registrieren, bevor die Refresh-Rate geändert wird.
+- Headless-Mode (Physische Monitore aus) ist voll funktionsfähig.
 
 ### 9.14 PipeWire-Virtual-Display: Touch/Maus fehlt
 
