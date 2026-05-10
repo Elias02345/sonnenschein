@@ -11,7 +11,7 @@
 
 ## TL;DR — Wo stehen wir gerade
 
-- **Letzter Commit auf `dev`**: [`ad33986`](https://github.com/Elias02345/sonnenschein/commit/ad33986) — `fix(capture): resolve PipeWire timeout and boot failures`
+- **Letzter Commit auf `dev`**: [`91967a6`](https://github.com/Elias02345/sonnenschein/commit/91967a6) — `fix(capture): bypass Portal D-Bus dialogs during boot encoder probe`
 - **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (297 Steps grün) + CachyOS (GCC 16.1.1, RTX 3070, Plasma 6.6.4 Wayland)
 - **Erreichter Meilenstein (Phase 4)**:
   - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, 648 Zeilen)
@@ -23,6 +23,7 @@
   - ✅ D-Bus Signal Timeout behoben (GLib Main Context wird gepumpt)
   - ✅ hwdevice_type Restriktionen für PipeWire gelöst (NVENC Fallback auf System Memory funktioniert)
   - ✅ Fataler Boot-Fehler behoben (PipeWire als Fallback registriert, wenn KMS wegen fehlendem setcap fehlschlägt)
+  - ✅ **D-Bus Timeouts beim Boot behoben**: Portal-Dialog wird während des Encoder-Probes beim Booten übersprungen.
   - ❌ **Portal blockiert durch setcap**: `Unable to open /proc/PID/root` (Muss manuell entfernt werden)
 - **Aktueller Blocker**: `setcap cap_sys_admin+p` (nötig für KMS) blockiert xdg-desktop-portal. PipeWire braucht kein cap_sys_admin. Capabilities müssen mit `sudo setcap -r` entfernt werden. Danach sollte PipeWire fehlerfrei auf Virtual Displays streamen können.
 - **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless ebenfalls unterstützt.
@@ -686,6 +687,7 @@ sudo setcap -r (readlink -f ~/sonnenschein/build/sunshine)  # Capabilities ENTFE
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+91967a6 — fix(capture): bypass Portal D-Bus dialogs during boot encoder probe — 2026-05-10
 ad33986 — fix(capture): resolve PipeWire timeout and boot failures — 2026-05-10
 81e00c3 — docs: Phase 4 status update — PipeWire implemented, portal setcap conflict documented — 2026-05-10
 4fa5376 — fix(capture): bypass boot-time sources bitset for runtime PipeWire override — 2026-05-10
