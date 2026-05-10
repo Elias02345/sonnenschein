@@ -779,6 +779,13 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
   - **Physische Monitore deaktivieren**: Der User fordert, dass bei aktiven Virtual Displays alle physischen Monitore ausgeschaltet werden (Headless-Modus Priorität 1). **(Gefixt am 2026-05-10: `kwin_wayland.cpp` nutzt nun `kscreen-doctor` um physische Monitore abzuschalten und später wiederherzustellen)**.
   - **HDR Option**: HDR wird auf dem Stream noch nicht angeboten.
 
+**E2E Refresh Rate & Headless Fix (2026-05-10 20:45)**:
+- Das hartnäckige Problem der korrupten Refresh-Rate-Strings (`@third-party\build-deps...`) wurde identifiziert: Eine ungünstige Interaktion zwischen C++ `string_view` Literalen (`sv`), dem `@` Zeichen und dem `BOOST_LOG` Makro führte dazu, dass Speicherbereiche des Build-Pfads in den String gemischt wurden.
+- Lösung: Alle `sv` Suffixe in den betroffenen Logging-Statements wurden entfernt.
+- Der `kscreen-doctor mode set` Befehl wird nun sauber als `output.Sonnenschein-XXX.mode.1280x800@90` ausgeführt.
+- KWin reagiert auf diesen Befehl on-the-fly und hebt die Framerate des virtuellen Displays für den laufenden PipeWire-Stream von 60Hz auf 90Hz an.
+- Headless-Mode (Physische Monitore aus) ist voll funktionsfähig und schaltet bei Stream-Ende zurück.
+
 ### 9.14 PipeWire-Virtual-Display: Touch/Maus fehlt
 
 **Symptom**: Im funktionierenden Virtual-Display-Stream auf SteamDeck sind keine Touch-Eingaben möglich und der Mauszeiger wird nicht angezeigt.
