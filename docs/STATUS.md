@@ -11,7 +11,7 @@
 
 ## TL;DR — Wo stehen wir gerade
 
-- **Letzter gepushter Test-Commit auf `dev`**: [`bb3e758`](https://github.com/Elias02345/sonnenschein/commit/bb3e758) — `docs: update STATUS.md with portal source diagnostics`
+- **Letzter Test-Commit auf `dev`**: [`4c63d36`](https://github.com/Elias02345/sonnenschein/commit/4c63d36) — `fix(capture): use KWin direct screencast for virtual outputs`
 - **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (297 Steps grün) + CachyOS (GCC 16.1.1, RTX 3070, Plasma 6.6.4 Wayland)
 - **Erreichter Meilenstein (Phase 4)**:
   - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, aktuell ~1180 Zeilen)
@@ -34,7 +34,7 @@
   - ✅ **Diagnose-/Cursor-Patch validiert**: Portal meldet `available source types=7 cursor modes=7`, `cursor_mode=Embedded` wird angefordert.
   - 🔴 **Mode-Mismatch bestätigt**: Portal-Stream ist `source_type=VIRTUAL`, `logical size=1920x1080`; PipeWire requested `1280x800@90`, negotiated aber `1920x1080`.
   - 🔴 **SteamDeck-Refresh bleibt zu niedrig/inkorrekt**: Client fordert `1280x800x90`, aber Stream läuft über den 1920x1080-KDE-Virtual-Source-Pfad statt über den Sonnenschein-Output.
-  - 🟡 **Fix-Kandidat implementiert**: KWin-Direct-ScreenCast (`zkde_screencast_unstable_v1`) targetet den erzeugten `Sonnenschein-...`-`wl_output` direkt und verweigert den KDE-XDG-`VIRTUAL`-Fallback.
+  - 🟡 **Fix-Kandidat in `4c63d36` implementiert**: KWin-Direct-ScreenCast (`zkde_screencast_unstable_v1`) targetet den erzeugten `Sonnenschein-...`-`wl_output` direkt und verweigert den KDE-XDG-`VIRTUAL`-Fallback.
   - ✅ **WSL-Build grün**: `/root/snsbuild`, `cmake --build . --target sunshine -j8`, danach `ninja: no work to do`.
 - **Aktueller Blocker**: CachyOS muss jetzt validieren, ob KWin den Direct-ScreenCast-Zugriff erlaubt und PipeWire dann `1280x800@90` statt `1920x1080` negotiated. Erfolgsziel: kein KDE-Portal-Dialog oder zumindest kein `source_type=VIRTUAL`; Log muss `KWin direct capture: streaming output 'Sonnenschein-...'` zeigen.
 - **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless ebenfalls unterstützt.
@@ -256,7 +256,7 @@ Legende: ✅ done · 🟡 in_progress · 🔴 blocked · ⏸ pending
 
 | Aufgabe | Status | Commit | Notes |
 |---|---|---|---|
-| Submodules eingebunden via `_reference/add_submodules.sh` + später Plasma-Protokolle | ✅ | `a95f2ee` + aktueller KWin-Fix | inkl. moonlight-common-c/enet rekursiv, tray gepinnt auf `7936cb35`, neu `third-party/plasma-wayland-protocols` für KWin Direct ScreenCast |
+| Submodules eingebunden via `_reference/add_submodules.sh` + später Plasma-Protokolle | ✅ | `a95f2ee` + `4c63d36` | inkl. moonlight-common-c/enet rekursiv, tray gepinnt auf `7936cb35`, neu `third-party/plasma-wayland-protocols` für KWin Direct ScreenCast |
 | Build-Deps in WSL2 installiert | ✅ | (manuell) | Liste in `docs/building.md` |
 | **libva 2.22 from source** in WSL2 | ✅ | (manuell) | Ubuntu 24.04 Stock libva 2.20 fehlt `vaMapBuffer2`, das build-deps' FFmpeg braucht |
 | Node 20 in WSL2 (statt Node 18) | ✅ | (manuell) | Vite 6 + @vitejs/plugin-vue 6 brauchen Node ≥20.19 (`crypto.hash`) |
@@ -751,7 +751,7 @@ PipeWire: negotiated size differs from client request 1280x800 -> 1920x1080
 ```
 Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE-XDG-`VIRTUAL`-Quelle, nicht von unserem PipeWire-Formatrequest.
 
-**Fix-Kandidat 2026-05-10**:
+**Fix-Kandidat `4c63d36` (2026-05-10)**:
 - `src/platform/linux/pwgrab.cpp` probiert bei benanntem Virtual Display zuerst KWin Direct ScreenCast (`zkde_screencast_unstable_v1`) statt `xdg-desktop-portal`.
 - Der Code enumeriert `wl_output`-Namen, sucht exakt `Sonnenschein-...`, fordert Embedded Cursor an und verbindet den daraus gelieferten PipeWire-Node über den lokalen PipeWire-Core.
 - Wenn der Ziel-Output nicht gefunden wird oder KWin den Zugriff verweigert, fällt Sonnenschein **nicht** mehr auf die KDE-XDG-`VIRTUAL`-Quelle zurück, weil dieser Pfad validiert 1920x1080 erzwingt.
@@ -791,6 +791,7 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+4c63d36 — fix(capture): use KWin direct screencast for virtual outputs — 2026-05-10
 bb3e758 — docs: update STATUS.md with portal source diagnostics — 2026-05-10
 447dc8b — fix(capture): log portal source and request cursor — 2026-05-10
 12a17da — docs: update STATUS.md with PipeWire format fix — 2026-05-10
@@ -826,7 +827,7 @@ a95f2ee — Phase 1.3: Init submodules + pin tray pre-Qt — 2026-05-09
 
 `main` Branch zeigt nur auf `235920b` (initial import). `dev` ist die aktive Entwicklungs-Linie und liegt ca. 30+ Commits vor `main`.
 
-**Auf `dev` aktuell gepushter Test-HEAD = `bb3e758`** (Stand 2026-05-10). Der KWin-Direktcapture-Fix ist der nächste zu pushende Code-Stand.
+**Auf `dev` aktueller Test-HEAD = `4c63d36`** (Stand 2026-05-10). Nächster Schritt ist CachyOS-Validierung des KWin-Direktcapture-Pfads.
 
 ---
 
@@ -876,7 +877,7 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 - `src/process.cpp` (PATCH) — Linux-Branch in `execute()` + `terminate()`
 
 ### C++ — PipeWire Capture (Phase 4)
-- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; aktueller Fix-Kandidat nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback.
+- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; `4c63d36` nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback.
 
 ### Submodule-Pin
 - `third-party/tray/` — gepinnt auf `7936cb35` (vor `.gitmodules`-Datei; gitlink im Tree)
