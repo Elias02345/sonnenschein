@@ -5,13 +5,13 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-10 — **Phase 4 (PipeWire-Capture) implementiert. Portal-Zugriff wird durch setcap blockiert — muss ohne setcap getestet werden.**
+**Stand:** 2026-05-10 — **Phase 4 (PipeWire-Capture) implementiert. Portal-Dialog erreicht; OpenPipeWireRemote-Fix muss auf CachyOS getestet werden.**
 
 ---
 
 ## TL;DR — Wo stehen wir gerade
 
-- **Letzter Commit auf `dev`**: [`60dac9b`](https://github.com/Elias02345/sonnenschein/commit/60dac9b) — `fix(capture): fix D-Bus Portal token/path mismatch causing signal timeouts`
+- **Letzter Commit auf `dev`**: [`3c730a4`](https://github.com/Elias02345/sonnenschein/commit/3c730a4) — `docs: update STATUS.md with D-Bus token/path mismatch fix`
 - **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (297 Steps grün) + CachyOS (GCC 16.1.1, RTX 3070, Plasma 6.6.4 Wayland)
 - **Erreichter Meilenstein (Phase 4)**:
   - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, 675 Zeilen)
@@ -25,8 +25,9 @@
   - ✅ Fataler Boot-Fehler behoben (PipeWire als Fallback registriert, wenn KMS wegen fehlendem setcap fehlschlägt)
   - ✅ **D-Bus Timeouts beim Boot & Stream-Start behoben**: Portal-Dialog wird während des Encoder-Probes (Boot & Pre-Flight) übersprungen.
   - ✅ **D-Bus Token/Path Mismatch gefixt**: `make_request_path()` und `handle_token` verwenden nun denselben Token. Portal-Response-Signale werden jetzt korrekt empfangen.
-  - ❌ **Portal blockiert durch setcap**: `Unable to open /proc/PID/root` (Muss manuell entfernt werden)
-- **Aktueller Blocker**: D-Bus Portal Token/Path war falsch generiert (gefixt in `60dac9b`). Muss auf CachyOS neu gebaut und getestet werden. `setcap` muss weiterhin entfernt bleiben.
+  - ✅ **KDE-Portal-Dialog erreicht**: Maintainer konnte den virtuellen Bildschirm im KDE-Screen-Record-Dialog auswählen.
+  - 🟡 **OpenPipeWireRemote-Fix gepatcht**: leeres `a{sv}` Options-Argument wird jetzt korrekt gebaut; CachyOS-Test steht aus.
+- **Aktueller Blocker**: CachyOS muss den `OpenPipeWireRemote`-Fix neu bauen und testen. `setcap` muss weiterhin entfernt bleiben, sonst blockiert xdg-desktop-portal.
 - **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless ebenfalls unterstützt.
 
 ---
@@ -55,6 +56,7 @@
 11. [Datei-Inventar (was wir geschrieben haben)](#11-datei-inventar-was-wir-geschrieben-haben)
 12. [Was als nächstes — konkrete Schritte](#12-was-als-nächstes--konkrete-schritte)
 13. [Update-Konventionen für diese Datei](#13-update-konventionen-für-diese-datei)
+14. [Deep-Dive: PipeWire & Portal Integration (Phase 4)](#14-deep-dive-pipewire--portal-integration-phase-4)
 
 ---
 
@@ -681,6 +683,31 @@ sudo setcap -r (readlink -f ~/sonnenschein/build/sunshine)  # Capabilities ENTFE
 
 **Zukunft**: Phase-3-Installer wird das automatisch via udev-Rules + systemd-Service-Config (`AmbientCapabilities=CAP_SYS_ADMIN`) setzen. PipeWire-Capture braucht kein cap_sys_admin.
 
+### 9.11 WSL root + Windows-Checkout: Git `dubious ownership`
+
+**Symptom**: Beim WSL-Build aus `/root/snsbuild` gegen den Source unter `/mnt/c/Users/cooki/Documents/ClaudeCode/sonnenschein` läuft der CMake-Build durch, aber Git-Metadaten-Abfragen können warnen oder fehlschlagen (`fatal: detected dubious ownership in repository ...`, teils als nicht-fatales `ERROR: Got git error while fetching tags: 128` im CMake-Output).
+
+**Ursache**: WSL läuft als `root`, der Checkout liegt aber auf dem Windows-Mount und gehört aus Git-Sicht einem anderen Owner.
+
+**Workaround (einmalig in WSL als root)**:
+```bash
+git config --global --add safe.directory /mnt/c/Users/cooki/Documents/ClaudeCode/sonnenschein
+```
+
+**Status**: Nicht build-blockierend. WSL-Build am 2026-05-10 war trotz Warnung erfolgreich (`sunshine-0.0.0` + Symlink `sunshine` in `/root/snsbuild`).
+
+### 9.12 PipeWire Portal: Crash nach Auswahl des virtuellen Bildschirms
+
+**Symptom**: Auf CachyOS/Plasma öffnet sich erstmals der KDE-Screen-Record-Portal-Dialog. Nach Auswahl des virtuellen Bildschirms loggt Sonnenschein `Portal: stream node_id=127` und bricht direkt danach mit GLib ab:
+```text
+GLib-ERROR **: g_variant_new: expected array GVariantBuilder but the built value has type '(null)'
+terminated by signal SIGABRT
+```
+
+**Ursache**: `OpenPipeWireRemote` baut das leere `a{sv}`-Options-Argument falsch. Der Code übergibt `g_variant_builder_end(...)` an eine `g_variant_new("(oa{sv})", ...)`-Formatstelle, die einen `GVariantBuilder*` erwartet.
+
+**Status**: Reproduziert durch Maintainer-Log am 2026-05-10. Lokal gepatcht: `OpenPipeWireRemote` übergibt jetzt wie `CreateSession`/`SelectSources`/`Start` einen echten `GVariantBuilder*` an `g_variant_new("(oa{sv})", ...)`. Isolierter WSL-GLib-Test für die korrigierte Variante ist grün; vollständiger WSL-Build hängt aktuell beim Kompilieren von `pwgrab.cpp` auf dem Windows-Mount und muss auf CachyOS gegengeprüft werden.
+
 ---
 
 ## 10. Letzte Commits chronologisch
@@ -688,6 +715,7 @@ sudo setcap -r (readlink -f ~/sonnenschein/build/sunshine)  # Capabilities ENTFE
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+3c730a4 — docs: update STATUS.md with D-Bus token/path mismatch fix — 2026-05-10
 60dac9b — fix(capture): fix D-Bus Portal token/path mismatch causing signal timeouts — 2026-05-10
 84347f8 — docs: update STATUS.md with stream probe fix — 2026-05-10
 af603b6 — fix(capture): bypass Portal D-Bus dialogs during stream pre-flight encoder probe — 2026-05-10
@@ -716,7 +744,7 @@ a95f2ee — Phase 1.3: Init submodules + pin tray pre-Qt — 2026-05-09
 
 `main` Branch zeigt nur auf `235920b` (initial import). `dev` ist 11 Commits voraus.
 
-**Auf `dev` aktuell HEAD = `8126f26`** (Stand 2026-05-10).
+**Auf `dev` aktuell HEAD = `3c730a4`** (Stand 2026-05-10).
 
 ---
 
@@ -773,14 +801,14 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 In Reihenfolge der Priorität.
 
-### A) Virtual-Display-Trigger testen (Phase 2D, nächster Schritt)
+### A) PipeWire-Portal-Fix auf CachyOS testen (Phase 4, nächster Schritt)
 
-1. **Auf CachyOS**: `headless_mode = true` in `~/.config/sunshine/sunshine.conf` setzen (Datei editieren oder anlegen falls nicht vorhanden). Alternativ per-App in `apps.json` mit `"virtual_display": true`.
-2. Sonnenschein neu starten: `./build/sunshine-0.0.0 2>&1 | tee ~/sonnenschein-test.log`
+1. **Auf CachyOS**: neuesten `dev` ziehen, neu bauen, `setcap` entfernen.
+2. Sonnenschein aus einer KDE-Konsole in der Plasma-Wayland-Sitzung starten: `./build/sunshine 2>&1 | tee ~/sonnenschein-test.log`.
 3. SteamDeck via Moonlight verbinden → "Desktop" starten.
-4. **Beobachten**: Logs müssen `Sonnenschein: virtual display 'Sonnenschein-XXXXXXXX' created via backend 'kwin_wayland'` zeigen.
-5. `kscreen-doctor outputs` → neuer Output muss in der Liste sein.
-6. Disconnect → Output muss verschwinden.
+4. Im KDE-Screen-Record-Portal-Dialog den virtuellen Bildschirm auswählen.
+5. **Beobachten**: Nach `Portal: stream node_id=...` muss nun `Portal: PipeWire fd=... node_id=...` kommen, kein GLib-`SIGABRT`.
+6. Danach muss `PipeWire: stream connecting to node ...` und anschließend Frame-/Stream-Aktivität erscheinen. Logs bei Fehler direkt schicken.
 
 ### B) Phase 1.6 — CMake-Rebrand (nach 2D)
 
@@ -824,3 +852,40 @@ Spätestens Phase 7. Ein Script `scripts/sync-from-sunshine.sh` automatisieren, 
 **Regel 5**: Wenn ein Commit, der hier erwähnt ist, gerebased oder amended wird: hier den Hash aktualisieren. Dieser Markdown ist die Autorität für "welcher Commit hat was getan", nicht ein vergessenes Sticky-Note.
 
 **Regel 6**: Wenn unklar ob etwas in STATUS.md gehört: lieber rein als raus. Diese Datei ist der einzige Schutz gegen Multi-Session-Kontext-Verlust.
+
+---
+
+## 14. Deep-Dive: PipeWire & Portal Integration (Phase 4)
+
+Die Implementierung in `pwgrab.cpp` nutzt das `org.freedesktop.portal.ScreenCast` Interface. Hier sind die technischen Details der kritischen Komponenten:
+
+### D-Bus Portal Handshake
+1. **CreateSession**: Erstellt eine Session. Wir übergeben einen `session_handle_token`.
+2. **SelectSources**: Wählt die Quelle aus. Wir setzen `types=1` (Monitor) und `persist_mode=2` (Persistent). Hier erscheint beim ersten Mal der KDE-Dialog.
+3. **Start**: Aktiviert den Stream. Gibt die PipeWire `node_id` zurück.
+
+### Das Token-System (Fix 60dac9b)
+Jeder Portal-Request ist asynchron. Man abonniert ein `Response`-Signal auf einem spezifischen Pfad:
+`/org/freedesktop/portal/desktop/request/SENDER/TOKEN`
+
+- **SENDER**: Der eindeutige D-Bus Name (z.B. `1_42`).
+- **TOKEN**: Ein von uns gewählter String (z.B. `sonnenschein_1`).
+
+**Fehler**: Vorher wurde für den Pfad und den `handle_token`-Parameter jeweils ein *neuer* Token generiert. Dadurch hörte Sonnenschein auf Pfad `.../sonnenschein_2`, während das Portal die Antwort an `.../sonnenschein_1` schickte. Dies führte zu den 10s Timeouts.
+
+### GLib Main Context Pumping
+GIO (GDBus) benötigt einen laufenden Main-Loop, um Signale (wie die Portal-Antwort) zuzustellen. Da Sonnenschein keinen globalen GLib-Loop nutzt, pumpen wir den Default-Context manuell in `wait_response()`:
+```cpp
+while (!response_received) {
+    g_main_context_iteration(nullptr, FALSE);
+    std::this_thread::sleep_for(10ms);
+}
+```
+
+### PipeWire & DMA-BUF
+Der Stream wird mit `PW_KEY_STREAM_CAPTURE_PROXY` und DMA-BUF Support initialisiert.
+- **Zero-Copy**: PipeWire liefert Dateideskriptoren für GPU-Buffer.
+- **EGL-Import**: Diese FDs werden via `eglCreateImageKHR` in GL-Texturen importiert, die dann direkt vom Encoder (NVENC/VAAPI) gelesen werden können.
+
+### Encoder Probing (Dummy-Mode)
+Sonnenschein testet Encoder durch Instanziierung eines Displays. Um zu verhindern, dass bei jedem Test ein Portal-Dialog aufpoppt, erkennt `pw_display_t::init()` über den globalen `video::is_encoder_probing_active` Flag, ob es sich um einen Test handelt. Falls ja, wird die D-Bus-Kommunikation übersprungen und ein valides Dummy-Display simuliert.

@@ -262,12 +262,13 @@ namespace pw {
       // Get PipeWire fd
       GError *fd_err = nullptr;
       GUnixFDList *fd_list = nullptr;
+      auto fd_opts = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
       auto fd_result = g_dbus_connection_call_with_unix_fd_list_sync(
         conn, PORTAL_BUS_NAME, PORTAL_OBJECT, PORTAL_SCREENCAST,
         "OpenPipeWireRemote",
-        g_variant_new("(oa{sv})", session_handle.c_str(),
-                       g_variant_builder_end(g_variant_builder_new(G_VARIANT_TYPE("a{sv}")))),
+        g_variant_new("(oa{sv})", session_handle.c_str(), fd_opts),
         nullptr, G_DBUS_CALL_FLAGS_NONE, 5000, nullptr, &fd_list, nullptr, &fd_err);
+      g_variant_builder_unref(fd_opts);
 
       if (!fd_result) {
         BOOST_LOG(error) << "Portal: OpenPipeWireRemote failed: "sv << (fd_err ? fd_err->message : "unknown");
@@ -275,11 +276,24 @@ namespace pw {
         return false;
       }
 
+      if (!fd_list) {
+        BOOST_LOG(error) << "Portal: OpenPipeWireRemote returned no fd list"sv;
+        g_variant_unref(fd_result);
+        return false;
+      }
+
       gint32 fd_index = 0;
       g_variant_get(fd_result, "(h)", &fd_index);
-      pw_fd = g_unix_fd_list_get(fd_list, fd_index, nullptr);
+      GError *get_fd_err = nullptr;
+      pw_fd = g_unix_fd_list_get(fd_list, fd_index, &get_fd_err);
       g_variant_unref(fd_result);
       g_object_unref(fd_list);
+
+      if (pw_fd < 0) {
+        BOOST_LOG(error) << "Portal: failed to get PipeWire fd: "sv << (get_fd_err ? get_fd_err->message : "unknown");
+        if (get_fd_err) g_error_free(get_fd_err);
+        return false;
+      }
 
       BOOST_LOG(info) << "Portal: PipeWire fd="sv << pw_fd << " node_id="sv << pw_node_id;
       ready = (pw_fd >= 0 && pw_node_id > 0);
