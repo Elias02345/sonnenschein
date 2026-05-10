@@ -388,12 +388,14 @@ namespace proc {
 
           launch_session->virtual_display = true;
           this->virtual_display = true;
-          this->display_name = _vdisplay_handle->output_name;
-          // On Linux, the virtual display exists only at compositor level (KWin).
-          // KMS capture can't see it — it only sees DRM connectors.
-          // Route capture to the primary monitor (index "0") which, in headless mode,
-          // is the user's only active output anyway.
-          // TODO(Phase 4): Implement PipeWire capture to target virtual outputs directly.
+          // Keep the real vdisplay name for lifecycle management only.
+          // For capture routing, video.cpp uses proc::proc.display_name
+          // directly as the KMS monitor index (via util::from_view()).
+          // The virtual display exists only at compositor level (KWin),
+          // not as a DRM connector. Route capture to primary monitor "0".
+          // TODO(Phase 4): Implement PipeWire capture to target virtual
+          // outputs directly, then use _vdisplay_handle->output_name here.
+          this->display_name = "0";
           config::video.output_name = "0";
         } else {
           BOOST_LOG(warning) << "Sonnenschein: virtual-display backend '"sv
