@@ -755,8 +755,11 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
 - `src/platform/linux/pwgrab.cpp` probiert bei benanntem Virtual Display zuerst KWin Direct ScreenCast (`zkde_screencast_unstable_v1`) statt `xdg-desktop-portal`.
 - Der Code enumeriert `wl_output`-Namen, sucht exakt `Sonnenschein-...`, fordert Embedded Cursor an und verbindet den daraus gelieferten PipeWire-Node über den lokalen PipeWire-Core.
 - Wenn der Ziel-Output nicht gefunden wird oder KWin den Zugriff verweigert, fällt Sonnenschein **nicht** mehr auf die KDE-XDG-`VIRTUAL`-Quelle zurück, weil dieser Pfad validiert 1920x1080 erzwingt.
-- CMake generiert das Protokoll aus `third-party/plasma-wayland-protocols/src/protocols/zkde-screencast-unstable-v1.xml` hinter `SUNSHINE_ENABLE_KWIN=ON`.
-- WSL2-Build grün: `/root/snsbuild`, explizites Reconfigure + `cmake --build . --target sunshine -j8`, danach `ninja: no work to do`.
+
+**Weiterer Fix (2026-05-10 18:40)**:
+- CachyOS-Test mit `4c63d36` scheiterte, da `Sonnenschein-00E8F1E1` nicht als Output-Name gefunden wurde. KWin verwendet intern vermutlich `Virtual-1` als `wl_output::name`. 
+- `pwgrab.cpp` prüft nun zusätzlich `wl_output::description` und nutzt einen Fallback auf `Virtual-*`, falls kein exakter Name gefunden wird.
+- Behebung eines C++-Formatierungsfehlers, bei dem `kwin_wayland.cpp` ungültige Strings ins Log schrieb (`@third-party\build-deps...`).
 
 ### 9.14 PipeWire-Virtual-Display: Touch/Maus fehlt
 
@@ -976,3 +979,4 @@ Der Stream wird mit `PW_KEY_STREAM_CAPTURE_PROXY` und DMA-BUF Support initialisi
 
 ### Encoder Probing (Dummy-Mode)
 Sonnenschein testet Encoder durch Instanziierung eines Displays. Um zu verhindern, dass bei jedem Test ein Portal-Dialog aufpoppt, erkennt `pw_display_t::init()` über den globalen `video::is_encoder_probing_active` Flag, ob es sich um einen Test handelt. Falls ja, wird die D-Bus-Kommunikation übersprungen und ein valides Dummy-Display simuliert.
+Falls ja, wird die D-Bus-Kommunikation übersprungen und ein valides Dummy-Display simuliert.

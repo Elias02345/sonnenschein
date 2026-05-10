@@ -96,6 +96,7 @@ namespace pw {
     struct output_t {
       wl_output *output = nullptr;
       std::string name;
+      std::string description;
       int width = 0;
       int height = 0;
       int x = 0;
@@ -167,13 +168,29 @@ namespace pw {
     bool start(const std::string &target_output_name) {
       wl_output *target = nullptr;
       output_t *params = nullptr;
+      
+      // 1. Try exact match by name or description
       for (auto &[output, candidate] : outputs) {
         BOOST_LOG(info) << "KWin direct capture: found output '"sv << candidate.name
-                        << "' "sv << candidate.width << "x"sv << candidate.height
+                        << "' (desc: '"sv << candidate.description << "') "sv
+                        << candidate.width << "x"sv << candidate.height
                         << " at "sv << candidate.x << ","sv << candidate.y;
-        if (candidate.name == target_output_name) {
+        if (candidate.name == target_output_name || candidate.description == target_output_name) {
           target = output;
           params = &candidate;
+        }
+      }
+
+      // 2. If not found, try fallback: the first output starting with 'Virtual-'
+      // or description containing 'Virtual'
+      if (!target) {
+        for (auto &[output, candidate] : outputs) {
+          if (candidate.name.find("Virtual-") == 0 || candidate.description.find("Virtual") != std::string::npos) {
+            BOOST_LOG(info) << "KWin direct capture: using fallback virtual output '"sv << candidate.name << "'";
+            target = output;
+            params = &candidate;
+            break;
+          }
         }
       }
 
@@ -363,7 +380,10 @@ namespace pw {
       self->outputs.at(output).name = name ? name : "";
     }
 
-    static void on_output_description(void *, wl_output *, const char *) {}
+    static void on_output_description(void *data, wl_output *output, const char *description) {
+      auto *self = static_cast<kwin_session_t *>(data);
+      self->outputs.at(output).description = description ? description : "";
+    }
 
     static constexpr wl_output_listener output_listener {
       .geometry = on_output_geometry,

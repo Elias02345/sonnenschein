@@ -132,8 +132,9 @@ namespace sonnenschein::vdisplay::backends {
             BOOST_LOG(warning)
                 << "Sonnenschein vdisplay (kwin): output '" << disp
                 << "' already exists, removing and retrying.";
-            run_args({"kscreen-doctor", "remove-virtual-output", disp},
+            auto cleanup = run_args({"kscreen-doctor", "remove-virtual-output", disp},
                      "kscreen-doctor remove-virtual-output (cleanup)");
+            (void)cleanup;
             const auto retry = run_args(
                 {"kscreen-doctor",
                  "add-virtual-output",
@@ -153,6 +154,8 @@ namespace sonnenschein::vdisplay::backends {
                 << add.output;
             return std::nullopt;
           }
+        } else {
+          BOOST_LOG(info) << "Sonnenschein vdisplay (kwin): kscreen-doctor add-virtual-output returned: " << add.output;
         }
 
         // 2. Best-effort: set the exact mode, including refresh rate.
@@ -215,10 +218,11 @@ namespace sonnenschein::vdisplay::backends {
           };
         }
 
+        std::string hz_str = format_refresh_hz(req.refresh_mhz);
         BOOST_LOG(info)
             << "Sonnenschein vdisplay (kwin): created '" << disp << "' "
             << req.width << "x" << req.height
-            << "@" << format_refresh_hz(req.refresh_mhz) << " Hz"
+            << "@" << hz_str.c_str() << " Hz"
             << (hdr_active ? " HDR10" : " SDR");
         return h;
       }
