@@ -165,7 +165,7 @@ namespace pw {
       return true;
     }
 
-    bool start(const std::string &target_output_name, int requested_width, int requested_height) {
+    bool start(const std::string &target_output_name, int requested_width, int requested_height, double requested_framerate) {
       wl_output *target = nullptr;
       output_t *params = nullptr;
       
@@ -939,7 +939,7 @@ namespace pw {
 
       BOOST_LOG(info) << "PipeWire: requesting format "sv
                       << requested_width << "x"sv << requested_height
-                      << "@"sv << requested_framerate;
+                      << "@"sv << static_cast<uint32_t>(requested_framerate);
 
       auto *fmt = static_cast<const spa_pod *>(spa_pod_builder_add_object(
         &builder, SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat,
@@ -1028,7 +1028,7 @@ namespace pw {
       // the same output and has been observed to negotiate 1920x1080.
       if (!display_name.empty()) {
         kwin_direct = std::make_unique<kwin_session_t>();
-        if (kwin_direct->init() && kwin_direct->start(display_name, config.width, config.height)) {
+        if (kwin_direct->init() && kwin_direct->start(display_name, config.width, config.height, config.framerate)) {
           pipewire_fd = -1;
           pipewire_node_id = kwin_direct->node_id;
           BOOST_LOG(info) << "KWin direct capture: selected for output '"sv << display_name << "'"sv;

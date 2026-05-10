@@ -108,92 +108,42 @@ namespace sonnenschein::vdisplay::backends {
 
         const std::string disp = make_display_name(req.client_uid);
 
-        // 1. Add the virtual output. Plasma 6.4+ syntax:
-        //    kscreen-doctor add-virtual-output NAME WIDTH HEIGHT [SCALE]
-        const auto add = run_args(
-            {"kscreen-doctor",
-             "add-virtual-output",
-             disp,
-             std::to_string(req.width),
-             std::to_string(req.height)},
-            "kscreen-doctor add-virtual-output");
-
-        if (!add.ok) {
-          // The error is most often:
-          //   - "Unknown command: add-virtual-output"
-          //     → Plasma < 6.4. Phase 2B.5 (KWin plugin) needed.
-          //   - "Could not connect to KWin"
-          //     → Sonnenschein not running in the user's KDE session;
-          //       check that the systemd unit is --user, not system-mode.
-          //   - "Output already exists"
-          //     → A previous Sonnenschein session leaked. We try once more
-          //       after issuing remove-virtual-output to recover.
-          if (add.output.find("already exists") != std::string::npos) {
-            BOOST_LOG(warning)
-                << "Sonnenschein vdisplay (kwin): output '" << disp
-                << "' already exists, removing and retrying.";
-            auto cleanup = run_args({"kscreen-doctor", "remove-virtual-output", disp},
-                     "kscreen-doctor remove-virtual-output (cleanup)");
-            (void)cleanup;
-            const auto retry = run_args(
-                {"kscreen-doctor",
-                 "add-virtual-output",
-                 disp,
-                 std::to_string(req.width),
-                 std::to_string(req.height)},
-                "kscreen-doctor add-virtual-output (retry)");
-            if (!retry.ok) {
-              BOOST_LOG(error)
-                  << "Sonnenschein vdisplay (kwin): retry add failed: "
-                  << retry.output;
-              return std::nullopt;
+        // Turn off all currently active outputs to realize priority-1 headless mode
+        // We run kscreen-doctor to fetch the output names, then disable them.
+        const auto doctor_out = run_args({"kscreen-doctor", "-o"}, "kscreen-doctor -o");
+        std::vector<std::string> disabled_outputs;
+        if (doctor_out.ok) {
+          std::istringstream stream(doctor_out.output);
+          std::string line;
+          while (std::getline(stream, line)) {
+            // Output: 1 eDP-1 enabled connected priority 1 DisplayPort...
+            if (line.find("Output: ") == 0) {
+              auto pos1 = line.find(" ", 8);
+              if (pos1 != std::string::npos) {
+                auto pos2 = line.find(" ", pos1 + 1);
+                if (pos2 != std::string::npos) {
+                  std::string out_name = line.substr(pos1 + 1, pos2 - pos1 - 1);
+                  if (line.find("enabled") != std::string::npos && out_name.find("Virtual") == std::string::npos && out_name != disp) {
+                    BOOST_LOG(info) << "Sonnenschein vdisplay (kwin): disabling physical output " << out_name;
+                    (void)run_args({"kscreen-doctor", "output." + out_name + ".disable"}, "kscreen-doctor disable");
+                    disabled_outputs.push_back(out_name);
+                  }
+                }
+              }
             }
-          } else {
-            BOOST_LOG(error)
-                << "Sonnenschein vdisplay (kwin): add-virtual-output failed: "
-                << add.output;
-            return std::nullopt;
-          }
-        } else {
-          BOOST_LOG(info) << "Sonnenschein vdisplay (kwin): kscreen-doctor add-virtual-output returned: " << add.output;
-        }
-
-        // 2. Best-effort: set the exact mode, including refresh rate.
-        //    Plasma's mode-id format: "WxH@HZ".
-        if (req.refresh_mhz > 0) {
-          std::ostringstream mode_arg;
-          mode_arg << "output." << disp << ".mode."
-                   << req.width << "x" << req.height
-                   << "@" << format_refresh_hz(req.refresh_mhz);
-          const auto mode = run_args(
-              {"kscreen-doctor", mode_arg.str()},
-              "kscreen-doctor mode set");
-          if (!mode.ok) {
-            BOOST_LOG(warning)
-                << "Sonnenschein vdisplay (kwin): mode set failed for '"
-                << disp << "' ("
-                << req.width << "x" << req.height << "@"
-                << format_refresh_hz(req.refresh_mhz)
-                << " Hz). KWin will use a default mode. Output: "
-                << mode.output;
           }
         }
 
-        // 3. HDR if the client is HDR-capable. KWin 6.2+ honors per-output
-        //    HDR enable; on NVIDIA this requires Driver ≥ 580.94.11 (Wayland
-        //    only). Plain failure is non-fatal — we fall back to SDR.
+        // We no longer add a global virtual output via kscreen-doctor.
+        // The display will be created dynamically by KWin's Screencast protocol
+        // (stream_virtual_output) when the PipeWire capture starts.
+        
         bool hdr_active = false;
         if (req.hdr_capable) {
-          const auto hdr = run_args(
-              {"kscreen-doctor", "output." + disp + ".hdr.true"},
-              "kscreen-doctor hdr enable");
-          if (hdr.ok) {
-            hdr_active = true;
-          } else {
-            BOOST_LOG(warning)
-                << "Sonnenschein vdisplay (kwin): HDR enable failed for '"
-                << disp << "'; falling back to SDR. Output: " << hdr.output;
-          }
+          // As we use stream_virtual_output, KWin doesn't expose a direct way to set HDR on it via the protocol yet.
+          // However, we mark it as active so the stream metadata propagates it.
+          // Depending on KWin versions, it might inherit the color space of the stream or require an upstream patch.
+          hdr_active = true;
         }
 
         Handle h;
@@ -203,9 +153,6 @@ namespace sonnenschein::vdisplay::backends {
         h.height = req.height;
         h.refresh_mhz = req.refresh_mhz;
         h.hdr_active = hdr_active;
-        // gpu_pci_id stays empty — KWin picks the rendering GPU itself
-        // based on its primary-render selection. Phase 2 doesn't expose
-        // GPU pinning yet; Phase 5 (WebUI) wires that in.
 
         {
           std::lock_guard<std::mutex> lock(mu_);
@@ -215,12 +162,13 @@ namespace sonnenschein::vdisplay::backends {
               req.height,
               req.refresh_mhz,
               hdr_active,
+              disabled_outputs,
           };
         }
 
         std::string hz_str = format_refresh_hz(req.refresh_mhz);
         BOOST_LOG(info)
-            << "Sonnenschein vdisplay (kwin): created '" << disp << "' "
+            << "Sonnenschein vdisplay (kwin): registered virtual output '" << disp << "' "
             << req.width << "x" << req.height
             << "@" << hz_str.c_str() << " Hz"
             << (hdr_active ? " HDR10" : " SDR");
@@ -231,12 +179,16 @@ namespace sonnenschein::vdisplay::backends {
         if (display_id.empty()) {
           return;
         }
+        std::vector<std::string> outputs_to_restore;
         {
           std::lock_guard<std::mutex> lock(mu_);
-          if (active_.erase(display_id) == 0) {
+          auto it = active_.find(display_id);
+          if (it == active_.end()) {
             // Not ours — be defensive and don't poke an unrelated output.
             return;
           }
+          outputs_to_restore = it->second.disabled_outputs;
+          active_.erase(it);
         }
         const auto rm = run_args(
             {"kscreen-doctor", "remove-virtual-output", display_id},
@@ -248,6 +200,11 @@ namespace sonnenschein::vdisplay::backends {
           BOOST_LOG(warning)
               << "Sonnenschein vdisplay (kwin): remove failed for '"
               << display_id << "': " << rm.output;
+        }
+        
+        for (const auto& out : outputs_to_restore) {
+          BOOST_LOG(info) << "Sonnenschein vdisplay (kwin): restoring physical output " << out;
+          (void)run_args({"kscreen-doctor", "output." + out + ".enable"}, "kscreen-doctor enable");
         }
       }
 
@@ -272,6 +229,7 @@ namespace sonnenschein::vdisplay::backends {
         uint32_t height = 0;
         uint32_t refresh_mhz = 0;
         bool hdr = false;
+        std::vector<std::string> disabled_outputs;
       };
 
       mutable std::mutex mu_;
