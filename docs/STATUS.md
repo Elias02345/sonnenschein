@@ -5,23 +5,24 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-10 — **Phase 2 komplett abgeschlossen. Architektur-Erkenntnis: KMS kann keine Virtual Displays capturen → PipeWire-Capture wird benötigt (Phase 4).**
+**Stand:** 2026-05-10 — **Phase 4 (PipeWire-Capture) implementiert. Portal-Zugriff wird durch setcap blockiert — muss ohne setcap getestet werden.**
 
 ---
 
 ## TL;DR — Wo stehen wir gerade
 
-- **Letzter Commit auf `dev`**: [`71cdac3`](https://github.com/Elias02345/sonnenschein/commit/71cdac3) — `fix(capture): route display_name to KMS index, not vdisplay name`
-- **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (296/296 Steps grün) + CachyOS (GCC 16.1.1, RTX 3070, Plasma 6.6.4 Wayland)
-- **Erreichter Meilenstein (Phase 2)**:
-  - ✅ Virtual Display `Sonnenschein-00E8F1E1` wird korrekt via `kscreen-doctor` erzeugt
-  - ✅ Cleanup beim Disconnect, Re-Create bei erneutem Connect
-  - ✅ Capture-Routing-Fehler behoben (kein `Couldn't find monitor` mehr)
-  - ✅ Stream CachyOS → SteamDeck funktioniert (Screen Mirroring)
-  - ❌ **KMS kann Virtual Displays nicht capturen** — architektonische Grenze
-- **Architektur-Erkenntnis**: `kscreen-doctor add-virtual-output` erzeugt Outputs auf **Compositor-Ebene** (KWin). Diese existieren NICHT als DRM/KMS-Connectors. KMS-Capture (`kmsgrab.cpp`) kann nur physische Connectors (HDMI, DP) sehen → kann den Virtual Display prinzipbedingt nicht capturen.
-- **Nächster Schritt**: **Phase 4 — PipeWire-Capture-Backend**. Einziger Weg, Virtual Displays auf Wayland zu capturen. Danach erst ist der Use-Case "physische Monitore deaktivieren → Virtual Display capturen" möglich.
-- **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless (kein physischer Monitor) ebenfalls unterstützt.
+- **Letzter Commit auf `dev`**: [`4fa5376`](https://github.com/Elias02345/sonnenschein/commit/4fa5376) — `fix(capture): bypass boot-time sources bitset for runtime PipeWire override`
+- **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (297 Steps grün) + CachyOS (GCC 16.1.1, RTX 3070, Plasma 6.6.4 Wayland)
+- **Erreichter Meilenstein (Phase 4)**:
+  - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, 648 Zeilen)
+  - ✅ D-Bus Portal Session + PipeWire Stream + platf::display_t
+  - ✅ CMake: optionale libpipewire-0.3 + gio-2.0 Dependency
+  - ✅ Automatische Backend-Auswahl: PipeWire wenn Virtual Display aktiv
+  - ✅ WSL-Build grün, CachyOS-Build grün
+  - ✅ `Screencasting with PipeWire Portal` erscheint in Logs
+  - ❌ **Portal blockiert durch setcap**: `Unable to open /proc/PID/root`
+- **Aktueller Blocker**: `setcap cap_sys_admin+p` (nötig für KMS) blockiert xdg-desktop-portal. PipeWire braucht kein cap_sys_admin. Capabilities müssen mit `sudo setcap -r` entfernt werden, dann erneut testen.
+- **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless ebenfalls unterstützt.
 
 ---
 
@@ -661,13 +662,19 @@ apt-get install -y nodejs
 
 **Ursache**: KMS-Capture (DRM-Framebuffer-Zugriff) benötigt die Linux-Capability `CAP_SYS_ADMIN`. Ohne sie kann Sonnenschein den Bildschirminhalt nicht abgreifen → kein Bild zum Encoden → alle Encoder scheitern.
 
-**Workaround (manuell)**:
+**Workaround (manuell, NUR für KMS-Capture)**:
 ```fish
 sudo setcap cap_sys_admin+p (readlink -f ~/sonnenschein/build/sunshine)
 ```
 Hinweis: `setcap` kann nicht auf Symlinks arbeiten, daher `readlink -f` um den echten Pfad aufzulösen.
 
-**Zukunft**: Phase-3-Installer wird das automatisch via udev-Rules + systemd-Service-Config (`AmbientCapabilities=CAP_SYS_ADMIN`) setzen.
+**⚠️ ACHTUNG: setcap + PipeWire-Capture sind INKOMPATIBEL!**
+`xdg-desktop-portal` verweigert den Zugriff wenn das Binary Capabilities hat (`Unable to open /proc/PID/root`). Für PipeWire-Capture:
+```fish
+sudo setcap -r (readlink -f ~/sonnenschein/build/sunshine)  # Capabilities ENTFERNEN
+```
+
+**Zukunft**: Phase-3-Installer wird das automatisch via udev-Rules + systemd-Service-Config (`AmbientCapabilities=CAP_SYS_ADMIN`) setzen. PipeWire-Capture braucht kein cap_sys_admin.
 
 ---
 
@@ -676,6 +683,9 @@ Hinweis: `setcap` kann nicht auf Symlinks arbeiten, daher `readlink -f` um den e
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+4fa5376 — fix(capture): bypass boot-time sources bitset for runtime PipeWire override — 2026-05-10
+50d6fa4 — feat(capture): Phase 4 — PipeWire portal capture backend for virtual displays — 2026-05-10
+f475ba6 — docs: Phase 2 complete — KMS cannot capture virtual displays, PipeWire required — 2026-05-10
 71cdac3 — fix(capture): route display_name to KMS index, not vdisplay name — 2026-05-10
 9baebbf — fix(capture): route KMS capture to primary monitor for Linux virtual display — 2026-05-10
 8126f26 — fix(cmake): don't FATAL_ERROR on CUDA when GCC skip was intentional — 2026-05-10
