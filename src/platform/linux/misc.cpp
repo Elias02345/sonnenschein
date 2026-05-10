@@ -938,7 +938,7 @@ std::string get_local_ip_for_gateway() {
     }
 #endif
 #ifdef SUNSHINE_BUILD_PIPEWIRE
-    if (sources[source::PIPEWIRE]) {
+    if (sources[source::PIPEWIRE] || config::video.capture == "pipewire") {
       return pw_display_names();
     }
 #endif
@@ -970,6 +970,15 @@ std::string get_local_ip_for_gateway() {
   }
 
   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
+#ifdef SUNSHINE_BUILD_PIPEWIRE
+    // PipeWire capture is forced at runtime when a virtual display is active.
+    // The sources bitset was populated at boot before capture="pipewire" was set,
+    // so we must check config::video.capture directly here.
+    if (config::video.capture == "pipewire" && (hwdevice_type == mem_type_e::system || hwdevice_type == mem_type_e::vaapi)) {
+      BOOST_LOG(info) << "Screencasting with PipeWire Portal"sv;
+      return pw_display(hwdevice_type, display_name, config);
+    }
+#endif
 #ifdef SUNSHINE_BUILD_CUDA
     if (sources[source::NVFBC] && hwdevice_type == mem_type_e::cuda) {
       BOOST_LOG(info) << "Screencasting with NvFBC"sv;
