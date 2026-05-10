@@ -50,14 +50,15 @@ namespace pw {
     return "sonnenschein_" + std::to_string(++request_counter);
   }
 
-  static std::string make_request_path(GDBusConnection *conn) {
+  static std::string make_request_path(GDBusConnection *conn, const std::string &token) {
     auto name = g_dbus_connection_get_unique_name(conn);
     std::string sender(name ? name : "");
     // Replace dots and leading colon
     for (auto &c : sender) {
       if (c == '.' || c == ':') c = '_';
     }
-    return "/org/freedesktop/portal/desktop/request/" + sender + "/" + make_token();
+    if (!sender.empty() && sender[0] == '_') sender = sender.substr(1);
+    return "/org/freedesktop/portal/desktop/request/" + sender + "/" + token;
   }
 
   /**
@@ -141,7 +142,7 @@ namespace pw {
 
     bool create_session() {
       auto token = make_token();
-      auto req_path = make_request_path(conn);
+      auto req_path = make_request_path(conn, token);
       auto sig = subscribe_response(req_path);
 
       auto opts = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
@@ -178,11 +179,12 @@ namespace pw {
     }
 
     bool select_sources() {
-      auto req_path = make_request_path(conn);
+      auto token = make_token();
+      auto req_path = make_request_path(conn, token);
       auto sig = subscribe_response(req_path);
 
       auto opts = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
-      g_variant_builder_add(opts, "{sv}", "handle_token", g_variant_new_string(make_token().c_str()));
+      g_variant_builder_add(opts, "{sv}", "handle_token", g_variant_new_string(token.c_str()));
       g_variant_builder_add(opts, "{sv}", "types", g_variant_new_uint32(1)); // MONITOR=1
       g_variant_builder_add(opts, "{sv}", "multiple", g_variant_new_boolean(FALSE));
       g_variant_builder_add(opts, "{sv}", "persist_mode", g_variant_new_uint32(2)); // persistent
@@ -209,11 +211,12 @@ namespace pw {
     }
 
     bool start() {
-      auto req_path = make_request_path(conn);
+      auto token = make_token();
+      auto req_path = make_request_path(conn, token);
       auto sig = subscribe_response(req_path);
 
       auto opts = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
-      g_variant_builder_add(opts, "{sv}", "handle_token", g_variant_new_string(make_token().c_str()));
+      g_variant_builder_add(opts, "{sv}", "handle_token", g_variant_new_string(token.c_str()));
 
       GError *err = nullptr;
       auto result = g_dbus_connection_call_sync(
