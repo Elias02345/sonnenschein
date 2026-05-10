@@ -10,6 +10,7 @@
 #ifdef SUNSHINE_BUILD_PIPEWIRE
 
 // standard includes
+#include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <mutex>
@@ -313,6 +314,9 @@ namespace pw {
     uint32_t width = 0, height = 0;
     uint32_t stride = 0;
     uint32_t format = 0; // SPA format
+    uint32_t requested_width = 1920;
+    uint32_t requested_height = 1080;
+    uint32_t requested_framerate = 60;
     bool is_dmabuf = false;
 
     std::mutex frame_mtx;
@@ -379,6 +383,11 @@ namespace pw {
       BOOST_LOG(info) << "PipeWire: format negotiated "sv
                       << self->width << "x"sv << self->height
                       << " fmt="sv << self->format;
+      if (self->width != self->requested_width || self->height != self->requested_height) {
+        BOOST_LOG(warning) << "PipeWire: negotiated size differs from client request "
+                           << self->requested_width << "x"sv << self->requested_height
+                           << " -> "sv << self->width << "x"sv << self->height;
+      }
     }
 
     static void on_state_changed(void *userdata, enum pw_stream_state old,
@@ -391,7 +400,11 @@ namespace pw {
 
     static const pw_stream_events stream_events;
 
-    bool init(int fd, uint32_t node_id) {
+    bool init(int fd, uint32_t node_id, uint32_t req_width, uint32_t req_height, uint32_t req_framerate) {
+      requested_width = req_width ? req_width : 1920;
+      requested_height = req_height ? req_height : 1080;
+      requested_framerate = req_framerate ? req_framerate : 60;
+
       pw_init(nullptr, nullptr);
 
       loop = pw_thread_loop_new("sonnenschein-pw", nullptr);
@@ -435,12 +448,16 @@ namespace pw {
       uint8_t params_buf[1024];
       struct spa_pod_builder builder = SPA_POD_BUILDER_INIT(params_buf, sizeof(params_buf));
 
-      struct spa_rectangle default_size = SPA_RECTANGLE(1920, 1080);
+      struct spa_rectangle default_size = SPA_RECTANGLE(requested_width, requested_height);
       struct spa_rectangle min_size = SPA_RECTANGLE(1, 1);
       struct spa_rectangle max_size = SPA_RECTANGLE(8192, 8192);
-      struct spa_fraction default_rate = SPA_FRACTION(60, 1);
+      struct spa_fraction default_rate = SPA_FRACTION(requested_framerate, 1);
       struct spa_fraction min_rate = SPA_FRACTION(0, 1);
-      struct spa_fraction max_rate = SPA_FRACTION(144, 1);
+      struct spa_fraction max_rate = SPA_FRACTION(std::max<uint32_t>(requested_framerate, 144), 1);
+
+      BOOST_LOG(info) << "PipeWire: requesting format "sv
+                      << requested_width << "x"sv << requested_height
+                      << "@"sv << requested_framerate;
 
       auto *fmt = static_cast<const spa_pod *>(spa_pod_builder_add_object(
         &builder, SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat,
@@ -529,7 +546,12 @@ namespace pw {
 
       // Phase 2: PipeWire stream
       pw_cap = std::make_unique<pw_capture_t>();
-      if (!pw_cap->init(portal->pw_fd, portal->pw_node_id)) return -1;
+      if (!pw_cap->init(portal->pw_fd, portal->pw_node_id,
+                        config.width > 0 ? static_cast<uint32_t>(config.width) : 1920,
+                        config.height > 0 ? static_cast<uint32_t>(config.height) : 1080,
+                        config.framerate > 0 ? static_cast<uint32_t>(config.framerate) : 60)) {
+        return -1;
+      }
 
       // Wait for format negotiation (up to 5s)
       for (int i = 0; i < 50 && pw_cap->width == 0; ++i) {

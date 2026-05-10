@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-10 — **Phase 4 (PipeWire-Capture) implementiert. Portal-Dialog erreicht; OpenPipeWireRemote-Fix muss auf CachyOS getestet werden.**
+**Stand:** 2026-05-10 — **Phase 4 (PipeWire-Capture) streamt auf virtuellem Display. Nächster Fix: PipeWire muss Client-Auflösung/Refresh anfordern.**
 
 ---
 
@@ -26,8 +26,10 @@
   - ✅ **D-Bus Timeouts beim Boot & Stream-Start behoben**: Portal-Dialog wird während des Encoder-Probes (Boot & Pre-Flight) übersprungen.
   - ✅ **D-Bus Token/Path Mismatch gefixt**: `make_request_path()` und `handle_token` verwenden nun denselben Token. Portal-Response-Signale werden jetzt korrekt empfangen.
   - ✅ **KDE-Portal-Dialog erreicht**: Maintainer konnte den virtuellen Bildschirm im KDE-Screen-Record-Dialog auswählen.
-  - 🟡 **OpenPipeWireRemote-Fix gepatcht**: leeres `a{sv}` Options-Argument wird jetzt korrekt gebaut; CachyOS-Test steht aus.
-- **Aktueller Blocker**: CachyOS muss den `OpenPipeWireRemote`-Fix neu bauen und testen. `setcap` muss weiterhin entfernt bleiben, sonst blockiert xdg-desktop-portal.
+  - ✅ **OpenPipeWireRemote-Fix validiert**: Portal liefert `PipeWire fd=68 node_id=140`, kein GLib-Abbruch mehr.
+  - ✅ **Erster echter Stream auf Virtual Display**: PipeWire `streaming`, NVENC HEVC aktiv, Disconnect entfernt `Sonnenschein-00E8F1E1`.
+  - 🟡 **Mode-Mismatch gefixt, Test ausstehend**: Client fordert `1280x800x90`, KWin erstellt `1280x800@90`, PipeWire negotiated bisher aber `1920x1080 fmt=8`. `pwgrab.cpp` fordert nun Client-Auflösung/Refresh bei PipeWire an.
+- **Aktueller Blocker**: CachyOS muss neu bauen und prüfen, ob PipeWire jetzt `1280x800@90` statt `1920x1080` negotiated.
 - **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless ebenfalls unterstützt.
 
 ---
@@ -706,7 +708,22 @@ terminated by signal SIGABRT
 
 **Ursache**: `OpenPipeWireRemote` baut das leere `a{sv}`-Options-Argument falsch. Der Code übergibt `g_variant_builder_end(...)` an eine `g_variant_new("(oa{sv})", ...)`-Formatstelle, die einen `GVariantBuilder*` erwartet.
 
-**Status**: Reproduziert durch Maintainer-Log am 2026-05-10. Gefixt in `6d6433f`: `OpenPipeWireRemote` übergibt jetzt wie `CreateSession`/`SelectSources`/`Start` einen echten `GVariantBuilder*` an `g_variant_new("(oa{sv})", ...)`. Isolierter WSL-GLib-Test für die korrigierte Variante ist grün; vollständiger WSL-Build hängt aktuell beim Kompilieren von `pwgrab.cpp` auf dem Windows-Mount und muss auf CachyOS gegengeprüft werden.
+**Status**: Reproduziert durch Maintainer-Log am 2026-05-10. Gefixt in `6d6433f`: `OpenPipeWireRemote` übergibt jetzt wie `CreateSession`/`SelectSources`/`Start` einen echten `GVariantBuilder*` an `g_variant_new("(oa{sv})", ...)`. CachyOS-Test mit `5fe1ea6` bestätigt: `Portal: PipeWire fd=68 node_id=140`, PipeWire `streaming`, kein GLib-`SIGABRT`.
+
+### 9.13 PipeWire negotiated 1920x1080 statt SteamDeck 1280x800@90
+
+**Symptom**: Erster echter End-to-End-Stream funktioniert, aber Auflösung/Aspect Ratio/Bildwiederholrate passen nicht zum SteamDeck. Log:
+```text
+Display mode for client [sd] requested to [1280x800x90]
+Sonnenschein vdisplay (kwin): created 'Sonnenschein-00E8F1E1' 1280x800@90, Hz HDR10
+Portal: PipeWire fd=68 node_id=140
+PipeWire: format negotiated 1920x1080 fmt=8
+PipeWire display initialized: 1920x1080
+```
+
+**Ursache (wahrscheinlich)**: `src/platform/linux/pwgrab.cpp` hardcoded in `pw_capture_t::init()` aktuell `default_size = 1920x1080` und `default_rate = 60/1` für die PipeWire-Format-Negotiation. KWin erstellt den virtuellen Output korrekt mit `1280x800@90`, aber PipeWire wird von Sonnenschein selbst auf 1920x1080 angefragt.
+
+**Status**: Lokal gepatcht. `pw_display_t::init()` reicht `config.width`, `config.height`, `config.framerate` an `pw_capture_t::init()` durch; PipeWire setzt `default_size` und `default_rate` daraus und loggt die verhandelte Größe gegen den Request.
 
 ---
 
@@ -802,14 +819,14 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 In Reihenfolge der Priorität.
 
-### A) PipeWire-Portal-Fix auf CachyOS testen (Phase 4, nächster Schritt)
+### A) PipeWire-Format-Fix auf CachyOS testen (Phase 4, nächster Schritt)
 
 1. **Auf CachyOS**: neuesten `dev` ziehen, neu bauen, `setcap` entfernen.
 2. Sonnenschein aus einer KDE-Konsole in der Plasma-Wayland-Sitzung starten: `./build/sunshine 2>&1 | tee ~/sonnenschein-test.log`.
 3. SteamDeck via Moonlight verbinden → "Desktop" starten.
 4. Im KDE-Screen-Record-Portal-Dialog den virtuellen Bildschirm auswählen.
-5. **Beobachten**: Nach `Portal: stream node_id=...` muss nun `Portal: PipeWire fd=... node_id=...` kommen, kein GLib-`SIGABRT`.
-6. Danach muss `PipeWire: stream connecting to node ...` und anschließend Frame-/Stream-Aktivität erscheinen. Logs bei Fehler direkt schicken.
+5. **Beobachten**: Es muss `PipeWire: requesting format 1280x800@90` erscheinen.
+6. Danach sollte `PipeWire: format negotiated 1280x800 ...` kommen. Wenn weiter `1920x1080` erscheint, die neue Warnung `PipeWire: negotiated size differs from client request ...` mitschicken.
 
 ### B) Phase 1.6 — CMake-Rebrand (nach 2D)
 
