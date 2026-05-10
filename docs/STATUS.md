@@ -5,20 +5,23 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-10 — **Virtual Display erstellt + Capture-Routing gefixt!**
-`headless_mode=true` triggert Virtual Display Lifecycle korrekt. Capture-Routing
-über KMS-Index `"0"` statt gebrochenem `map_display_name()`. Nächster Test auf CachyOS.
+**Stand:** 2026-05-10 — **Phase 2 komplett abgeschlossen. Architektur-Erkenntnis: KMS kann keine Virtual Displays capturen → PipeWire-Capture wird benötigt (Phase 4).**
 
 ---
 
 ## TL;DR — Wo stehen wir gerade
 
-- **Letzter Commit auf `dev`**: (ausstehend) — `fix(capture): route KMS capture to primary monitor for Linux virtual display`
-- **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (296/296 Steps grün) + CachyOS (Stream zu SteamDeck funktioniert!)
-- **Erreichter Meilenstein**: Virtual Display `Sonnenschein-00E8F1E1` wird korrekt via `kscreen-doctor` erzeugt und beim Disconnect wieder entfernt. Lifecycle funktioniert perfekt.
-- **Kritische offene Aufgabe**: Capture-Routing war gebrochen (`map_display_name()` gibt auf Linux `{}` zurück → KMS findet Müll-Index). Gefixt: `output_name = "0"` (primärer KMS-Monitor). Maintainer testet jetzt auf CachyOS.
-- **Hauptanwendungsfall (Maintainer)**: Physische Monitore verbunden → beim Streaming deaktivieren → Virtual Display als einziger aktiver Output → Capture darauf. Headless soll auch funktionieren (für andere User).
-- **Langfristig**: PipeWire-Capture (Phase 4+) für den Fall "physischer Monitor + Virtual Display gleichzeitig aktiv".
+- **Letzter Commit auf `dev`**: [`71cdac3`](https://github.com/Elias02345/sonnenschein/commit/71cdac3) — `fix(capture): route display_name to KMS index, not vdisplay name`
+- **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (296/296 Steps grün) + CachyOS (GCC 16.1.1, RTX 3070, Plasma 6.6.4 Wayland)
+- **Erreichter Meilenstein (Phase 2)**:
+  - ✅ Virtual Display `Sonnenschein-00E8F1E1` wird korrekt via `kscreen-doctor` erzeugt
+  - ✅ Cleanup beim Disconnect, Re-Create bei erneutem Connect
+  - ✅ Capture-Routing-Fehler behoben (kein `Couldn't find monitor` mehr)
+  - ✅ Stream CachyOS → SteamDeck funktioniert (Screen Mirroring)
+  - ❌ **KMS kann Virtual Displays nicht capturen** — architektonische Grenze
+- **Architektur-Erkenntnis**: `kscreen-doctor add-virtual-output` erzeugt Outputs auf **Compositor-Ebene** (KWin). Diese existieren NICHT als DRM/KMS-Connectors. KMS-Capture (`kmsgrab.cpp`) kann nur physische Connectors (HDMI, DP) sehen → kann den Virtual Display prinzipbedingt nicht capturen.
+- **Nächster Schritt**: **Phase 4 — PipeWire-Capture-Backend**. Einziger Weg, Virtual Displays auf Wayland zu capturen. Danach erst ist der Use-Case "physische Monitore deaktivieren → Virtual Display capturen" möglich.
+- **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless (kein physischer Monitor) ebenfalls unterstützt.
 
 ---
 
@@ -314,15 +317,30 @@ Apollo's `process.cpp` hatte einen `#ifdef _WIN32`-Block für Virtual Display (S
   - `_app.virtual_display == true` (per-App-Setting in WebUI/apps.json)
   - Default für alle drei: `false`.
 
-**Nächster Schritt**: Maintainer testet den Capture-Routing-Fix auf CachyOS. Erwartung: kein `Couldn't find monitor` Error mehr, Stream zeigt den Desktop.
+**Hauptanwendungsfall (geklärt 2026-05-10)**: Physische Monitore sind verbunden, sollen sich beim Streaming deaktivieren und Platz für einen virtuellen Monitor machen. Virtual Display wird dann der einzige aktive Output. Headless (kein physischer Monitor) ebenfalls unterstützt.
 
-**Hauptanwendungsfall (geklärt 2026-05-10)**: Physische Monitore sind verbunden, sollen sich beim Streaming deaktivieren und Platz für einen virtuellen Monitor machen. Virtual Display wird dann der einzige aktive Output → KMS-Index 0 zeigt darauf. Headless (kein physischer Monitor) soll ebenfalls funktionieren (andere User). Langfristig (Phase 4+): PipeWire-Capture für den Fall, dass physische + virtuelle Monitore gleichzeitig aktiv sind.
+### Phase 2E — Capture-Routing Fix ✅
 
-### Phase 2E — Capture-Routing Fix
+**Problem 1**: `map_display_name()` gibt auf Linux `{}` zurück (Windows-only `sm_instance`). `kmsgrab.cpp` parst den leeren String als Integer → `1105514439` (Müll) → `Couldn't find monitor [1105514439]`.
 
-**Problem**: `map_display_name()` gibt auf Linux `{}` zurück (Windows-only `sm_instance`). `kmsgrab.cpp` parst den leeren String als Integer → `1105514439` (Müll) → `Couldn't find monitor [1105514439]` → Fallback auf HDMI-A-1 → Screen Mirroring statt Virtual Display.
+**Fix (Commit `9baebbf`)**: `config::video.output_name = "0"` statt `map_display_name()`.
 
-**Fix**: In `process.cpp` Zeile 392-397, `map_display_name()` durch `output_name = "0"` ersetzt. KMS-Index `0` = primärer Monitor. Im Headless-Modus ist der Virtual Display der einzige Output → KMS-Index 0 zeigt genau darauf.
+**Problem 2**: `video.cpp` Zeile 1180 nutzt `proc::proc.display_name` direkt für KMS-Capture, NICHT `config::video.output_name`. `this->display_name` war auf `"Sonnenschein-00E8F1E1"` gesetzt → `util::from_view()` parsete Müll.
+
+**Fix (Commit `71cdac3`)**: `this->display_name = "0"` statt `_vdisplay_handle->output_name`. KMS findet nun Monitor 0 (HDMI-A-1) fehlerfrei.
+
+### Phase 2 — Architektur-Erkenntnis 🔴
+
+**Zentrale Erkenntnis nach CachyOS-Tests**: KMS-Capture kann Virtual Displays **prinzipbedingt nicht** capturen.
+
+| Schicht | Was sie sieht | Capture möglich? |
+|---------|--------------|------------------|
+| DRM/KMS (`kmsgrab.cpp`) | Physische Connectors (HDMI, DP) | ✅ Nur physische Displays |
+| KWin Compositor | Alle Outputs inkl. Virtual | ❌ Keine Capture-API |
+| PipeWire Portal | Alle Outputs via `xdg-desktop-portal` | ✅ Auch Virtual Displays |
+| wlr-screencopy | Compositor-Outputs | ❌ KDE unterstützt es nicht |
+
+**Konsequenz**: Für den Virtual-Display-Capture-Use-Case muss ein **PipeWire-Capture-Backend** implementiert werden (Phase 4). Das ist der einzige Weg auf KDE Wayland.
 
 ### Phase 3 — Installer & Service ⏸
 
@@ -658,6 +676,8 @@ Hinweis: `setcap` kann nicht auf Symlinks arbeiten, daher `readlink -f` um den e
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+71cdac3 — fix(capture): route display_name to KMS index, not vdisplay name — 2026-05-10
+9baebbf — fix(capture): route KMS capture to primary monitor for Linux virtual display — 2026-05-10
 8126f26 — fix(cmake): don't FATAL_ERROR on CUDA when GCC skip was intentional — 2026-05-10
 4fff349 — docs: add CLAUDE.md, SESSION_PROMPT.md, update STATUS.md — 2026-05-10
 5e1b1cf — fix(cmake): skip CUDA when host GCC > 15 (cudafe++ incompatible) — 2026-05-10
