@@ -5,18 +5,20 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-10 — Phase 2D, CUDA/GCC-16-Inkompatibilität gefixt
-(`5e1b1cf`). Maintainer testet erneut auf CachyOS.
+**Stand:** 2026-05-10 — **Virtual Display erstellt + Capture-Routing gefixt!**
+`headless_mode=true` triggert Virtual Display Lifecycle korrekt. Capture-Routing
+über KMS-Index `"0"` statt gebrochenem `map_display_name()`. Nächster Test auf CachyOS.
 
 ---
 
 ## TL;DR — Wo stehen wir gerade
 
-- **Letzter Commit auf `dev`**: [`5e1b1cf`](https://github.com/Elias02345/sonnenschein/commit/5e1b1cf) — `fix(cmake): skip CUDA when host GCC > 15 (cudafe++ incompatible)`
-- **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (`/root/snsbuild/sunshine-0.0.0`, 271/271 Steps grün)
-- **Kritische offene Aufgabe**: Maintainer testet `5e1b1cf` auf CachyOS. Der CUDA/GCC-16-Crash ist gefixt — cmake configure sollte jetzt durchlaufen (Boost FetchContent + CUDA gracefully skipped). Danach Build + E2E-Test.
-- **Direkt danach**: KDE-Konsole in Plasma-Sitzung → `./build/sunshine` → Moonlight pairen → Virtual Output `Sonnenschein-XXXXXXXX` prüfen.
-- **Falls noch Build-Fehler**: Logs in nächste Session → Fix-Commit.
+- **Letzter Commit auf `dev`**: (ausstehend) — `fix(capture): route KMS capture to primary monitor for Linux virtual display`
+- **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (296/296 Steps grün) + CachyOS (Stream zu SteamDeck funktioniert!)
+- **Erreichter Meilenstein**: Virtual Display `Sonnenschein-00E8F1E1` wird korrekt via `kscreen-doctor` erzeugt und beim Disconnect wieder entfernt. Lifecycle funktioniert perfekt.
+- **Kritische offene Aufgabe**: Capture-Routing war gebrochen (`map_display_name()` gibt auf Linux `{}` zurück → KMS findet Müll-Index). Gefixt: `output_name = "0"` (primärer KMS-Monitor). Maintainer testet jetzt auf CachyOS.
+- **Hauptanwendungsfall (Maintainer)**: Physische Monitore verbunden → beim Streaming deaktivieren → Virtual Display als einziger aktiver Output → Capture darauf. Headless soll auch funktionieren (für andere User).
+- **Langfristig**: PipeWire-Capture (Phase 4+) für den Fall "physischer Monitor + Virtual Display gleichzeitig aktiv".
 
 ---
 
@@ -293,49 +295,34 @@ Apollo's `process.cpp` hatte einen `#ifdef _WIN32`-Block für Virtual Display (S
 
 **Ziel**: Maintainer testet das Sonnenschein-Binary auf seinem RTX-3070 + Plasma-6.6.4-Wayland-System mit einem realen Moonlight-Client.
 
-**Aktueller Block**: cmake configure auf CachyOS hatte drei Fehler, die iterativ gefixt wurden:
+**Build-Fixes** (iterativ gelöst):
 
-1. **Boost ALIAS-Target-Kollision** (gefixt in [`b6f263e`](https://github.com/Elias02345/sonnenschein/commit/b6f263e)) — CachyOS' Boost 1.91 ist ein modularer Install. Das umbrella-`BoostConfig.cmake` ist da, aber per-Component-`boost_<comp>-<ver>/`-Verzeichnisse fehlen für `system`, `charconv`, `chrono`, `exception`, `headers`, `thread`. `find_package` importierte teilweise Targets, mein vorheriger Fix detected `system` als fehlend → fiel zurück auf FetchContent → Kollision. Final-Fix: **vor `find_package` per `file(GLOB)` checken, ob alle Component-Config-Dirs auf Disk sind**. Wenn auch nur eine fehlt → komplett FetchContent. Triple-check via `if(NOT TARGET Boost::<comp>)` als Belt-and-braces.
+1. **Boost ALIAS-Target-Kollision** (gefixt in [`b6f263e`](https://github.com/Elias02345/sonnenschein/commit/b6f263e)) — Pre-Flight-Check + FetchContent-Fallback.
+2. **CUDA nicht gefunden auf Arch/CachyOS** (gefixt in [`b6f263e`](https://github.com/Elias02345/sonnenschein/commit/b6f263e)) — `/opt/cuda/bin` Auto-Detection.
+3. **CUDA 13.2 inkompatibel mit GCC 16.1.1** (gefixt in [`5e1b1cf`](https://github.com/Elias02345/sonnenschein/commit/5e1b1cf)) — GCC-Versionsprüfung vor `check_language(CUDA)`, graceful skip.
+4. **CUDA_FAIL_ON_MISSING feuerte trotz intentionalem Skip** (gefixt in [`8126f26`](https://github.com/Elias02345/sonnenschein/commit/8126f26)) — Guard-Bedingung erweitert.
 
-2. **CUDA nicht gefunden auf Arch/CachyOS** (gefixt in [`b6f263e`](https://github.com/Elias02345/sonnenschein/commit/b6f263e)) — Arch-Paket `cuda` packt `nvcc` nach `/opt/cuda/bin/nvcc`. CMakes `find_program` schaut da nicht hin. Fix: `find_program(_sns_nvcc nvcc PATHS /opt/cuda/bin /usr/local/cuda/bin NO_DEFAULT_PATH)` vor `check_language(CUDA)` — wenn gefunden, `set(CMAKE_CUDA_COMPILER ...)` priming.
+**Erster E2E-Test (2026-05-10) — Ergebnis: STREAMING FUNKTIONIERT! ✅**
 
-3. **CUDA 13.2 inkompatibel mit GCC 16.1.1** (gefixt in [`5e1b1cf`](https://github.com/Elias02345/sonnenschein/commit/5e1b1cf)) — `cudafe++` kann GCC 16's `<type_traits>` nicht parsen (`char8_t`, C++20 `requires`). cmake configure crashte bei `check_language(CUDA)` mit 100+ Errors in `type_traits`. Fix: **vor `check_language(CUDA)` prüfen ob GCC ≥ 16** → CUDA automatisch deaktivieren mit Warnung. NVENC-Encoding nicht betroffen (nutzt Runtime-API). Override mit `-DSUNSHINE_FORCE_CUDA=ON`.
+- Binary erfordert `sudo setcap cap_sys_admin+p` (siehe §9.10) → danach fehlerfrei.
+- WebUI erreichbar auf `https://localhost:47990` → User+Passwort gesetzt.
+- **SteamDeck via Moonlight erfolgreich gepairt und gestreamt!** Bildschirmspiegelung des Hauptmonitors (HDMI-A-1, Samsung 4K).
+- Encoder: nicht im Log welcher griff, aber Stream lief → mindestens einer (wahrscheinlich VAAPI oder Software) funktionierte nach `cap_sys_admin`.
+- **Virtual Display wurde NICHT erzeugt** — das ist **erwartet und korrekt**: der Code-Pfad in `process.cpp:346-350` triggert nur wenn:
+  - `config::video.headless_mode == true` (Config-Datei: `headless_mode = true`), ODER
+  - `launch_session->virtual_display == true` (Client-Request), ODER
+  - `_app.virtual_display == true` (per-App-Setting in WebUI/apps.json)
+  - Default für alle drei: `false`.
 
-**Erwartung beim nächsten Test** (nach `5e1b1cf`):
-```
--- Boost component 'system' has no system CMake config — using FetchContent for the whole tree.
--- Boost >=1.89.0 not usable from system. Falling back to FetchContent (will fetch 1.89.0).
-[~3-5 min Boost FetchContent build]
--- Sonnenschein: found nvcc at /opt/cuda/bin/nvcc
-CMake Warning: Sonnenschein: GCC 16.1.1 detected — CUDA 13.x only supports up to GCC 15. Disabling CUDA...
--- Sonnenschein: skipping CUDA (host compiler too new).
-[restlicher configure läuft durch]
--- Configuring done
-```
+**Nächster Schritt**: Maintainer testet den Capture-Routing-Fix auf CachyOS. Erwartung: kein `Couldn't find monitor` Error mehr, Stream zeigt den Desktop.
 
-Dann `cmake --build . -j$(nproc)` ~10 min, am Ende `build/sunshine-0.0.0`.
+**Hauptanwendungsfall (geklärt 2026-05-10)**: Physische Monitore sind verbunden, sollen sich beim Streaming deaktivieren und Platz für einen virtuellen Monitor machen. Virtual Display wird dann der einzige aktive Output → KMS-Index 0 zeigt darauf. Headless (kein physischer Monitor) soll ebenfalls funktionieren (andere User). Langfristig (Phase 4+): PipeWire-Capture für den Fall, dass physische + virtuelle Monitore gleichzeitig aktiv sind.
 
-**Test-Schritte (sobald Build durch)**:
-1. `cd ~/sonnenschein` (auf CachyOS)
-2. **KDE-Konsole innerhalb der Plasma-Wayland-Sitzung** öffnen (NICHT SSH!)
-3. `./build/sunshine 2>&1 | tee ~/sonnenschein-test.log`
-4. Browser zu `https://localhost:47990`, Self-Signed-Cert akzeptieren, Initial-User+Passwort setzen
-5. WebUI → "Devices" → "Pair Device", PIN am SteamDeck/Moonlight-Client eingeben
-6. "Desktop" oder ein Steam-Spiel starten
-7. **Beobachten**: erscheint ein neuer virtueller Output `Sonnenschein-XXXXXXXX` in System­einstellungen → Anzeige? Wird er beim Streaming benutzt? Stimmt Auflösung+Refresh?
-8. **Disconnect**: verschwindet der Output sauber wieder?
+### Phase 2E — Capture-Routing Fix
 
-**Zu sammelnde Logs** (für eventuelle Fixes):
-- `~/sonnenschein-test.log` (Sonnenschein stdout/stderr, inkl. unsere `BOOST_LOG(info)`-Zeilen aus `KwinWaylandBackend` — z.B. `Sonnenschein vdisplay (kwin): created 'Sonnenschein-abcd1234' 2560x1600@90 Hz HDR10`)
-- `kscreen-doctor outputs` Output **nach** einem Pairing-Versuch
-- Screenshot der KDE-Anzeigeeinstellungen mit dem virtuellen Output
+**Problem**: `map_display_name()` gibt auf Linux `{}` zurück (Windows-only `sm_instance`). `kmsgrab.cpp` parst den leeren String als Integer → `1105514439` (Müll) → `Couldn't find monitor [1105514439]` → Fallback auf HDMI-A-1 → Screen Mirroring statt Virtual Display.
 
-**Mögliche Stolpersteine** (in Reihenfolge der Wahrscheinlichkeit):
-- `kscreen-doctor add-virtual-output: Unknown command` → Plasma 6.6.4 hat das Subcommand nicht (unwahrscheinlich, aber wenn ja: KWin-Plugin Phase 2B.5)
-- `Could not connect to KWin` → Sonnenschein nicht in User-Session, sondern als System-Service oder per SSH gestartet → User-Session-Konsole nutzen
-- Mode-Set warning → Refresh-Rate-Format weicht ab → KWin nutzt Default, ist nicht-fatal, Log poste mir
-- HDR enable failed → Driver- oder Compositor-Stand → SDR-Fallback greift, Stream läuft trotzdem
-- Build-Fehler nach `b6f263e` → neue Fix-Commit nötig, Logs sammeln
+**Fix**: In `process.cpp` Zeile 392-397, `map_display_name()` durch `output_name = "0"` ersetzt. KMS-Index `0` = primärer Monitor. Im Headless-Modus ist der Virtual Display der einzige Output → KMS-Index 0 zeigt genau darauf.
 
 ### Phase 3 — Installer & Service ⏸
 
@@ -650,6 +637,20 @@ apt-get install -y nodejs
 
 **Status**: Phase 1.6 (CMake-Rebrand) wurde bewusst aufgeschoben bis nach Phase 2. Berührt viele Pfade, Configs, Service-Files — Risiko, den Build zu brechen. Wird nach Phase-2-Done und vor Phase 3 gemacht.
 
+### 9.10 Binary braucht `cap_sys_admin` für KMS-Capture
+
+**Symptom**: `Failed to gain CAP_SYS_ADMIN`, `Couldn't get handle for DRM Framebuffer`, `Unable to initialize capture method`, alle Encoder scheitern → `Fatal: Unable to find display or encoder during startup.`
+
+**Ursache**: KMS-Capture (DRM-Framebuffer-Zugriff) benötigt die Linux-Capability `CAP_SYS_ADMIN`. Ohne sie kann Sonnenschein den Bildschirminhalt nicht abgreifen → kein Bild zum Encoden → alle Encoder scheitern.
+
+**Workaround (manuell)**:
+```fish
+sudo setcap cap_sys_admin+p (readlink -f ~/sonnenschein/build/sunshine)
+```
+Hinweis: `setcap` kann nicht auf Symlinks arbeiten, daher `readlink -f` um den echten Pfad aufzulösen.
+
+**Zukunft**: Phase-3-Installer wird das automatisch via udev-Rules + systemd-Service-Config (`AmbientCapabilities=CAP_SYS_ADMIN`) setzen.
+
 ---
 
 ## 10. Letzte Commits chronologisch
@@ -657,6 +658,7 @@ apt-get install -y nodejs
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+8126f26 — fix(cmake): don't FATAL_ERROR on CUDA when GCC skip was intentional — 2026-05-10
 4fff349 — docs: add CLAUDE.md, SESSION_PROMPT.md, update STATUS.md — 2026-05-10
 5e1b1cf — fix(cmake): skip CUDA when host GCC > 15 (cudafe++ incompatible) — 2026-05-10
 b6f263e — fix(cmake): pre-flight Boost components on disk + auto-find Arch nvcc — 2026-05-10
@@ -670,9 +672,9 @@ a95f2ee — Phase 1.3: Init submodules + pin tray pre-Qt — 2026-05-09
 235920b — Initial import: Apollo codebase as Sonnenschein basis — 2026-05-09
 ```
 
-`main` Branch zeigt nur auf `235920b` (initial import). `dev` ist 10 Commits voraus.
+`main` Branch zeigt nur auf `235920b` (initial import). `dev` ist 11 Commits voraus.
 
-**Auf `dev` aktuell HEAD = `4fff349`** (Stand 2026-05-10).
+**Auf `dev` aktuell HEAD = `8126f26`** (Stand 2026-05-10).
 
 ---
 
@@ -729,52 +731,27 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 In Reihenfolge der Priorität.
 
-### A) Phase 2D abschließen (Maintainer)
+### A) Virtual-Display-Trigger testen (Phase 2D, nächster Schritt)
 
-1. **Auf CachyOS**:
-   ```bash
-   cd ~/sonnenschein
-   git pull
-   rm -rf build && mkdir build && cd build
-   cmake -G Ninja -S .. \
-       -DCMAKE_BUILD_TYPE=Release \
-       -DBUILD_TESTS=OFF \
-       -DSUNSHINE_BUILD_DOCS=OFF \
-       -DSUNSHINE_BUILD_FLATPAK=OFF
-   ```
-   Erwarte: Boost-Pre-Flight greift → FetchContent für Boost (~3-5 min). Arch-CUDA wird gefunden. Configure läuft durch.
+1. **Auf CachyOS**: `headless_mode = true` in `~/.config/sunshine/sunshine.conf` setzen (Datei editieren oder anlegen falls nicht vorhanden). Alternativ per-App in `apps.json` mit `"virtual_display": true`.
+2. Sonnenschein neu starten: `./build/sunshine-0.0.0 2>&1 | tee ~/sonnenschein-test.log`
+3. SteamDeck via Moonlight verbinden → "Desktop" starten.
+4. **Beobachten**: Logs müssen `Sonnenschein: virtual display 'Sonnenschein-XXXXXXXX' created via backend 'kwin_wayland'` zeigen.
+5. `kscreen-doctor outputs` → neuer Output muss in der Liste sein.
+6. Disconnect → Output muss verschwinden.
 
-2. **Falls cmake configure trotzdem failt**: gesamten Output (oder relevante 50 Zeilen) in nächste Session geben → Fix-Commit + Push.
+### B) Phase 1.6 — CMake-Rebrand (nach 2D)
 
-3. **Falls grün**: `cmake --build . -j$(nproc)`. ~10 min auf 8/16 Cores. Erwartet: `build/sunshine-0.0.0` Binary.
-
-4. **Test E2E**:
-   - **KDE-Konsole IN Plasma-Wayland-Sitzung** öffnen (nicht SSH!).
-   - `cd ~/sonnenschein && ./build/sunshine 2>&1 | tee ~/sonnenschein-test.log`
-   - Browser → `https://localhost:47990`, Cert akzeptieren, User+Passwort setzen.
-   - WebUI → "Devices" → "Pair Device", PIN am SteamDeck/Moonlight eingeben.
-   - "Desktop" oder Spiel starten.
-   - Beobachten: Erscheint `Sonnenschein-XXXXXXXX` in Systemeinstellungen → Anzeige?
-   - Disconnect: Verschwindet er sauber?
-
-5. **Logs sammeln**:
-   - `~/sonnenschein-test.log` — Sonnenschein-Output inkl. unsere `BOOST_LOG(info)`-Zeilen.
-   - `kscreen-doctor outputs` nach Pairing-Versuch.
-   - Screenshots der KDE-Anzeigeeinstellungen.
-
-### B) Phase 1.6 — CMake-Rebrand (nächste Session, kleiner Scope)
-
-Sobald Phase 2D grün ist und ein erster echter Stream gelaufen ist, machen wir den `project(Apollo)` → `project(Sonnenschein)` Rebrand. Was zu touchen ist:
+Sobald Phase 2D grün ist und ein erster Virtual Display erfolgreich erzeugt wurde:
 - `CMakeLists.txt`: `project(Sonnenschein)`
-- `cmake/prep/constants.cmake`: `SUNSHINE_*` Variablen-Namen können bleiben (nur intern), aber Doku-Strings updaten
-- `cmake/prep/build_version.cmake`: `Sunshine Branch:` Log-Zeilen → `Sonnenschein Branch:`
-- Add-Executable-Target: `sunshine` → `sonnenschein` (aber Symlink `sunshine` für Rückwärts-Kompat)
-- Service-Files / .desktop-Files: `dev.lizardbyte.app.Sunshine` → eigener FQDN (z.B. `dev.elias.app.Sonnenschein`)
+- `cmake/prep/build_version.cmake`: `Sunshine Branch:` → `Sonnenschein Branch:`
+- Add-Executable-Target: `sunshine` → `sonnenschein` (Symlink `sunshine` für Rückwärts-Kompat)
+- Service-Files / .desktop-Files: `dev.lizardbyte.app.Sunshine` → eigener FQDN
 - README/Docs: alle "Sunshine"-Erwähnungen prüfen
 
 ### C) Phase 3 — Installer
 
-Sobald 1.6 done. Plan in Abschnitt 6 ("Phase 3"). Erste Iteration: nur Arch (CachyOS-Test-Hardware). Dann iterativ andere Distros.
+Sobald 1.6 done. Erste Iteration: nur Arch (CachyOS-Test-Hardware). Dann iterativ andere Distros.
 
 ### D) Phase 4 — HDR & AV1
 
