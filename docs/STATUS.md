@@ -765,6 +765,12 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
 - Ein weiterer CachyOS-Test zeigte, dass der Output noch immer nicht in der `wl_output`-Liste auftauchte. Grund: KWin erstellt das virtuelle Display asynchron, und unsere initialen `wl_display_roundtrip`-Aufrufe in `init()` fanden statt, *bevor* KWin das neue Display broadcasten konnte.
 - `pwgrab.cpp` wurde angepasst: Wenn `start()` den Output im ersten Durchlauf nicht findet, werden nun gezielt weitere `wl_display_roundtrip`-Aufrufe durchgeführt, um die Hotplug-Events aus der Wayland-Queue abzurufen, bevor der zweite Such-Durchlauf startet.
 
+**Native Virtual Output Stream Migration (2026-05-10 19:40)**:
+- Auch der Roundtrip-Hotfix schlug fehl (`timeout waiting for stream`).
+- Analyse des KWin-Wayland-Protokolls (`zkde_screencast_unstable_v1`) zeigte, dass KWin speziell für diesen Anwendungsfall die Methode `stream_virtual_output` (bzw. `_with_description`) anbietet.
+- Anstatt zu versuchen, einen von `kscreen-doctor` erstellten Output aus der allgemeinen Wayland-Registry abzufangen, ruft `pwgrab.cpp` nun direkt `zkde_screencast_unstable_v1_stream_virtual_output` auf, falls das Display nicht gefunden wurde. 
+- Das umgeht alle Sichtbarkeits- und Asynchronitätsprobleme, da KWin explizit angewiesen wird, für diesen angeforderten Stream ein virtuelles Display in der passenden Auflösung zu liefern.
+
 ### 9.14 PipeWire-Virtual-Display: Touch/Maus fehlt
 
 **Symptom**: Im funktionierenden Virtual-Display-Stream auf SteamDeck sind keine Touch-Eingaben möglich und der Mauszeiger wird nicht angezeigt.
