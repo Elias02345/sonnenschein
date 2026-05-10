@@ -491,15 +491,15 @@ namespace pw {
       mem_type = hwdevice_type;
       delay = std::chrono::nanoseconds{1s} / config.framerate;
 
-      if (::config::video.capture != "pipewire") {
-        // This is a boot-time encoder probe.
+      if (::video::is_encoder_probing_active) {
+        // This is an encoder probe (boot-time or stream pre-flight).
         // We don't want to pop up a Portal dialog just to probe encoders.
         // Skip Portal init, set dummy resolution.
         width = config.width ? config.width : 1920;
         height = config.height ? config.height : 1080;
         env_width = width;
         env_height = height;
-        BOOST_LOG(info) << "PipeWire: Skipping portal init for boot probe (dummy mode)"sv;
+        BOOST_LOG(info) << "PipeWire: Skipping portal init for encoder probe (dummy mode)"sv;
         return 0;
       }
 

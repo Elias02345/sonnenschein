@@ -341,6 +341,8 @@ namespace video {
   extern bool last_encoder_probe_supported_ref_frames_invalidation;
   extern std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec;  // 0 - H.264, 1 - HEVC, 2 - AV1
 
+  extern bool is_encoder_probing_active;
+
   void capture(
     safe::mail_t mail,
     config_t config,

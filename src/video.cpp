@@ -2714,11 +2714,18 @@ namespace video {
     return true;
   }
 
+  bool is_encoder_probing_active = false;
+
   int probe_encoders() {
     if (!allow_encoder_probing()) {
       // Error already logged
       return -1;
     }
+
+    struct probe_guard_t {
+      probe_guard_t() { is_encoder_probing_active = true; }
+      ~probe_guard_t() { is_encoder_probing_active = false; }
+    } probe_guard;
 
     auto encoder_list = encoders;
 
