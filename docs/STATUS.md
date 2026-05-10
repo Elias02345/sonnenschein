@@ -657,7 +657,7 @@ apt-get install -y nodejs
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
-080ad03 — docs: add CLAUDE.md, SESSION_PROMPT.md, update STATUS.md — 2026-05-10
+4fff349 — docs: add CLAUDE.md, SESSION_PROMPT.md, update STATUS.md — 2026-05-10
 5e1b1cf — fix(cmake): skip CUDA when host GCC > 15 (cudafe++ incompatible) — 2026-05-10
 b6f263e — fix(cmake): pre-flight Boost components on disk + auto-find Arch nvcc — 2026-05-10
 895295c — fix(cmake): detect partial Boost installs and fall back to FetchContent — 2026-05-10
@@ -672,7 +672,7 @@ a95f2ee — Phase 1.3: Init submodules + pin tray pre-Qt — 2026-05-09
 
 `main` Branch zeigt nur auf `235920b` (initial import). `dev` ist 10 Commits voraus.
 
-**Auf `dev` aktuell HEAD = `080ad03`** (Stand 2026-05-10).
+**Auf `dev` aktuell HEAD = `4fff349`** (Stand 2026-05-10).
 
 ---
 
