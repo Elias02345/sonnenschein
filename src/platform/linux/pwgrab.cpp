@@ -95,16 +95,22 @@ namespace pw {
     }
 
     bool wait_response(guint signal_id, int timeout_ms = 10000) {
-      std::unique_lock lk(mtx);
       response_received = false;
       response_code = 0;
       if (response_results) { g_variant_unref(response_results); response_results = nullptr; }
 
-      bool ok = cv.wait_for(lk, std::chrono::milliseconds(timeout_ms),
-                            [this]{ return response_received; });
+      // We must pump the GLib main context for D-Bus signal delivery.
+      // g_dbus_signal callbacks are dispatched on the default main context,
+      // so we iterate it in a polling loop until the response arrives.
+      auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+      while (!response_received && std::chrono::steady_clock::now() < deadline) {
+        g_main_context_iteration(nullptr, FALSE);  // non-blocking pump
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      }
+
       g_dbus_connection_signal_unsubscribe(conn, signal_id);
 
-      if (!ok) {
+      if (!response_received) {
         BOOST_LOG(error) << "Portal: D-Bus response timed out"sv;
         return false;
       }

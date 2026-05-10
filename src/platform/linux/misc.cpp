@@ -974,9 +974,12 @@ std::string get_local_ip_for_gateway() {
     // PipeWire capture is forced at runtime when a virtual display is active.
     // The sources bitset was populated at boot before capture="pipewire" was set,
     // so we must check config::video.capture directly here.
-    if (config::video.capture == "pipewire" && (hwdevice_type == mem_type_e::system || hwdevice_type == mem_type_e::vaapi)) {
+    // PipeWire delivers system-memory frames, compatible with all encoders.
+    if (config::video.capture == "pipewire") {
       BOOST_LOG(info) << "Screencasting with PipeWire Portal"sv;
-      return pw_display(hwdevice_type, display_name, config);
+      // Force system memory type — PipeWire provides SHM/DMA-BUF frames
+      auto effective_type = (hwdevice_type == mem_type_e::cuda) ? mem_type_e::system : hwdevice_type;
+      return pw_display(effective_type, display_name, config);
     }
 #endif
 #ifdef SUNSHINE_BUILD_CUDA
@@ -1076,8 +1079,22 @@ std::string get_local_ip_for_gateway() {
 #endif
 
     if (sources.none()) {
+#ifdef SUNSHINE_BUILD_PIPEWIRE
+      // No capture sources at boot (e.g. KMS needs cap_sys_admin).
+      // PipeWire can be activated at runtime when a virtual display
+      // is created. Register it as a deferred fallback source so the
+      // boot encoder probe can at least attempt to use it.
+      if (verify_pw()) {
+        BOOST_LOG(warning) << "No traditional capture sources available. PipeWire portal will be used at runtime."sv;
+        sources[source::PIPEWIRE] = true;
+      } else {
+        BOOST_LOG(error) << "Unable to initialize capture method"sv;
+        return nullptr;
+      }
+#else
       BOOST_LOG(error) << "Unable to initialize capture method"sv;
       return nullptr;
+#endif
     }
 
     if (!gladLoaderLoadEGL(EGL_NO_DISPLAY) || !eglGetPlatformDisplay) {
