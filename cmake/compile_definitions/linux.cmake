@@ -25,8 +25,32 @@ if(${SUNSHINE_ENABLE_CUDA})
         endif()
     endif()
 
-    include(CheckLanguage)
-    check_language(CUDA)
+    # --- Sonnenschein: GCC / CUDA host-compiler compatibility guard ----------
+    # CUDA 13.2 supports up to GCC 15.  GCC 16+ ships <type_traits> that use
+    # C++20 `requires` expressions and `char8_t`, which cudafe++ cannot parse.
+    # check_language(CUDA) would crash during compiler-id compilation, so we
+    # pre-check and skip gracefully.
+    set(_sns_cuda_host_too_new OFF)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        # CMAKE_CXX_COMPILER_VERSION is set after project() — always available here.
+        if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "16.0")
+            set(_sns_cuda_host_too_new ON)
+            message(WARNING
+                "Sonnenschein: GCC ${CMAKE_CXX_COMPILER_VERSION} detected — "
+                "CUDA 13.x only supports up to GCC 15. "
+                "Disabling CUDA to avoid cudafe++ compilation errors. "
+                "NVENC encoding is NOT affected (uses the runtime API). "
+                "To force CUDA anyway, pass -DSUNSHINE_FORCE_CUDA=ON (unsupported).")
+        endif()
+    endif()
+
+    if(_sns_cuda_host_too_new AND NOT SUNSHINE_FORCE_CUDA)
+        message(STATUS "Sonnenschein: skipping CUDA (host compiler too new).")
+        set(CMAKE_CUDA_COMPILER NOTFOUND)
+    else()
+        include(CheckLanguage)
+        check_language(CUDA)
+    endif()
 
     if(CMAKE_CUDA_COMPILER)
         set(CUDA_FOUND ON)
