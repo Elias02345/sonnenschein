@@ -11,7 +11,7 @@
 
 ## TL;DR — Wo stehen wir gerade
 
-- **Letzter Commit auf `dev`**: [`6d6433f`](https://github.com/Elias02345/sonnenschein/commit/6d6433f) — `fix(capture): fix PipeWire remote fd options`
+- **Letzter Commit auf `dev`**: [`76d03a4`](https://github.com/Elias02345/sonnenschein/commit/76d03a4) — `fix(capture): request client format from PipeWire`
 - **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (297 Steps grün) + CachyOS (GCC 16.1.1, RTX 3070, Plasma 6.6.4 Wayland)
 - **Erreichter Meilenstein (Phase 4)**:
   - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, 675 Zeilen)
@@ -28,7 +28,7 @@
   - ✅ **KDE-Portal-Dialog erreicht**: Maintainer konnte den virtuellen Bildschirm im KDE-Screen-Record-Dialog auswählen.
   - ✅ **OpenPipeWireRemote-Fix validiert**: Portal liefert `PipeWire fd=68 node_id=140`, kein GLib-Abbruch mehr.
   - ✅ **Erster echter Stream auf Virtual Display**: PipeWire `streaming`, NVENC HEVC aktiv, Disconnect entfernt `Sonnenschein-00E8F1E1`.
-  - 🟡 **Mode-Mismatch gefixt, Test ausstehend**: Client fordert `1280x800x90`, KWin erstellt `1280x800@90`, PipeWire negotiated bisher aber `1920x1080 fmt=8`. `pwgrab.cpp` fordert nun Client-Auflösung/Refresh bei PipeWire an.
+  - 🟡 **Mode-Mismatch gefixt in `76d03a4`, Test ausstehend**: Client fordert `1280x800x90`, KWin erstellt `1280x800@90`, PipeWire negotiated bisher aber `1920x1080 fmt=8`. `pwgrab.cpp` fordert nun Client-Auflösung/Refresh bei PipeWire an.
 - **Aktueller Blocker**: CachyOS muss neu bauen und prüfen, ob PipeWire jetzt `1280x800@90` statt `1920x1080` negotiated.
 - **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless ebenfalls unterstützt.
 
@@ -723,7 +723,7 @@ PipeWire display initialized: 1920x1080
 
 **Ursache (wahrscheinlich)**: `src/platform/linux/pwgrab.cpp` hardcoded in `pw_capture_t::init()` aktuell `default_size = 1920x1080` und `default_rate = 60/1` für die PipeWire-Format-Negotiation. KWin erstellt den virtuellen Output korrekt mit `1280x800@90`, aber PipeWire wird von Sonnenschein selbst auf 1920x1080 angefragt.
 
-**Status**: Lokal gepatcht. `pw_display_t::init()` reicht `config.width`, `config.height`, `config.framerate` an `pw_capture_t::init()` durch; PipeWire setzt `default_size` und `default_rate` daraus und loggt die verhandelte Größe gegen den Request.
+**Status**: Gefixt in `76d03a4`. `pw_display_t::init()` reicht `config.width`, `config.height`, `config.framerate` an `pw_capture_t::init()` durch; PipeWire setzt `default_size` und `default_rate` daraus und loggt die verhandelte Größe gegen den Request.
 
 ---
 
@@ -732,6 +732,7 @@ PipeWire display initialized: 1920x1080
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+76d03a4 — fix(capture): request client format from PipeWire — 2026-05-10
 6d6433f — fix(capture): fix PipeWire remote fd options — 2026-05-10
 3c730a4 — docs: update STATUS.md with D-Bus token/path mismatch fix — 2026-05-10
 60dac9b — fix(capture): fix D-Bus Portal token/path mismatch causing signal timeouts — 2026-05-10
@@ -762,7 +763,7 @@ a95f2ee — Phase 1.3: Init submodules + pin tray pre-Qt — 2026-05-09
 
 `main` Branch zeigt nur auf `235920b` (initial import). `dev` ist 11 Commits voraus.
 
-**Auf `dev` aktuell HEAD = `6d6433f`** (Stand 2026-05-10).
+**Auf `dev` aktuell HEAD = `76d03a4`** (Stand 2026-05-10).
 
 ---
 
