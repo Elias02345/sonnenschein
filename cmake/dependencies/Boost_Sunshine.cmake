@@ -30,9 +30,16 @@ endif()
 if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
     cmake_policy(SET CMP0167 NEW)  # Get BoostConfig.cmake from upstream
 endif()
-find_package(Boost CONFIG ${BOOST_VERSION} EXACT COMPONENTS ${BOOST_COMPONENTS})
+# Sonnenschein change vs Apollo: drop the EXACT pin. Apollo wants Boost
+# 1.89.0 exactly so the static prebuilds in third-party/build-deps line
+# up. We accept any system Boost >= 1.89 — Boost is API-compatible
+# enough that 1.90/1.91/+ work for our usage, and matching the system
+# saves the FetchContent build (~3-5 min on configure). Falls back to
+# FetchContent at exactly BOOST_VERSION if no suitable system Boost is
+# found.
+find_package(Boost CONFIG ${BOOST_VERSION} COMPONENTS ${BOOST_COMPONENTS})
 if(NOT Boost_FOUND)
-    message(STATUS "Boost v${BOOST_VERSION} package not found in the system. Falling back to FetchContent.")
+    message(STATUS "Boost >=${BOOST_VERSION} package not found in the system. Falling back to FetchContent (will fetch ${BOOST_VERSION}).")
     include(FetchContent)
 
     if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
