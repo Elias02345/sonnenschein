@@ -43,6 +43,12 @@ namespace pw {
   static constexpr auto PORTAL_OBJECT   = "/org/freedesktop/portal/desktop";
   static constexpr auto PORTAL_SCREENCAST = "org.freedesktop.portal.ScreenCast";
   static constexpr auto PORTAL_REQUEST  = "org.freedesktop.portal.Request";
+  static constexpr uint32_t SOURCE_MONITOR = 1;
+  static constexpr uint32_t SOURCE_WINDOW = 2;
+  static constexpr uint32_t SOURCE_VIRTUAL = 4;
+  static constexpr uint32_t CURSOR_HIDDEN = 1;
+  static constexpr uint32_t CURSOR_EMBEDDED = 2;
+  static constexpr uint32_t CURSOR_METADATA = 4;
 
   // Helper: unique request token
   static std::atomic<uint32_t> request_counter{0};
@@ -71,6 +77,8 @@ namespace pw {
     std::string restore_token;
     uint32_t pw_node_id = 0;
     int pw_fd = -1;
+    uint32_t available_source_types = 0;
+    uint32_t available_cursor_modes = 0;
     bool ready = false;
 
     // Synchronization for async D-Bus calls
@@ -138,7 +146,39 @@ namespace pw {
         if (err) g_error_free(err);
         return false;
       }
+      available_source_types = get_uint_property("AvailableSourceTypes");
+      available_cursor_modes = get_uint_property("AvailableCursorModes");
+      BOOST_LOG(info) << "Portal: available source types="sv << available_source_types
+                      << " cursor modes="sv << available_cursor_modes;
       return true;
+    }
+
+    uint32_t get_uint_property(const char *name) {
+      GError *err = nullptr;
+      auto result = g_dbus_connection_call_sync(
+        conn, PORTAL_BUS_NAME, PORTAL_OBJECT, "org.freedesktop.DBus.Properties",
+        "Get", g_variant_new("(ss)", PORTAL_SCREENCAST, name),
+        G_VARIANT_TYPE("(v)"), G_DBUS_CALL_FLAGS_NONE, 5000, nullptr, &err);
+      if (!result) {
+        BOOST_LOG(warning) << "Portal: failed to read property "sv << name << ": "sv
+                           << (err ? err->message : "unknown");
+        if (err) g_error_free(err);
+        return 0;
+      }
+
+      GVariant *value = nullptr;
+      g_variant_get(result, "(@v)", &value);
+      uint32_t out = 0;
+      if (value) {
+        GVariant *inner = g_variant_get_variant(value);
+        if (inner && g_variant_is_of_type(inner, G_VARIANT_TYPE_UINT32)) {
+          out = g_variant_get_uint32(inner);
+        }
+        if (inner) g_variant_unref(inner);
+        g_variant_unref(value);
+      }
+      g_variant_unref(result);
+      return out;
     }
 
     bool create_session() {
@@ -186,9 +226,17 @@ namespace pw {
 
       auto opts = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
       g_variant_builder_add(opts, "{sv}", "handle_token", g_variant_new_string(token.c_str()));
-      g_variant_builder_add(opts, "{sv}", "types", g_variant_new_uint32(1)); // MONITOR=1
+      g_variant_builder_add(opts, "{sv}", "types", g_variant_new_uint32(SOURCE_MONITOR));
       g_variant_builder_add(opts, "{sv}", "multiple", g_variant_new_boolean(FALSE));
       g_variant_builder_add(opts, "{sv}", "persist_mode", g_variant_new_uint32(2)); // persistent
+      if (available_cursor_modes & CURSOR_EMBEDDED) {
+        g_variant_builder_add(opts, "{sv}", "cursor_mode", g_variant_new_uint32(CURSOR_EMBEDDED));
+        BOOST_LOG(info) << "Portal: requesting embedded cursor mode"sv;
+      } else if (available_cursor_modes & CURSOR_METADATA) {
+        BOOST_LOG(warning) << "Portal: cursor metadata mode is available, but PipeWire cursor metadata is not implemented yet; cursor will stay hidden"sv;
+      } else if (available_cursor_modes & CURSOR_HIDDEN) {
+        BOOST_LOG(warning) << "Portal: only hidden cursor mode is available"sv;
+      }
       if (!restore_token.empty()) {
         g_variant_builder_add(opts, "{sv}", "restore_token", g_variant_new_string(restore_token.c_str()));
       }
@@ -253,6 +301,11 @@ namespace pw {
             GVariant *node_id_v = g_variant_get_child_value(stream_entry, 0);
             pw_node_id = g_variant_get_uint32(node_id_v);
             g_variant_unref(node_id_v);
+
+            GVariant *props = g_variant_get_child_value(stream_entry, 1);
+            log_stream_properties(props);
+            g_variant_unref(props);
+
             g_variant_unref(stream_entry);
             BOOST_LOG(info) << "Portal: stream node_id="sv << pw_node_id;
           }
@@ -299,6 +352,56 @@ namespace pw {
       BOOST_LOG(info) << "Portal: PipeWire fd="sv << pw_fd << " node_id="sv << pw_node_id;
       ready = (pw_fd >= 0 && pw_node_id > 0);
       return ready;
+    }
+
+    static std::string source_type_name(uint32_t source_type) {
+      switch (source_type) {
+        case SOURCE_MONITOR:
+          return "MONITOR";
+        case SOURCE_WINDOW:
+          return "WINDOW";
+        case SOURCE_VIRTUAL:
+          return "VIRTUAL";
+        default:
+          return "unknown(" + std::to_string(source_type) + ")";
+      }
+    }
+
+    static void log_stream_properties(GVariant *props) {
+      if (!props) return;
+
+      uint32_t source_type = 0;
+      if (g_variant_lookup(props, "source_type", "u", &source_type)) {
+        BOOST_LOG(info) << "Portal: stream source_type="sv << source_type_name(source_type);
+        if (source_type == SOURCE_VIRTUAL) {
+          BOOST_LOG(warning) << "Portal: selected XDG VIRTUAL source; KDE currently tends to expose this as 1920x1080. Prefer the existing Sonnenschein monitor source if the dialog offers it."sv;
+        }
+      }
+
+      const gchar *id = nullptr;
+      if (g_variant_lookup(props, "id", "&s", &id)) {
+        BOOST_LOG(info) << "Portal: stream id="sv << id;
+      }
+
+      const gchar *mapping_id = nullptr;
+      if (g_variant_lookup(props, "mapping_id", "&s", &mapping_id)) {
+        BOOST_LOG(info) << "Portal: stream mapping_id="sv << mapping_id;
+      }
+
+      gint32 x = 0, y = 0;
+      if (g_variant_lookup(props, "position", "(ii)", &x, &y)) {
+        BOOST_LOG(info) << "Portal: stream position="sv << x << ","sv << y;
+      }
+
+      gint32 width = 0, height = 0;
+      if (g_variant_lookup(props, "size", "(ii)", &width, &height)) {
+        BOOST_LOG(info) << "Portal: stream logical size="sv << width << "x"sv << height;
+      }
+
+      guint64 serial = 0;
+      if (g_variant_lookup(props, "pipewire-serial", "t", &serial)) {
+        BOOST_LOG(info) << "Portal: stream pipewire-serial="sv << serial;
+      }
     }
   };
 
