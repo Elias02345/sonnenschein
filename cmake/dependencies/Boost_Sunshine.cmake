@@ -30,16 +30,31 @@ endif()
 if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
     cmake_policy(SET CMP0167 NEW)  # Get BoostConfig.cmake from upstream
 endif()
-# Sonnenschein change vs Apollo: drop the EXACT pin. Apollo wants Boost
-# 1.89.0 exactly so the static prebuilds in third-party/build-deps line
-# up. We accept any system Boost >= 1.89 — Boost is API-compatible
-# enough that 1.90/1.91/+ work for our usage, and matching the system
-# saves the FetchContent build (~3-5 min on configure). Falls back to
-# FetchContent at exactly BOOST_VERSION if no suitable system Boost is
-# found.
+# Sonnenschein change vs Apollo: drop the EXACT pin AND verify each
+# component individually. Apollo wants Boost 1.89.0 exactly so the
+# static prebuilds in third-party/build-deps line up. We accept any
+# system Boost >= 1.89 — API-compatible — but require ALL components
+# to be installed. Modular Boost installs (CachyOS, Fedora) sometimes
+# ship the umbrella BoostConfig but miss individual boost_<X>Config
+# files, in which case find_package leaves Boost_FOUND TRUE while a
+# specific Boost::<comp> target is silently absent. We catch that and
+# fall through to FetchContent so downstream CMake (Simple-Web-Server,
+# libdisplaydevice) doesn't blow up later.
 find_package(Boost CONFIG ${BOOST_VERSION} COMPONENTS ${BOOST_COMPONENTS})
+if(Boost_FOUND)
+    foreach(_comp ${BOOST_COMPONENTS})
+        if(NOT TARGET Boost::${_comp})
+            message(STATUS
+                    "Boost component '${_comp}' missing from system install — "
+                    "Boost_${_comp}_FOUND='${Boost_${_comp}_FOUND}'. "
+                    "Falling back to FetchContent.")
+            set(Boost_FOUND FALSE)  # cmake-lint: disable=C0103
+            break()
+        endif()
+    endforeach()
+endif()
 if(NOT Boost_FOUND)
-    message(STATUS "Boost >=${BOOST_VERSION} package not found in the system. Falling back to FetchContent (will fetch ${BOOST_VERSION}).")
+    message(STATUS "Boost >=${BOOST_VERSION} package not usable from system. Falling back to FetchContent (will fetch ${BOOST_VERSION}).")
     include(FetchContent)
 
     if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
