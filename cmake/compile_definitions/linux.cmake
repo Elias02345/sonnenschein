@@ -11,6 +11,20 @@ endif()
 # cuda
 set(CUDA_FOUND OFF)
 if(${SUNSHINE_ENABLE_CUDA})
+    # Sonnenschein addition: Arch / CachyOS install nvcc at /opt/cuda/bin
+    # rather than /usr/local/cuda/bin or PATH. Help CMake find it before
+    # check_language(CUDA) runs, so users don't need to remember
+    # CUDACXX=/opt/cuda/bin/nvcc.
+    if(NOT DEFINED CMAKE_CUDA_COMPILER AND NOT DEFINED ENV{CUDACXX})
+        find_program(_sns_nvcc nvcc
+                PATHS /opt/cuda/bin /usr/local/cuda/bin
+                NO_DEFAULT_PATH)
+        if(_sns_nvcc)
+            message(STATUS "Sonnenschein: found nvcc at ${_sns_nvcc}")
+            set(CMAKE_CUDA_COMPILER "${_sns_nvcc}")
+        endif()
+    endif()
+
     include(CheckLanguage)
     check_language(CUDA)
 

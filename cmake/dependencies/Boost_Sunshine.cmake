@@ -30,31 +30,54 @@ endif()
 if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
     cmake_policy(SET CMP0167 NEW)  # Get BoostConfig.cmake from upstream
 endif()
-# Sonnenschein change vs Apollo: drop the EXACT pin AND verify each
-# component individually. Apollo wants Boost 1.89.0 exactly so the
-# static prebuilds in third-party/build-deps line up. We accept any
-# system Boost >= 1.89 — API-compatible — but require ALL components
-# to be installed. Modular Boost installs (CachyOS, Fedora) sometimes
-# ship the umbrella BoostConfig but miss individual boost_<X>Config
-# files, in which case find_package leaves Boost_FOUND TRUE while a
-# specific Boost::<comp> target is silently absent. We catch that and
-# fall through to FetchContent so downstream CMake (Simple-Web-Server,
-# libdisplaydevice) doesn't blow up later.
-find_package(Boost CONFIG ${BOOST_VERSION} COMPONENTS ${BOOST_COMPONENTS})
-if(Boost_FOUND)
-    foreach(_comp ${BOOST_COMPONENTS})
-        if(NOT TARGET Boost::${_comp})
-            message(STATUS
-                    "Boost component '${_comp}' missing from system install — "
-                    "Boost_${_comp}_FOUND='${Boost_${_comp}_FOUND}'. "
-                    "Falling back to FetchContent.")
-            set(Boost_FOUND FALSE)  # cmake-lint: disable=C0103
+
+# Sonnenschein change vs Apollo: pre-flight every required component on
+# disk BEFORE calling find_package. Apollo's original code did
+# `find_package(Boost ... EXACT)` which always missed (system rarely
+# matches exactly), then fell back to FetchContent — slow but reliable.
+# We tried to optimize by accepting any system Boost >= BOOST_VERSION,
+# but on distros with modular Boost installs (CachyOS' boost 1.91 is
+# the canonical example) some boost_<comp>-config.cmake files are
+# missing, find_package partially imports targets, and FetchContent
+# then crashes with ALIAS-target collisions. Avoid the import in the
+# first place: if any component's CMake config dir is absent on disk,
+# skip find_package entirely and go straight to FetchContent.
+set(_sns_system_boost_usable TRUE)
+if(UNIX AND NOT APPLE)
+    foreach(_sns_comp ${BOOST_COMPONENTS})
+        file(GLOB _sns_dirs
+                "/usr/lib/cmake/boost_${_sns_comp}-*"
+                "/usr/lib64/cmake/boost_${_sns_comp}-*"
+                "/usr/local/lib/cmake/boost_${_sns_comp}-*")
+        if(NOT _sns_dirs)
+            message(STATUS "Boost component '${_sns_comp}' has no system "
+                           "CMake config — using FetchContent for the whole tree.")
+            set(_sns_system_boost_usable FALSE)
             break()
         endif()
     endforeach()
 endif()
+
+if(_sns_system_boost_usable)
+    find_package(Boost CONFIG ${BOOST_VERSION} COMPONENTS ${BOOST_COMPONENTS})
+    # Belt-and-braces: also verify each Boost::<comp> got imported.
+    if(Boost_FOUND)
+        foreach(_sns_comp ${BOOST_COMPONENTS})
+            if(NOT TARGET Boost::${_sns_comp})
+                message(STATUS
+                        "Boost component '${_sns_comp}' missing despite "
+                        "config dir being present — falling back to FetchContent.")
+                set(Boost_FOUND FALSE)  # cmake-lint: disable=C0103
+                break()
+            endif()
+        endforeach()
+    endif()
+else()
+    set(Boost_FOUND FALSE)  # cmake-lint: disable=C0103
+endif()
+
 if(NOT Boost_FOUND)
-    message(STATUS "Boost >=${BOOST_VERSION} package not usable from system. Falling back to FetchContent (will fetch ${BOOST_VERSION}).")
+    message(STATUS "Boost >=${BOOST_VERSION} not usable from system. Falling back to FetchContent (will fetch ${BOOST_VERSION}).")
     include(FetchContent)
 
     if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
