@@ -169,29 +169,40 @@ namespace pw {
       wl_output *target = nullptr;
       output_t *params = nullptr;
       
-      // 1. Try exact match by name or description
-      for (auto &[output, candidate] : outputs) {
-        BOOST_LOG(info) << "KWin direct capture: found output '"sv << candidate.name
-                        << "' (desc: '"sv << candidate.description << "') "sv
-                        << candidate.width << "x"sv << candidate.height
-                        << " at "sv << candidate.x << ","sv << candidate.y;
-        if (candidate.name == target_output_name || candidate.description == target_output_name) {
-          target = output;
-          params = &candidate;
-        }
-      }
-
-      // 2. If not found, try fallback: the first output starting with 'Virtual-'
-      // or description containing 'Virtual'
-      if (!target) {
+      auto find_target = [&]() -> bool {
+        // 1. Try exact match by name or description
         for (auto &[output, candidate] : outputs) {
-          if (candidate.name.find("Virtual-") == 0 || candidate.description.find("Virtual") != std::string::npos) {
-            BOOST_LOG(info) << "KWin direct capture: using fallback virtual output '"sv << candidate.name << "'";
+          BOOST_LOG(info) << "KWin direct capture: found output '"sv << candidate.name
+                          << "' (desc: '"sv << candidate.description << "') "sv
+                          << candidate.width << "x"sv << candidate.height
+                          << " at "sv << candidate.x << ","sv << candidate.y;
+          if (candidate.name == target_output_name || candidate.description == target_output_name) {
             target = output;
             params = &candidate;
-            break;
           }
         }
+
+        // 2. If not found, try fallback: the first output starting with 'Virtual-'
+        // or description containing 'Virtual'
+        if (!target) {
+          for (auto &[output, candidate] : outputs) {
+            if (candidate.name.find("Virtual-") == 0 || candidate.description.find("Virtual") != std::string::npos) {
+              BOOST_LOG(info) << "KWin direct capture: using fallback virtual output '"sv << candidate.name << "'";
+              target = output;
+              params = &candidate;
+              break;
+            }
+          }
+        }
+        
+        return target != nullptr;
+      };
+
+      if (!find_target()) {
+        BOOST_LOG(info) << "KWin direct capture: target not found yet, doing a display roundtrip to sync hotplug events...";
+        wl_display_roundtrip(display);
+        wl_display_roundtrip(display);
+        find_target(); // Try again after syncing
       }
 
       if (!target || !params) {
