@@ -775,8 +775,8 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
 - Der CachyOS Test mit `stream_virtual_output` war ein **Erfolg**! Das Log zeigt: `KWin direct capture: streaming output 'Sonnenschein-00E8F1E1' 1280x800 node_id=73`.
 - PipeWire negotiated erfolgreich `1280x800 fmt=8`.
 - Die folgenden Probleme verbleiben:
-  - **Bildwiederholrate (60Hz statt 90Hz)**: Ein Formatierungsfehler beim Loggen (`@third-party\build-deps...`) deutet darauf hin, dass die Refresh-Rate in `pwgrab.cpp` nicht korrekt übergeben wird.
-  - **Physische Monitore deaktivieren**: Der User fordert, dass bei aktiven Virtual Displays alle physischen Monitore ausgeschaltet werden (Headless-Modus Priorität 1).
+  - **Bildwiederholrate (60Hz statt 90Hz)**: Ein Formatierungsfehler beim Loggen (`@third-party\build-deps...`) deutet darauf hin, dass die Refresh-Rate in `pwgrab.cpp` nicht korrekt übergeben wird. **(Gefixt am 2026-05-10: C++ Typ-Cast gefixt und dynamisches `kscreen-doctor mode set` nach Stream-Start eingebaut, da `stream_virtual_output` keine Refresh-Rate direkt annimmt)**.
+  - **Physische Monitore deaktivieren**: Der User fordert, dass bei aktiven Virtual Displays alle physischen Monitore ausgeschaltet werden (Headless-Modus Priorität 1). **(Gefixt am 2026-05-10: `kwin_wayland.cpp` nutzt nun `kscreen-doctor` um physische Monitore abzuschalten und später wiederherzustellen)**.
   - **HDR Option**: HDR wird auf dem Stream noch nicht angeboten.
 
 ### 9.14 PipeWire-Virtual-Display: Touch/Maus fehlt

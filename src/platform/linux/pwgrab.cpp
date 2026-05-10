@@ -40,6 +40,7 @@
 
 #ifdef SUNSHINE_BUILD_KWIN
 #include <zkde-screencast-unstable-v1.h>
+#include "virtual_display/subprocess.h"
 #endif
 
 // local includes
@@ -235,6 +236,26 @@ namespace pw {
       if (!wait_for_stream()) {
         BOOST_LOG(warning) << "KWin direct capture: "sv << (error.empty() ? "timeout waiting for stream" : error);
         return false;
+      }
+
+      // Best effort: set the mode via kscreen-doctor to ensure the framerate is respected.
+      // KWin's stream_virtual_output creates it at 60Hz by default.
+      if (requested_framerate > 0) {
+        char buf[32];
+        std::snprintf(buf, sizeof(buf), "%.3f", requested_framerate);
+        std::string hz_str(buf);
+        while (hz_str.size() > 1 && hz_str.back() == '0') hz_str.pop_back();
+        if (!hz_str.empty() && hz_str.back() == '.') hz_str.pop_back();
+
+        std::ostringstream mode_arg;
+        mode_arg << "output." << target_output_name << ".mode."
+                 << width << "x" << height << "@" << hz_str;
+                 
+        BOOST_LOG(info) << "KWin direct capture: setting refresh rate via "sv << mode_arg.str();
+        auto mode_res = sonnenschein::vdisplay::run_args({"kscreen-doctor", mode_arg.str()}, "kscreen-doctor mode set");
+        if (!mode_res.ok) {
+          BOOST_LOG(warning) << "KWin direct capture: mode set failed: "sv << mode_res.output;
+        }
       }
 
       BOOST_LOG(info) << "KWin direct capture: streaming output '"sv
