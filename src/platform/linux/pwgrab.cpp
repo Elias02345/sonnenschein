@@ -241,11 +241,7 @@ namespace pw {
       // Best effort: set the mode via kscreen-doctor to ensure the framerate is respected.
       // KWin's stream_virtual_output creates it at 60Hz by default.
       if (requested_framerate > 0) {
-        char buf[32];
-        std::snprintf(buf, sizeof(buf), "%.3f", requested_framerate);
-        std::string hz_str(buf);
-        while (hz_str.size() > 1 && hz_str.back() == '0') hz_str.pop_back();
-        if (!hz_str.empty() && hz_str.back() == '.') hz_str.pop_back();
+        std::string hz_str = std::to_string(static_cast<int>(requested_framerate));
 
         std::ostringstream mode_arg;
         mode_arg << "output." << target_output_name << ".mode."

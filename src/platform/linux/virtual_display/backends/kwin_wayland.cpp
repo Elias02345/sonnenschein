@@ -170,7 +170,7 @@ namespace sonnenschein::vdisplay::backends {
         BOOST_LOG(info)
             << "Sonnenschein vdisplay (kwin): registered virtual output '" << disp << "' "
             << req.width << "x" << req.height
-            << "@" << hz_str.c_str() << " Hz"
+            << "@" << hz_str << " Hz"
             << (hdr_active ? " HDR10" : " SDR");
         return h;
       }
