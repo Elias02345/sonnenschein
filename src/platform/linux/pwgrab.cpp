@@ -247,16 +247,16 @@ namespace pw {
         mode_arg << "output." << target_output_name << ".mode."
                  << width << "x" << height << "@" << hz_str;
                  
-        BOOST_LOG(info) << "KWin direct capture: setting refresh rate via "sv << mode_arg.str();
+        BOOST_LOG(info) << "KWin direct capture: setting refresh rate via " << mode_arg.str();
         auto mode_res = sonnenschein::vdisplay::run_args({"kscreen-doctor", mode_arg.str()}, "kscreen-doctor mode set");
         if (!mode_res.ok) {
           BOOST_LOG(warning) << "KWin direct capture: mode set failed: "sv << mode_res.output;
         }
       }
 
-      BOOST_LOG(info) << "KWin direct capture: streaming output '"sv
-                      << target_output_name << "' "sv << width << "x"sv << height
-                      << " node_id="sv << node_id;
+      BOOST_LOG(info) << "KWin direct capture: streaming output '"
+                      << target_output_name << "' " << width << "x" << height
+                      << " node_id=" << node_id;
       return node_id != PW_ID_ANY && width > 0 && height > 0;
     }
 
@@ -954,9 +954,9 @@ namespace pw {
       struct spa_fraction min_rate = SPA_FRACTION(0, 1);
       struct spa_fraction max_rate = SPA_FRACTION(std::max<uint32_t>(requested_framerate, 144), 1);
 
-      BOOST_LOG(info) << "PipeWire: requesting format "sv
-                      << requested_width << "x"sv << requested_height
-                      << "@"sv << static_cast<uint32_t>(requested_framerate);
+      BOOST_LOG(info) << "PipeWire: requesting format "
+                      << requested_width << "x" << requested_height
+                      << "@" << static_cast<uint32_t>(requested_framerate);
 
       auto *fmt = static_cast<const spa_pod *>(spa_pod_builder_add_object(
         &builder, SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat,
