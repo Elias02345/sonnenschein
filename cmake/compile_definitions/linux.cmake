@@ -204,6 +204,18 @@ else()
     message(STATUS "PipeWire capture backend: DISABLED (libpipewire-0.3 or gio-2.0 not found)")
 endif()
 
+# KWin direct ScreenCast protocol. This still uses PipeWire for frames, but
+# obtains the node directly from KWin instead of xdg-desktop-portal. On KDE
+# this lets us target the already-created Sonnenschein wl_output by name and
+# avoid the portal "Virtual Display" source that is fixed at 1920x1080.
+if(PIPEWIRE_FOUND AND WAYLAND_FOUND AND ${SUNSHINE_ENABLE_KWIN})
+    add_compile_definitions(SUNSHINE_BUILD_KWIN)
+    GEN_WAYLAND("${CMAKE_SOURCE_DIR}/third-party/plasma-wayland-protocols/src/protocols" "" zkde-screencast-unstable-v1)
+    message(STATUS "KWin direct ScreenCast capture: ENABLED")
+else()
+    message(STATUS "KWin direct ScreenCast capture: DISABLED")
+endif()
+
 # x11
 if(${SUNSHINE_ENABLE_X11})
     find_package(X11 REQUIRED)

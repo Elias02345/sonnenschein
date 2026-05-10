@@ -5,16 +5,16 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-10 — **Phase 4 (PipeWire-Capture) streamt auf virtuellem Display. KDE-Portal ignoriert Formatwunsch; Input/Cursor fehlen noch.**
+**Stand:** 2026-05-10 — **Phase 4 (PipeWire/KWin-Capture): KWin-Direktcapture implementiert, CachyOS-Test ausstehend.**
 
 ---
 
 ## TL;DR — Wo stehen wir gerade
 
-- **Letzter funktionaler Commit auf `dev`**: [`447dc8b`](https://github.com/Elias02345/sonnenschein/commit/447dc8b) — `fix(capture): log portal source and request cursor`
+- **Letzter gepushter Test-Commit auf `dev`**: [`bb3e758`](https://github.com/Elias02345/sonnenschein/commit/bb3e758) — `docs: update STATUS.md with portal source diagnostics`
 - **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (297 Steps grün) + CachyOS (GCC 16.1.1, RTX 3070, Plasma 6.6.4 Wayland)
 - **Erreichter Meilenstein (Phase 4)**:
-  - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, 689 Zeilen)
+  - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, aktuell ~1180 Zeilen)
   - ✅ D-Bus Portal Session + PipeWire Stream + platf::display_t
   - ✅ CMake: optionale libpipewire-0.3 + gio-2.0 Dependency
   - ✅ Automatische Backend-Auswahl: PipeWire wenn Virtual Display aktiv
@@ -29,9 +29,14 @@
   - ✅ **OpenPipeWireRemote-Fix validiert**: Portal liefert `PipeWire fd=68 node_id=140`, kein GLib-Abbruch mehr.
   - ✅ **Erster echter Stream auf Virtual Display**: PipeWire `streaming`, NVENC HEVC aktiv, Disconnect entfernt `Sonnenschein-00E8F1E1`.
   - 🔴 **Mode-Mismatch bleibt**: `76d03a4` fordert `PipeWire: requesting format 1280x800@90`, aber KDE/Portal negotiated weiterhin `1920x1080 fmt=8`.
-  - 🟡 **Diagnose-/Cursor-Patch in `447dc8b`**: Portal-Source-Properties (`source_type`, `size`, `id`, `mapping_id`) werden geloggt; `cursor_mode=Embedded` wird angefordert, wenn KDE diesen Modus anbietet.
-  - 🔴 **Input/Cursor fehlen im Virtual-Display-Stream**: Auf SteamDeck sind keine Touch-Eingaben möglich und Mauszeiger wird nicht angezeigt. Cursor wird mit `447dc8b` erneut getestet; Touch/Input bleibt danach separat.
-- **Aktueller Blocker**: KDE-Portal-Auswahl "Virtuelles Display" liefert offenbar nicht den erzeugten KWin-Output in `1280x800@90`, sondern weiter eine Portal/KDE-Quelle mit `1920x1080`. Nächster Schritt: Portal-Source-Optionen und KWin-Output-Identifikation prüfen; parallel Cursor/Input-Pfad für PipeWire-Virtual-Display untersuchen.
+  - ✅ **Ton funktioniert im Stream** (CachyOS-Test mit `bb3e758`, 2026-05-10 17:06).
+  - ✅ **Eingaben funktionieren im Stream** (CachyOS-Test mit `bb3e758`, 2026-05-10 17:06).
+  - ✅ **Diagnose-/Cursor-Patch validiert**: Portal meldet `available source types=7 cursor modes=7`, `cursor_mode=Embedded` wird angefordert.
+  - 🔴 **Mode-Mismatch bestätigt**: Portal-Stream ist `source_type=VIRTUAL`, `logical size=1920x1080`; PipeWire requested `1280x800@90`, negotiated aber `1920x1080`.
+  - 🔴 **SteamDeck-Refresh bleibt zu niedrig/inkorrekt**: Client fordert `1280x800x90`, aber Stream läuft über den 1920x1080-KDE-Virtual-Source-Pfad statt über den Sonnenschein-Output.
+  - 🟡 **Fix-Kandidat implementiert**: KWin-Direct-ScreenCast (`zkde_screencast_unstable_v1`) targetet den erzeugten `Sonnenschein-...`-`wl_output` direkt und verweigert den KDE-XDG-`VIRTUAL`-Fallback.
+  - ✅ **WSL-Build grün**: `/root/snsbuild`, `cmake --build . --target sunshine -j8`, danach `ninja: no work to do`.
+- **Aktueller Blocker**: CachyOS muss jetzt validieren, ob KWin den Direct-ScreenCast-Zugriff erlaubt und PipeWire dann `1280x800@90` statt `1920x1080` negotiated. Erfolgsziel: kein KDE-Portal-Dialog oder zumindest kein `source_type=VIRTUAL`; Log muss `KWin direct capture: streaming output 'Sonnenschein-...'` zeigen.
 - **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless ebenfalls unterstützt.
 
 ---
@@ -94,7 +99,7 @@
 - **CI** (`.github/workflows/`):
   - `lint.yml` — shellcheck + prettier + clang-format auf Push/PR.
   - `build-linux.yml` — Build-Matrix für Arch / Ubuntu 24.04 / Fedora 41. Aktuell `continue-on-error: true` während Phasen 1+2 stabilisieren — Flag entfernen wenn Distro 100 % grün baut. CI-Logs unter <https://github.com/Elias02345/sonnenschein/actions>.
-  - Submodules in CI: aktuell `submodules: false` — third-party muss in CI separat geholt werden, oder Submodules wieder einschalten sobald Build-Pipeline auf allen Distros stabil ist.
+  - Submodules in CI: `submodules: recursive`, weil KWin Direct ScreenCast das Plasma-Wayland-Protokoll-Submodule braucht.
 
 ---
 
@@ -180,7 +185,7 @@ Vom Maintainer in der initialen Session bestätigt. **Nicht hinterfragen** — w
 - Pro Push auf `main` oder `dev` und auf jedem PR.
 - Container für Arch (latest), Ubuntu 24.04, Fedora 41.
 - Aktuell **permissiv** (`continue-on-error: true`) während Phase 1+2 stabilisiert. Wenn Phase 7 erreicht ist, dieses Flag entfernen und CI hart machen.
-- Submodules: derzeit `submodules: false` (siehe Issue im build-linux.yml — wir holen sie nicht in CI, weil build-deps mit 1.1 GB die Action-Quota sprengen würde).
+- Submodules: seit KWin-Direktcapture `submodules: recursive`, weil `third-party/plasma-wayland-protocols` für `zkde-screencast-unstable-v1.xml` benötigt wird.
 
 ### B) WSL2 Ubuntu 24.04 (auf Maintainers Windows-PC)
 - Build-Verzeichnis: **`/root/snsbuild`** (NICHT `/tmp/snsbuild` — `/tmp` wird beim WSL-Restart gewipt!).
@@ -251,7 +256,7 @@ Legende: ✅ done · 🟡 in_progress · 🔴 blocked · ⏸ pending
 
 | Aufgabe | Status | Commit | Notes |
 |---|---|---|---|
-| 17 Submodules eingebunden via `_reference/add_submodules.sh` | ✅ | `a95f2ee` | inkl. moonlight-common-c/enet rekursiv (wegen nested submodule), tray gepinnt auf `7936cb35` (Pre-Qt-Migration) |
+| Submodules eingebunden via `_reference/add_submodules.sh` + später Plasma-Protokolle | ✅ | `a95f2ee` + aktueller KWin-Fix | inkl. moonlight-common-c/enet rekursiv, tray gepinnt auf `7936cb35`, neu `third-party/plasma-wayland-protocols` für KWin Direct ScreenCast |
 | Build-Deps in WSL2 installiert | ✅ | (manuell) | Liste in `docs/building.md` |
 | **libva 2.22 from source** in WSL2 | ✅ | (manuell) | Ubuntu 24.04 Stock libva 2.20 fehlt `vaMapBuffer2`, das build-deps' FFmpeg braucht |
 | Node 20 in WSL2 (statt Node 18) | ✅ | (manuell) | Vite 6 + @vitejs/plugin-vue 6 brauchen Node ≥20.19 (`crypto.hash`) |
@@ -538,7 +543,7 @@ sonnenschein/
 ├── scripts/
 │   └── linux_build.sh                 # Apollos Build-Script (wird durch Phase-3-Installer abgelöst)
 ├── tests/                             # gtest, BUILD_TESTS=OFF default
-├── third-party/                       # 17 Submodules + glad/nvfbc/sudovda vendoriert
+├── third-party/                       # Submodules + glad/nvfbc/sudovda vendoriert
 └── tools/                             # Apollo-Hilfstools (großteils Windows)
 ```
 
@@ -723,7 +728,7 @@ PipeWire: format negotiated 1920x1080 fmt=8
 PipeWire display initialized: 1920x1080
 ```
 
-**Ursache (wahrscheinlich)**: `src/platform/linux/pwgrab.cpp` hardcoded in `pw_capture_t::init()` aktuell `default_size = 1920x1080` und `default_rate = 60/1` für die PipeWire-Format-Negotiation. KWin erstellt den virtuellen Output korrekt mit `1280x800@90`, aber PipeWire wird von Sonnenschein selbst auf 1920x1080 angefragt.
+**Ursache (validiert)**: Anfangs war `pw_capture_t::init()` noch auf `1920x1080` voreingestellt; das wurde in `76d03a4` korrigiert. Die danach verbliebene Ursache ist die KDE-Portal-Quelle selbst: Im Dialog ausgewähltes "Virtuelles Display" kommt als XDG-`VIRTUAL`-Source mit `logical size=1920x1080`, nicht als der von Sonnenschein erzeugte KWin-Output `Sonnenschein-...`.
 
 **Status**: `76d03a4` wirkt teilweise: `pwgrab.cpp` loggt `PipeWire: requesting format 1280x800@90`. CachyOS-Test mit `12a17da` zeigt aber weiterhin `PipeWire: format negotiated 1920x1080 fmt=8` und die neue Warnung `PipeWire: negotiated size differs from client request 1280x800 -> 1920x1080`. Damit ignoriert KDE/Portal den Formatwunsch oder die im Dialog gewählte Quelle ist nicht der KWin-Output `Sonnenschein-00E8F1E1`.
 
@@ -734,6 +739,25 @@ PipeWire display initialized: 1920x1080
 
 **Status**: Diagnose-/Cursor-Patch in `447dc8b`. Portal-Stream-Properties (`source_type`, `size`, `position`, `id`, `mapping_id`) werden geloggt und `cursor_mode=Embedded` wird angefordert, falls KDE diesen Modus anbietet. WSL2-Build gegen `/root/snsbuild` ist grün (`ninja: no work to do` nach erfolgreichem Link, Binary `sunshine-0.0.0` aktualisiert um 16:58). Damit sehen wir im nächsten CachyOS-Test eindeutig, ob der Dialog die XDG-`VIRTUAL`-Quelle statt des existierenden KWin-Monitors auswählt, und der Mauszeiger sollte sichtbar werden, wenn KDE Embedded Cursor unterstützt.
 
+**Validierung `bb3e758` (CachyOS, 2026-05-10 17:06)**:
+```text
+Portal: available source types=7 cursor modes=7
+Portal: requesting embedded cursor mode
+Portal: stream source_type=VIRTUAL
+Portal: stream logical size=1920x1080
+PipeWire: requesting format 1280x800@90
+PipeWire: format negotiated 1920x1080 fmt=8
+PipeWire: negotiated size differs from client request 1280x800 -> 1920x1080
+```
+Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE-XDG-`VIRTUAL`-Quelle, nicht von unserem PipeWire-Formatrequest.
+
+**Fix-Kandidat 2026-05-10**:
+- `src/platform/linux/pwgrab.cpp` probiert bei benanntem Virtual Display zuerst KWin Direct ScreenCast (`zkde_screencast_unstable_v1`) statt `xdg-desktop-portal`.
+- Der Code enumeriert `wl_output`-Namen, sucht exakt `Sonnenschein-...`, fordert Embedded Cursor an und verbindet den daraus gelieferten PipeWire-Node über den lokalen PipeWire-Core.
+- Wenn der Ziel-Output nicht gefunden wird oder KWin den Zugriff verweigert, fällt Sonnenschein **nicht** mehr auf die KDE-XDG-`VIRTUAL`-Quelle zurück, weil dieser Pfad validiert 1920x1080 erzwingt.
+- CMake generiert das Protokoll aus `third-party/plasma-wayland-protocols/src/protocols/zkde-screencast-unstable-v1.xml` hinter `SUNSHINE_ENABLE_KWIN=ON`.
+- WSL2-Build grün: `/root/snsbuild`, explizites Reconfigure + `cmake --build . --target sunshine -j8`, danach `ninja: no work to do`.
+
 ### 9.14 PipeWire-Virtual-Display: Touch/Maus fehlt
 
 **Symptom**: Im funktionierenden Virtual-Display-Stream auf SteamDeck sind keine Touch-Eingaben möglich und der Mauszeiger wird nicht angezeigt.
@@ -742,7 +766,15 @@ PipeWire display initialized: 1920x1080
 - Cursor: `pwgrab.cpp` setzt derzeit keinen Cursor-Metadatenpfad und ruft `push_captured_image_cb(..., true)` nur mit Frameinhalt auf. Portal/ScreenCast kann Cursor je nach `cursor_mode` im Stream einbetten oder als Metadaten liefern; wir setzen aktuell keine Cursor-Option.
 - Touch/Input: Sonnenschein erzeugt zwar ein virtuelles Gamepad (`Gamepad 0 will be Xbox One controller`), aber Touch-/Maus-Koordinaten müssen auf `display->env_width/env_height` und den Virtual-Display-Output abgebildet werden. Bei PipeWire `1920x1080` vs. Client `1280x800` ist das Mapping wahrscheinlich falsch oder inaktiv.
 
-**Status**: Offener Folge-Bug nach erstem erfolgreichen PipeWire-Stream. `447dc8b` fordert zunächst Embedded Cursor an; danach erneut testen. Touch/Input nach Auflösungs-/Source-Fix separat prüfen, weil Koordinatenmapping bei `1920x1080` Portal-Stream vs. `1280x800` Client vermutlich falsch oder inaktiv ist.
+**Status**: Teilweise erledigt. CachyOS-Test mit `bb3e758` bestätigt: Ton und Eingaben funktionieren. Cursor wurde über `cursor_mode=Embedded` angefordert; falls der Cursor weiter fehlt, bleibt das ein separater Cursor-Compositing-Bug. Touch/Input ist nicht mehr Hauptblocker.
+
+### 9.16 SteamDeck Refresh/Mode wird durch KDE-XDG-Virtual-Source begrenzt
+
+**Symptom**: Steam/Moonlight auf dem SteamDeck zeigt eine niedrigere bzw. falsche Bildwiederholrate im Stream an, obwohl das Deck-Display mehr kann und der Client `1280x800x90` anfragt.
+
+**Ursache (bestätigt)**: Sonnenschein erstellt den KWin-Output mit `1280x800@90`, aber der Portal-Stream kommt aus `source_type=VIRTUAL` mit `logical size=1920x1080`. Damit verliert der Capture-Pfad den Client-Mode; Refresh und Aspect Ratio folgen nicht dem erzeugten Sonnenschein-Output.
+
+**Status**: Fix-Kandidat implementiert. Der nächste CachyOS-Test muss zeigen, ob KWin den direkten ScreenCast-Zugriff erlaubt und ob PipeWire dann den erzeugten `Sonnenschein-...`-Output mit `1280x800@90` liefert. Wenn KWin den privaten Zugriff verweigert, ist der nächste Ansatz ein persistenter Portal-Token/Monitor-Source-Pfad oder ein kontrollierter Fallback mit temporär eindeutigem Output-Set.
 
 ### 9.15 Portal-Dialog erscheint bei jedem Stream
 
@@ -759,9 +791,11 @@ PipeWire display initialized: 1920x1080
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+bb3e758 — docs: update STATUS.md with portal source diagnostics — 2026-05-10
 447dc8b — fix(capture): log portal source and request cursor — 2026-05-10
 12a17da — docs: update STATUS.md with PipeWire format fix — 2026-05-10
 76d03a4 — fix(capture): request client format from PipeWire — 2026-05-10
+5fe1ea6 — docs: update STATUS.md with PipeWire fd fix — 2026-05-10
 6d6433f — fix(capture): fix PipeWire remote fd options — 2026-05-10
 3c730a4 — docs: update STATUS.md with D-Bus token/path mismatch fix — 2026-05-10
 60dac9b — fix(capture): fix D-Bus Portal token/path mismatch causing signal timeouts — 2026-05-10
@@ -792,7 +826,7 @@ a95f2ee — Phase 1.3: Init submodules + pin tray pre-Qt — 2026-05-09
 
 `main` Branch zeigt nur auf `235920b` (initial import). `dev` ist die aktive Entwicklungs-Linie und liegt ca. 30+ Commits vor `main`.
 
-**Auf `dev` aktuell funktionaler HEAD = `447dc8b`** (Stand 2026-05-10). Danach kann ein reiner STATUS.md-Doku-Commit folgen.
+**Auf `dev` aktuell gepushter Test-HEAD = `bb3e758`** (Stand 2026-05-10). Der KWin-Direktcapture-Fix ist der nächste zu pushende Code-Stand.
 
 ---
 
@@ -819,11 +853,12 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 - `.github/ISSUE_TEMPLATE/{bug,feature,crash,config}.yml` (NEU)
 - `.github/copilot-instructions.md` (REWRITE) — Linux-first
 - `.github/workflows/lint.yml` (NEU)
-- `.github/workflows/build-linux.yml` (NEU)
+- `.github/workflows/build-linux.yml` (NEU/PATCH) — Linux-Matrix, `continue-on-error`, seit KWin-Direktcapture mit rekursiven Submodules.
 
 ### CMake-Patches
 - `cmake/dependencies/Boost_Sunshine.cmake` (PATCH) — Pre-flight + FetchContent-fallback
-- `cmake/compile_definitions/linux.cmake` (PATCH) — virtual_display sources eingehängt, CUDA-Pfad-Auto-Detection (/opt/cuda), tray_linux.c (statt .cpp wegen Pin)
+- `cmake/compile_definitions/linux.cmake` (PATCH) — virtual_display sources eingehängt, CUDA-Pfad-Auto-Detection (/opt/cuda), tray_linux.c (statt .cpp wegen Pin), PipeWire + KWin-Direct-ScreenCast-Protokollgeneration.
+- `cmake/prep/options.cmake` (PATCH) — `SUNSHINE_ENABLE_KWIN` für optionalen KWin-Direct-ScreenCast-Pfad.
 
 ### C++ — virtual_display Modul (NEU, 14 Files)
 - `src/platform/linux/virtual_display/types.h` — Enums + Structs
@@ -841,10 +876,11 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 - `src/process.cpp` (PATCH) — Linux-Branch in `execute()` + `terminate()`
 
 ### C++ — PipeWire Capture (Phase 4)
-- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an.
+- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; aktueller Fix-Kandidat nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback.
 
 ### Submodule-Pin
 - `third-party/tray/` — gepinnt auf `7936cb35` (vor `.gitmodules`-Datei; gitlink im Tree)
+- `third-party/plasma-wayland-protocols/` — neu gepinnt auf `13b3c2f`, liefert `zkde-screencast-unstable-v1.xml` für KWin Direct ScreenCast.
 
 ---
 
@@ -852,13 +888,13 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 In Reihenfolge der Priorität.
 
-### A) PipeWire-Portal-Source und Format-Mismatch debuggen (Phase 4, nächster Schritt)
+### A) KWin-Direktcapture auf CachyOS testen (Phase 4, nächster Schritt)
 
-1. CachyOS auf `447dc8b` oder neuer ziehen, sauber bauen und aus KDE-Konsole starten.
-2. Im KDE-Portal-Dialog genau beobachten, ob eine Quelle `Sonnenschein-...` separat auftaucht. Wenn ja: diese Quelle wählen. Wenn nur "Virtuelles Display" auftaucht: diese wählen und Log schicken.
-3. Im Log die neuen Zeilen prüfen: `Portal: available source types=... cursor modes=...`, `Portal: requesting embedded cursor mode`, `Portal: stream source_type=...`, `Portal: stream logical size=...`.
-4. Wenn `source_type=VIRTUAL` und weiter `1920x1080` kommt, ist die KDE-XDG-Virtual-Quelle der Blocker. Dann Workaround prüfen: nur den Sonnenschein-Output aktiv lassen oder physische Outputs temporär deaktivieren, damit Portal eindeutig den bestehenden Monitor captured.
-5. Nach Source-Fix: Touch/Maus-Cursor separat testen und Input-Mapping/Cursor-Modus korrigieren.
+1. `dev` ziehen, neue Submodules holen, clean builden.
+2. Sonnenschein aus einer KDE-Konsole innerhalb der Plasma-Sitzung starten.
+3. Erfolgslog prüfen: `KWin direct capture: bound zkde_screencast_unstable_v1`, `found output 'Sonnenschein-...' 1280x800`, `streaming output 'Sonnenschein-...'`, danach `PipeWire: requesting format 1280x800@90`.
+4. Ziel: kein KDE-Screen-Record-Dialog und keine `Portal: stream source_type=VIRTUAL`-Zeilen beim Stream-Start. Wenn KWin Direct funktioniert, sollte PipeWire nicht mehr auf `1920x1080` negotiated werden.
+5. Wenn der Direct-Pfad scheitert: Logzeilen ab `KWin direct capture:` schicken. Dann prüfen wir KWin-Berechtigung/`.desktop`-Permission oder bauen den nächsten Fallback über persistente Portal-Monitor-Auswahl.
 
 ### B) Phase 1.6 — CMake-Rebrand (nach 2D)
 

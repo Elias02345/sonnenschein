@@ -11,10 +11,21 @@
 
 // standard includes
 #include <algorithm>
+#include <array>
 #include <atomic>
+#include <chrono>
+#include <filesystem>
+#include <fcntl.h>
+#include <fstream>
 #include <cstring>
+#include <limits.h>
+#include <map>
 #include <mutex>
+#include <poll.h>
+#include <pwd.h>
 #include <thread>
+#include <unistd.h>
+#include <vector>
 
 // pipewire includes
 #include <pipewire/pipewire.h>
@@ -26,6 +37,10 @@
 
 // GLib / GDBus for portal communication
 #include <gio/gio.h>
+
+#ifdef SUNSHINE_BUILD_KWIN
+#include <zkde-screencast-unstable-v1.h>
+#endif
 
 // local includes
 #include "src/logging.h"
@@ -67,6 +82,326 @@ namespace pw {
     if (!sender.empty() && sender[0] == '_') sender = sender.substr(1);
     return "/org/freedesktop/portal/desktop/request/" + sender + "/" + token;
   }
+
+#ifdef SUNSHINE_BUILD_KWIN
+  /**
+   * Direct KWin ScreenCast session.
+   *
+   * This bypasses xdg-desktop-portal and requests a PipeWire node directly
+   * for the wl_output named by the virtual-display backend. KDE's portal
+   * "Virtual Display" source is a separate XDG virtual monitor and has been
+   * observed to force 1920x1080, so we must target the existing output.
+   */
+  struct kwin_session_t {
+    struct output_t {
+      wl_output *output = nullptr;
+      std::string name;
+      int width = 0;
+      int height = 0;
+      int x = 0;
+      int y = 0;
+    };
+
+    wl_display *display = nullptr;
+    wl_registry *registry = nullptr;
+    zkde_screencast_unstable_v1 *screencast = nullptr;
+    zkde_screencast_stream_unstable_v1 *stream = nullptr;
+    std::map<wl_output *, output_t> outputs;
+    uint32_t node_id = PW_ID_ANY;
+    int width = 0;
+    int height = 0;
+    bool ready = false;
+    bool failed = false;
+    std::string error;
+
+    ~kwin_session_t() {
+      if (stream) {
+        zkde_screencast_stream_unstable_v1_close(stream);
+        stream = nullptr;
+      }
+      if (screencast) {
+        zkde_screencast_unstable_v1_destroy(screencast);
+        screencast = nullptr;
+      }
+      for (auto &[output, _] : outputs) {
+        wl_output_destroy(output);
+      }
+      outputs.clear();
+      if (registry) {
+        wl_registry_destroy(registry);
+        registry = nullptr;
+      }
+      if (display) {
+        wl_display_disconnect(display);
+        display = nullptr;
+      }
+    }
+
+    bool init() {
+      setup_permission();
+
+      const char *wl_name = std::getenv("WAYLAND_DISPLAY");
+      if (!wl_name) {
+        BOOST_LOG(warning) << "KWin direct capture: WAYLAND_DISPLAY is not set"sv;
+        return false;
+      }
+
+      display = wl_display_connect(wl_name);
+      if (!display) {
+        BOOST_LOG(warning) << "KWin direct capture: couldn't connect to Wayland display "sv << wl_name;
+        return false;
+      }
+
+      registry = wl_display_get_registry(display);
+      wl_registry_add_listener(registry, &registry_listener, this);
+      wl_display_roundtrip(display);
+      wl_display_roundtrip(display);
+
+      if (!screencast) {
+        BOOST_LOG(warning) << "KWin direct capture: zkde_screencast_unstable_v1 not available; falling back to portal"sv;
+        return false;
+      }
+      return true;
+    }
+
+    bool start(const std::string &target_output_name) {
+      wl_output *target = nullptr;
+      output_t *params = nullptr;
+      for (auto &[output, candidate] : outputs) {
+        BOOST_LOG(info) << "KWin direct capture: found output '"sv << candidate.name
+                        << "' "sv << candidate.width << "x"sv << candidate.height
+                        << " at "sv << candidate.x << ","sv << candidate.y;
+        if (candidate.name == target_output_name) {
+          target = output;
+          params = &candidate;
+        }
+      }
+
+      if (!target || !params) {
+        BOOST_LOG(warning) << "KWin direct capture: target output '"sv
+                           << target_output_name << "' not found; refusing portal VIRTUAL fallback"sv;
+        return false;
+      }
+
+      stream = zkde_screencast_unstable_v1_stream_output(
+        screencast,
+        target,
+        ZKDE_SCREENCAST_UNSTABLE_V1_POINTER_EMBEDDED);
+      if (!stream) {
+        BOOST_LOG(warning) << "KWin direct capture: stream_output returned null"sv;
+        return false;
+      }
+      zkde_screencast_stream_unstable_v1_add_listener(stream, &stream_listener, this);
+
+      if (!wait_for_stream()) {
+        BOOST_LOG(warning) << "KWin direct capture: "sv << (error.empty() ? "timeout waiting for stream" : error);
+        return false;
+      }
+
+      width = params->width;
+      height = params->height;
+      BOOST_LOG(info) << "KWin direct capture: streaming output '"sv
+                      << params->name << "' "sv << width << "x"sv << height
+                      << " node_id="sv << node_id;
+      return node_id != PW_ID_ANY && width > 0 && height > 0;
+    }
+
+  private:
+    static std::string env_string(const char *key) {
+      const char *value = std::getenv(key);
+      return value ? value : "";
+    }
+
+    static std::filesystem::path home_dir() {
+      if (auto home = env_string("HOME"); !home.empty()) {
+        return home;
+      }
+      if (auto *pw = getpwuid(geteuid())) {
+        return pw->pw_dir;
+      }
+      return {};
+    }
+
+    static std::filesystem::path user_applications_dir() {
+      if (auto data_home = env_string("XDG_DATA_HOME"); !data_home.empty()) {
+        return std::filesystem::path(data_home) / "applications";
+      }
+      auto home = home_dir();
+      if (home.empty()) {
+        return {};
+      }
+      return home / ".local" / "share" / "applications";
+    }
+
+    static std::string executable_path() {
+      std::array<char, PATH_MAX> path {};
+      const auto len = readlink("/proc/self/exe", path.data(), path.size() - 1);
+      if (len <= 0) {
+        return {};
+      }
+      return {path.data(), static_cast<std::size_t>(len)};
+    }
+
+    static void setup_permission() {
+      static bool initialized = false;
+      if (initialized) {
+        return;
+      }
+      initialized = true;
+
+      if (env_string("KWIN_WAYLAND_NO_PERMISSION_CHECKS") == "1") {
+        BOOST_LOG(info) << "KWin direct capture: permission checks disabled by environment"sv;
+        return;
+      }
+
+      const auto applications = user_applications_dir();
+      const auto exe = executable_path();
+      if (applications.empty() || exe.empty()) {
+        BOOST_LOG(warning) << "KWin direct capture: cannot prepare permission desktop file"sv;
+        return;
+      }
+
+      std::error_code ec;
+      std::filesystem::create_directories(applications, ec);
+      if (ec) {
+        BOOST_LOG(warning) << "KWin direct capture: failed to create "sv
+                           << applications.string() << ": "sv << ec.message();
+        return;
+      }
+
+      const auto path = applications / "sonnenschein-kwin-screencast.desktop";
+
+      std::ofstream file(path);
+      if (!file.is_open()) {
+        BOOST_LOG(warning) << "KWin direct capture: failed to write permission file "sv << path.string();
+        return;
+      }
+
+      file << "[Desktop Entry]\n"
+           << "Exec=" << exe << "\n"
+           << "X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1\n"
+           << "Type=Application\n"
+           << "Name=sonnenschein-kwin-wayland-permission\n"
+           << "Comment=Sonnenschein KWin screencast permission\n"
+           << "NoDisplay=true\n";
+      file.close();
+
+      BOOST_LOG(info) << "KWin direct capture: created permission file "sv
+                      << path.string() << "; waiting for KWin to rescan"sv;
+      std::this_thread::sleep_for(3s);
+    }
+
+    bool wait_for_stream() {
+      auto deadline = std::chrono::steady_clock::now() + 5s;
+      while (!ready && !failed && std::chrono::steady_clock::now() < deadline) {
+        wl_display_flush(display);
+        pollfd pfd {};
+        pfd.fd = wl_display_get_fd(display);
+        pfd.events = POLLIN;
+
+        auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+          deadline - std::chrono::steady_clock::now());
+        if (remaining.count() <= 0) {
+          break;
+        }
+
+        if (poll(&pfd, 1, static_cast<int>(remaining.count())) > 0 && (pfd.revents & POLLIN)) {
+          if (wl_display_dispatch(display) < 0) {
+            error = "wl_display_dispatch failed";
+            return false;
+          }
+        }
+      }
+      return ready && !failed;
+    }
+
+    static void on_registry_global(void *data, wl_registry *registry, uint32_t name, const char *interface, uint32_t version) {
+      auto *self = static_cast<kwin_session_t *>(data);
+      if (!std::strcmp(interface, zkde_screencast_unstable_v1_interface.name)) {
+        const auto bind_version = std::min(version, static_cast<uint32_t>(6));
+        self->screencast = static_cast<zkde_screencast_unstable_v1 *>(
+          wl_registry_bind(registry, name, &zkde_screencast_unstable_v1_interface, bind_version));
+        BOOST_LOG(info) << "KWin direct capture: bound zkde_screencast_unstable_v1 version "sv << bind_version;
+      } else if (!std::strcmp(interface, wl_output_interface.name)) {
+        const auto bind_version = std::min(version, static_cast<uint32_t>(4));
+        auto *output = static_cast<wl_output *>(
+          wl_registry_bind(registry, name, &wl_output_interface, bind_version));
+        self->outputs.emplace(output, output_t{output});
+        wl_output_add_listener(output, &output_listener, self);
+      }
+    }
+
+    static void on_registry_global_remove(void *, wl_registry *, uint32_t) {}
+
+    static constexpr wl_registry_listener registry_listener {
+      .global = on_registry_global,
+      .global_remove = on_registry_global_remove,
+    };
+
+    static void on_output_geometry(void *data, wl_output *output, int32_t x, int32_t y, int32_t, int32_t, int32_t, const char *, const char *, int32_t) {
+      auto *self = static_cast<kwin_session_t *>(data);
+      auto &params = self->outputs.at(output);
+      params.x = x;
+      params.y = y;
+    }
+
+    static void on_output_mode(void *data, wl_output *output, uint32_t flags, int32_t width, int32_t height, int32_t) {
+      if (!(flags & WL_OUTPUT_MODE_CURRENT)) {
+        return;
+      }
+      auto *self = static_cast<kwin_session_t *>(data);
+      auto &params = self->outputs.at(output);
+      params.width = width;
+      params.height = height;
+    }
+
+    static void on_output_done(void *, wl_output *) {}
+    static void on_output_scale(void *, wl_output *, int32_t) {}
+
+    static void on_output_name(void *data, wl_output *output, const char *name) {
+      auto *self = static_cast<kwin_session_t *>(data);
+      self->outputs.at(output).name = name ? name : "";
+    }
+
+    static void on_output_description(void *, wl_output *, const char *) {}
+
+    static constexpr wl_output_listener output_listener {
+      .geometry = on_output_geometry,
+      .mode = on_output_mode,
+      .done = on_output_done,
+      .scale = on_output_scale,
+      .name = on_output_name,
+      .description = on_output_description,
+    };
+
+    static void on_stream_closed(void *data, zkde_screencast_stream_unstable_v1 *) {
+      auto *self = static_cast<kwin_session_t *>(data);
+      self->failed = true;
+      self->error = "stream closed by KWin";
+    }
+
+    static void on_stream_created(void *data, zkde_screencast_stream_unstable_v1 *, uint32_t node) {
+      auto *self = static_cast<kwin_session_t *>(data);
+      self->node_id = node;
+      self->ready = true;
+    }
+
+    static void on_stream_failed(void *data, zkde_screencast_stream_unstable_v1 *, const char *message) {
+      auto *self = static_cast<kwin_session_t *>(data);
+      self->failed = true;
+      self->error = message ? message : "stream_output failed";
+    }
+
+    static void on_stream_serial(void *, zkde_screencast_stream_unstable_v1 *, uint32_t, uint32_t) {}
+
+    static constexpr zkde_screencast_stream_unstable_v1_listener stream_listener {
+      .closed = on_stream_closed,
+      .created = on_stream_created,
+      .failed = on_stream_failed,
+      .serial = on_stream_serial,
+    };
+  };
+#endif
 
   /**
    * Portal session: manages D-Bus interaction with xdg-desktop-portal.
@@ -525,9 +860,13 @@ namespace pw {
       pw_thread_loop_lock(loop);
       pw_thread_loop_start(loop);
 
-      core = pw_context_connect_fd(context, fcntl(fd, F_DUPFD_CLOEXEC, 3), nullptr, 0);
+      if (fd >= 0) {
+        core = pw_context_connect_fd(context, fcntl(fd, F_DUPFD_CLOEXEC, 3), nullptr, 0);
+      } else {
+        core = pw_context_connect(context, nullptr, 0);
+      }
       if (!core) {
-        BOOST_LOG(error) << "PipeWire: failed to connect to remote"sv;
+        BOOST_LOG(error) << "PipeWire: failed to connect to "sv << (fd >= 0 ? "remote" : "local core");
         pw_thread_loop_unlock(loop);
         return false;
       }
@@ -640,16 +979,42 @@ namespace pw {
         return 0;
       }
 
-      // Phase 1: Portal session
-      portal = std::make_unique<portal_session_t>();
-      if (!portal->init()) return -1;
-      if (!portal->create_session()) return -1;
-      if (!portal->select_sources()) return -1;
-      if (!portal->start()) return -1;
+      int pipewire_fd = -1;
+      uint32_t pipewire_node_id = PW_ID_ANY;
+
+#ifdef SUNSHINE_BUILD_KWIN
+      // Prefer KWin's direct screencast protocol for named Sonnenschein
+      // virtual outputs. The KDE portal "Virtual Display" source is not
+      // the same output and has been observed to negotiate 1920x1080.
+      if (!display_name.empty()) {
+        kwin_direct = std::make_unique<kwin_session_t>();
+        if (kwin_direct->init() && kwin_direct->start(display_name)) {
+          pipewire_fd = -1;
+          pipewire_node_id = kwin_direct->node_id;
+          BOOST_LOG(info) << "KWin direct capture: selected for output '"sv << display_name << "'"sv;
+        } else {
+          BOOST_LOG(error) << "KWin direct capture: failed for output '"sv
+                           << display_name
+                           << "'. Not falling back to KDE portal VIRTUAL source because it is fixed at 1920x1080."sv;
+          return -1;
+        }
+      }
+#endif
+
+      // Phase 1: Portal session fallback for non-KWin/non-named capture.
+      if (pipewire_node_id == PW_ID_ANY) {
+        portal = std::make_unique<portal_session_t>();
+        if (!portal->init()) return -1;
+        if (!portal->create_session()) return -1;
+        if (!portal->select_sources()) return -1;
+        if (!portal->start()) return -1;
+        pipewire_fd = portal->pw_fd;
+        pipewire_node_id = portal->pw_node_id;
+      }
 
       // Phase 2: PipeWire stream
       pw_cap = std::make_unique<pw_capture_t>();
-      if (!pw_cap->init(portal->pw_fd, portal->pw_node_id,
+      if (!pw_cap->init(pipewire_fd, pipewire_node_id,
                         config.width > 0 ? static_cast<uint32_t>(config.width) : 1920,
                         config.height > 0 ? static_cast<uint32_t>(config.height) : 1080,
                         config.framerate > 0 ? static_cast<uint32_t>(config.framerate) : 60)) {
@@ -780,6 +1145,9 @@ namespace pw {
 
     platf::mem_type_e mem_type;
     std::chrono::nanoseconds delay;
+#ifdef SUNSHINE_BUILD_KWIN
+    std::unique_ptr<kwin_session_t> kwin_direct;
+#endif
     std::unique_ptr<portal_session_t> portal;
     std::unique_ptr<pw_capture_t> pw_cap;
   };

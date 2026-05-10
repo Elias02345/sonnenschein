@@ -66,3 +66,7 @@
 	path = third-party/build-deps
 	url = https://github.com/LizardByte/build-deps.git
 	branch = dist
+[submodule "third-party/plasma-wayland-protocols"]
+	path = third-party/plasma-wayland-protocols
+	url = https://github.com/KDE/plasma-wayland-protocols.git
+	branch = master
