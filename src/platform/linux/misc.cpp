@@ -867,6 +867,9 @@ std::string get_local_ip_for_gateway() {
 #ifdef SUNSHINE_BUILD_CUDA
       NVFBC,  ///< NvFBC
 #endif
+#ifdef SUNSHINE_BUILD_PIPEWIRE
+      PIPEWIRE,  ///< PipeWire portal capture (virtual displays)
+#endif
 #ifdef SUNSHINE_BUILD_WAYLAND
       WAYLAND,  ///< Wayland
 #endif
@@ -888,6 +891,15 @@ std::string get_local_ip_for_gateway() {
 
   bool verify_nvfbc() {
     return !nvfbc_display_names().empty();
+  }
+#endif
+
+#ifdef SUNSHINE_BUILD_PIPEWIRE
+  std::vector<std::string> pw_display_names();
+  std::shared_ptr<display_t> pw_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
+
+  bool verify_pw() {
+    return window_system == window_system_e::WAYLAND;
   }
 #endif
 
@@ -925,6 +937,11 @@ std::string get_local_ip_for_gateway() {
       return nvfbc_display_names();
     }
 #endif
+#ifdef SUNSHINE_BUILD_PIPEWIRE
+    if (sources[source::PIPEWIRE]) {
+      return pw_display_names();
+    }
+#endif
 #ifdef SUNSHINE_BUILD_WAYLAND
     if (sources[source::WAYLAND]) {
       return wl_display_names();
@@ -957,6 +974,12 @@ std::string get_local_ip_for_gateway() {
     if (sources[source::NVFBC] && hwdevice_type == mem_type_e::cuda) {
       BOOST_LOG(info) << "Screencasting with NvFBC"sv;
       return nvfbc_display(hwdevice_type, display_name, config);
+    }
+#endif
+#ifdef SUNSHINE_BUILD_PIPEWIRE
+    if (sources[source::PIPEWIRE]) {
+      BOOST_LOG(info) << "Screencasting with PipeWire Portal"sv;
+      return pw_display(hwdevice_type, display_name, config);
     }
 #endif
 #ifdef SUNSHINE_BUILD_WAYLAND
@@ -1009,6 +1032,13 @@ std::string get_local_ip_for_gateway() {
     if ((config::video.capture.empty() && sources.none()) || config::video.capture == "nvfbc") {
       if (verify_nvfbc()) {
         sources[source::NVFBC] = true;
+      }
+    }
+#endif
+#ifdef SUNSHINE_BUILD_PIPEWIRE
+    if (config::video.capture == "pipewire") {
+      if (verify_pw()) {
+        sources[source::PIPEWIRE] = true;
       }
     }
 #endif

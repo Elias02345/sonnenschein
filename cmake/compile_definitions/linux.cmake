@@ -187,6 +187,23 @@ if(WAYLAND_FOUND)
             "${CMAKE_SOURCE_DIR}/src/platform/linux/wayland.cpp")
 endif()
 
+# pipewire (portal-based screen capture for virtual displays)
+option(SUNSHINE_ENABLE_PIPEWIRE "Enable PipeWire portal capture backend" ON)
+if(${SUNSHINE_ENABLE_PIPEWIRE})
+    pkg_check_modules(PIPEWIRE libpipewire-0.3>=0.3.40)
+    pkg_check_modules(GIO gio-2.0)
+endif()
+if(PIPEWIRE_FOUND AND GIO_FOUND)
+    add_compile_definitions(SUNSHINE_BUILD_PIPEWIRE)
+    include_directories(SYSTEM ${PIPEWIRE_INCLUDE_DIRS} ${GIO_INCLUDE_DIRS})
+    list(APPEND PLATFORM_LIBRARIES ${PIPEWIRE_LIBRARIES} ${GIO_LIBRARIES})
+    list(APPEND PLATFORM_TARGET_FILES
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/pwgrab.cpp")
+    message(STATUS "PipeWire capture backend: ENABLED (${PIPEWIRE_VERSION})")
+else()
+    message(STATUS "PipeWire capture backend: DISABLED (libpipewire-0.3 or gio-2.0 not found)")
+endif()
+
 # x11
 if(${SUNSHINE_ENABLE_X11})
     find_package(X11 REQUIRED)

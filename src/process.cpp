@@ -388,15 +388,19 @@ namespace proc {
 
           launch_session->virtual_display = true;
           this->virtual_display = true;
-          // Keep the real vdisplay name for lifecycle management only.
-          // For capture routing, video.cpp uses proc::proc.display_name
-          // directly as the KMS monitor index (via util::from_view()).
-          // The virtual display exists only at compositor level (KWin),
-          // not as a DRM connector. Route capture to primary monitor "0".
-          // TODO(Phase 4): Implement PipeWire capture to target virtual
-          // outputs directly, then use _vdisplay_handle->output_name here.
+#ifdef SUNSHINE_BUILD_PIPEWIRE
+          // PipeWire portal capture can see virtual displays at compositor
+          // level. Force PipeWire backend and pass the real display name.
+          this->display_name = _vdisplay_handle->output_name;
+          config::video.output_name = _vdisplay_handle->output_name;
+          config::video.capture = "pipewire";
+          BOOST_LOG(info) << "Sonnenschein: using PipeWire capture for virtual display"sv;
+#else
+          // Without PipeWire, fall back to KMS primary monitor.
           this->display_name = "0";
           config::video.output_name = "0";
+          BOOST_LOG(warning) << "Sonnenschein: PipeWire not available, falling back to KMS primary monitor"sv;
+#endif
         } else {
           BOOST_LOG(warning) << "Sonnenschein: virtual-display backend '"sv
                              << _vdisplay_backend->name()
