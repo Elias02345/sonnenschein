@@ -11,10 +11,10 @@
 
 ## TL;DR — Wo stehen wir gerade
 
-- **Letzter Commit auf `dev`**: [`af603b6`](https://github.com/Elias02345/sonnenschein/commit/af603b6) — `fix(capture): bypass Portal D-Bus dialogs during stream pre-flight encoder probe`
+- **Letzter Commit auf `dev`**: [`60dac9b`](https://github.com/Elias02345/sonnenschein/commit/60dac9b) — `fix(capture): fix D-Bus Portal token/path mismatch causing signal timeouts`
 - **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (297 Steps grün) + CachyOS (GCC 16.1.1, RTX 3070, Plasma 6.6.4 Wayland)
 - **Erreichter Meilenstein (Phase 4)**:
-  - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, 648 Zeilen)
+  - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, 675 Zeilen)
   - ✅ D-Bus Portal Session + PipeWire Stream + platf::display_t
   - ✅ CMake: optionale libpipewire-0.3 + gio-2.0 Dependency
   - ✅ Automatische Backend-Auswahl: PipeWire wenn Virtual Display aktiv
@@ -24,8 +24,9 @@
   - ✅ hwdevice_type Restriktionen für PipeWire gelöst (NVENC Fallback auf System Memory funktioniert)
   - ✅ Fataler Boot-Fehler behoben (PipeWire als Fallback registriert, wenn KMS wegen fehlendem setcap fehlschlägt)
   - ✅ **D-Bus Timeouts beim Boot & Stream-Start behoben**: Portal-Dialog wird während des Encoder-Probes (Boot & Pre-Flight) übersprungen.
+  - ✅ **D-Bus Token/Path Mismatch gefixt**: `make_request_path()` und `handle_token` verwenden nun denselben Token. Portal-Response-Signale werden jetzt korrekt empfangen.
   - ❌ **Portal blockiert durch setcap**: `Unable to open /proc/PID/root` (Muss manuell entfernt werden)
-- **Aktueller Blocker**: `setcap cap_sys_admin+p` (nötig für KMS) blockiert xdg-desktop-portal. PipeWire braucht kein cap_sys_admin. Capabilities müssen mit `sudo setcap -r` entfernt werden. Danach sollte PipeWire fehlerfrei auf Virtual Displays streamen können.
+- **Aktueller Blocker**: D-Bus Portal Token/Path war falsch generiert (gefixt in `60dac9b`). Muss auf CachyOS neu gebaut und getestet werden. `setcap` muss weiterhin entfernt bleiben.
 - **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless ebenfalls unterstützt.
 
 ---
@@ -687,6 +688,8 @@ sudo setcap -r (readlink -f ~/sonnenschein/build/sunshine)  # Capabilities ENTFE
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+60dac9b — fix(capture): fix D-Bus Portal token/path mismatch causing signal timeouts — 2026-05-10
+84347f8 — docs: update STATUS.md with stream probe fix — 2026-05-10
 af603b6 — fix(capture): bypass Portal D-Bus dialogs during stream pre-flight encoder probe — 2026-05-10
 417013a — docs: update STATUS.md with D-Bus timeout boot fix — 2026-05-10
 91967a6 — fix(capture): bypass Portal D-Bus dialogs during boot encoder probe — 2026-05-10
