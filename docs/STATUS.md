@@ -11,7 +11,7 @@
 
 ## TL;DR — Wo stehen wir gerade
 
-- **Letzter Commit auf `dev`**: [`3c730a4`](https://github.com/Elias02345/sonnenschein/commit/3c730a4) — `docs: update STATUS.md with D-Bus token/path mismatch fix`
+- **Letzter Commit auf `dev`**: [`6d6433f`](https://github.com/Elias02345/sonnenschein/commit/6d6433f) — `fix(capture): fix PipeWire remote fd options`
 - **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (297 Steps grün) + CachyOS (GCC 16.1.1, RTX 3070, Plasma 6.6.4 Wayland)
 - **Erreichter Meilenstein (Phase 4)**:
   - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, 675 Zeilen)
@@ -706,7 +706,7 @@ terminated by signal SIGABRT
 
 **Ursache**: `OpenPipeWireRemote` baut das leere `a{sv}`-Options-Argument falsch. Der Code übergibt `g_variant_builder_end(...)` an eine `g_variant_new("(oa{sv})", ...)`-Formatstelle, die einen `GVariantBuilder*` erwartet.
 
-**Status**: Reproduziert durch Maintainer-Log am 2026-05-10. Lokal gepatcht: `OpenPipeWireRemote` übergibt jetzt wie `CreateSession`/`SelectSources`/`Start` einen echten `GVariantBuilder*` an `g_variant_new("(oa{sv})", ...)`. Isolierter WSL-GLib-Test für die korrigierte Variante ist grün; vollständiger WSL-Build hängt aktuell beim Kompilieren von `pwgrab.cpp` auf dem Windows-Mount und muss auf CachyOS gegengeprüft werden.
+**Status**: Reproduziert durch Maintainer-Log am 2026-05-10. Gefixt in `6d6433f`: `OpenPipeWireRemote` übergibt jetzt wie `CreateSession`/`SelectSources`/`Start` einen echten `GVariantBuilder*` an `g_variant_new("(oa{sv})", ...)`. Isolierter WSL-GLib-Test für die korrigierte Variante ist grün; vollständiger WSL-Build hängt aktuell beim Kompilieren von `pwgrab.cpp` auf dem Windows-Mount und muss auf CachyOS gegengeprüft werden.
 
 ---
 
@@ -715,6 +715,7 @@ terminated by signal SIGABRT
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+6d6433f — fix(capture): fix PipeWire remote fd options — 2026-05-10
 3c730a4 — docs: update STATUS.md with D-Bus token/path mismatch fix — 2026-05-10
 60dac9b — fix(capture): fix D-Bus Portal token/path mismatch causing signal timeouts — 2026-05-10
 84347f8 — docs: update STATUS.md with stream probe fix — 2026-05-10
@@ -744,7 +745,7 @@ a95f2ee — Phase 1.3: Init submodules + pin tray pre-Qt — 2026-05-09
 
 `main` Branch zeigt nur auf `235920b` (initial import). `dev` ist 11 Commits voraus.
 
-**Auf `dev` aktuell HEAD = `3c730a4`** (Stand 2026-05-10).
+**Auf `dev` aktuell HEAD = `6d6433f`** (Stand 2026-05-10).
 
 ---
 
