@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-13 — **Phase 4 (PipeWire/KWin-Capture): KWin Output-Management-v2 Regression auf CachyOS reproduziert, Hotfix in Arbeit.**
+**Stand:** 2026-05-13 — **Phase 4 (PipeWire/KWin-Capture): KWin-Direct-Regressions-Hotfix auf `dev`, CachyOS-Test offen.**
 
 ---
 
@@ -13,7 +13,7 @@
 
 - **Letzter Test-Commit auf `dev`**: [`6504268`](https://github.com/Elias02345/sonnenschein/commit/6504268) — `fix(capture): resolve KScreen output before setting refresh rate` (CachyOS-Test: weiterhin 60 Hz)
 - **Regressions-Commit auf `dev`**: `723537a` / HEAD `ec832c8` — CachyOS-Test am 2026-05-13: KWin Direct Capture bricht komplett ab, weil `zkde_screencast_unstable_v1` nicht im Wayland Registry-Set auftaucht.
-- **Hotfix-Kandidat**: `PENDING_HOTFIX` — KWin Direct Capture fällt bei fehlendem ScreenCast-Interface wieder geordnet auf xdg-desktop-portal Monitor-Capture zurück; KWin-Permission-Datei listet jetzt ScreenCast + Output-Management.
+- **Hotfix auf `dev`**: `edc144e` — KWin Direct Capture fällt bei fehlendem ScreenCast-Interface wieder geordnet auf xdg-desktop-portal Monitor-Capture zurück; KWin-Permission-Datei listet jetzt ScreenCast + Output-Management. WSL2-Rebuild grün.
 - **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (297 Steps grün) + CachyOS (GCC 16.1.1, RTX 3070, Plasma 6.6.4 Wayland)
 - **Erreichter Meilenstein (Phase 4)**:
   - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, aktuell ~1720 Zeilen)
@@ -42,7 +42,7 @@
   - 🟡 **PipeWire-Pacing für 90 Hz eingebaut (`723537a`)**: Wenn KWin/PipeWire trotzdem nur 60 neue Frames liefert, blockiert der Capture-Loop nicht mehr auf neue Frames, sondern taktet den Encoder mit dem Client-FPS und wiederholt den letzten Frame.
   - 🟡 **HDR-Pfad für Virtual Display aktiviert (`723537a`)**: Client-`dynamicRange` aktiviert `display.is_hdr()`, HDR10-Metadaten werden geliefert; echtes 10-bit-PipeWire-Inputformat bleibt bewusst noch aus, weil der aktuelle Software-Konverter Eingangsframes als `AV_PIX_FMT_BGR0` behandelt.
   - ✅ **WSL-Build grün**: `/root/snsbuild`, `cmake --build . --target sunshine -j8`, `pwgrab.cpp` kompiliert und `sunshine-0.0.0` linkt.
-- **Aktueller Blocker**: Hotfix muss verhindern, dass fehlendes `zkde_screencast_unstable_v1` die Session komplett abbricht. Plug-and-play-Regel: Wenn KWin Direct nicht verfügbar ist, muss Sonnenschein geordnet auf den stabilen PipeWire/Portal-Pfad zurückfallen, statt den Stream zu töten.
+- **Aktueller Blocker**: CachyOS muss `edc144e` validieren: kein `Initial Ping Timeout` mehr. Plug-and-play-Regel bleibt: Wenn KWin Direct nicht verfügbar ist, muss Sonnenschein geordnet auf den stabilen PipeWire/Portal-Pfad zurückfallen, statt den Stream zu töten.
 - **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless ebenfalls unterstützt.
 
 ---
@@ -824,7 +824,7 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
 
 **Ursache**: Der neue Output-Management-Patch behandelte fehlendes `zkde_screencast_unstable_v1` als fatal und blockierte bewusst den Portal-Fallback. Das ist für Plug-and-play falsch: KWin Direct ist bevorzugt, aber nicht garantiert in jedem Registry-/Permission-Zustand verfügbar. Zusätzlich war die dynamisch erzeugte KDE-Permission-Datei nur auf `zkde_screencast_unstable_v1` begrenzt, obwohl der neue Pfad auch `kde_output_management_v2` und `kde_output_device_registry_v2` bindet.
 
-**Fix-Kandidat `PENDING_HOTFIX`**:
+**Fix `edc144e`**:
 - `pwgrab.cpp` fällt bei fehlendem oder fehlschlagendem KWin Direct Capture wieder auf xdg-desktop-portal Monitor-Capture zurück, statt `-1` zurückzugeben und damit die Session/den Virtual Output zu zerstören.
 - Die Permission-Datei `sonnenschein-kwin-screencast.desktop` schreibt jetzt `X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1,kde_output_management_v2,kde_output_device_registry_v2`.
 - Erwartung: Stream startet wieder. Wenn KWin Direct danach weiterhin fehlt, ist das im Log sichtbar und Portal ist ein funktionaler Fallback; Refresh/HDR bleiben dann als KWin-Direct-spezifischer Folgefix offen.
@@ -844,7 +844,7 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
-PENDING_HOTFIX — fix(capture): fall back when KWin direct capture is unavailable — 2026-05-13
+edc144e — fix(capture): fall back when KWin direct capture is unavailable — 2026-05-13
 723537a — fix(capture): configure KWin virtual outputs via output management — 2026-05-13
 6504268 — fix(capture): resolve KScreen output before setting refresh rate — 2026-05-13
 bf7d939 — fix(capture): bypass '@' character corruption in compiler and add delay for KWin mode registration — 2026-05-10
@@ -896,7 +896,7 @@ a95f2ee — Phase 1.3: Init submodules + pin tray pre-Qt — 2026-05-09
 
 `main` Branch zeigt nur auf `235920b` (initial import). `dev` ist die aktive Entwicklungs-Linie und liegt ca. 30+ Commits vor `main`.
 
-**Auf `dev` nächster Hotfix-Test-Commit = `PENDING_HOTFIX`** (Stand 2026-05-13, vor Push). Nächster Schritt ist CachyOS-Validierung, dass die Session nicht mehr bei fehlendem `zkde_screencast_unstable_v1` abbricht. Danach erneut prüfen, ob KWin Direct verfügbar ist und ob Refresh/HDR über Output-Management greift.
+**Auf `dev` nächster Hotfix-Test-Commit = `edc144e`** (Stand 2026-05-13, nach Push). Nächster Schritt ist CachyOS-Validierung, dass die Session nicht mehr bei fehlendem `zkde_screencast_unstable_v1` abbricht. Danach erneut prüfen, ob KWin Direct verfügbar ist und ob Refresh/HDR über Output-Management greift.
 
 ---
 
@@ -946,7 +946,7 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 - `src/process.cpp` (PATCH) — Linux-Branch in `execute()` + `terminate()`
 
 ### C++ — PipeWire Capture (Phase 4)
-- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; `4c63d36` nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback; `d84072e` migriert den KWin-Pfad auf `stream_virtual_output`; `bf7d939` versucht den erzeugten KScreen-Output nach Stream-Start auf die Client-Refresh-Rate zu setzen; `6504268` pollt `kscreen-doctor -o`, setzt den Mode auf dem tatsächlich registrierten Output und verifiziert das Ergebnis; `723537a` bindet KWin Output-Management-v2, setzt Custom Modes/HDR direkt über Wayland und paced den Capture-Loop auf Client-FPS; `PENDING_HOTFIX` stellt Portal-Fallback wieder her, wenn KWin Direct Capture nicht verfügbar ist.
+- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; `4c63d36` nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback; `d84072e` migriert den KWin-Pfad auf `stream_virtual_output`; `bf7d939` versucht den erzeugten KScreen-Output nach Stream-Start auf die Client-Refresh-Rate zu setzen; `6504268` pollt `kscreen-doctor -o`, setzt den Mode auf dem tatsächlich registrierten Output und verifiziert das Ergebnis; `723537a` bindet KWin Output-Management-v2, setzt Custom Modes/HDR direkt über Wayland und paced den Capture-Loop auf Client-FPS; `edc144e` stellt Portal-Fallback wieder her, wenn KWin Direct Capture nicht verfügbar ist.
 
 ### Submodule-Pin
 - `third-party/tray/` — gepinnt auf `7936cb35` (vor `.gitmodules`-Datei; gitlink im Tree)
