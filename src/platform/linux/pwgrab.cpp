@@ -236,7 +236,9 @@ namespace pw {
       wl_display_roundtrip(display);
 
       if (!screencast) {
-        BOOST_LOG(warning) << "KWin direct capture: zkde_screencast_unstable_v1 not available; falling back to portal"sv;
+        BOOST_LOG(warning)
+          << "KWin direct capture: zkde_screencast_unstable_v1 not available; "
+          << "falling back to xdg-desktop-portal monitor capture"sv;
         return false;
       }
       return true;
@@ -1330,7 +1332,7 @@ namespace pw {
 
       file << "[Desktop Entry]\n"
            << "Exec=" << exe << "\n"
-           << "X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1\n"
+           << "X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1,kde_output_management_v2,kde_output_device_registry_v2\n"
            << "Type=Application\n"
            << "Name=sonnenschein-kwin-wayland-permission\n"
            << "Comment=Sonnenschein KWin screencast permission\n"
@@ -2339,10 +2341,12 @@ namespace pw {
           }
           BOOST_LOG(info) << "KWin direct capture: selected for output '"sv << display_name << "'"sv;
         } else {
-          BOOST_LOG(error) << "KWin direct capture: failed for output '"sv
-                           << display_name
-                           << "'. Not falling back to KDE portal VIRTUAL source because it is fixed at 1920x1080."sv;
-          return -1;
+          kwin_direct.reset();
+          BOOST_LOG(warning)
+            << "KWin direct capture: unavailable for output '"sv
+            << display_name
+            << "'. Falling back to xdg-desktop-portal monitor capture so the session can still start. "
+            << "If KDE offers both a monitor and a virtual source, choose the Sonnenschein monitor output."sv;
         }
       }
 #endif
