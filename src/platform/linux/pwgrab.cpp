@@ -1054,10 +1054,10 @@ namespace pw {
           pipewire_node_id = kwin_direct->node_id;
           BOOST_LOG(info) << "KWin direct capture: selected for output '"sv << display_name << "'"sv;
         } else {
-          BOOST_LOG(error) << "KWin direct capture: failed for output '"sv
-                           << display_name
-                           << "'. Not falling back to KDE portal VIRTUAL source because it is fixed at 1920x1080."sv;
-          return -1;
+          kwin_direct.reset();
+          BOOST_LOG(warning) << "KWin direct capture: unavailable for output '"sv
+                             << display_name
+                             << "'. Falling back to xdg-desktop-portal monitor capture."sv;
         }
       }
 #endif
