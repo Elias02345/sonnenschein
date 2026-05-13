@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-13 — **Phase 4 (PipeWire/KWin-Capture): KWin-Direct-Regressions-Hotfix auf `dev`, CachyOS-Test offen.**
+**Stand:** 2026-05-13 — **Phase 4 (PipeWire/KWin-Capture): Rollback auf letzten funktionierenden KWin-Direct-Stand in Arbeit.**
 
 ---
 
@@ -14,6 +14,7 @@
 - **Letzter Test-Commit auf `dev`**: [`6504268`](https://github.com/Elias02345/sonnenschein/commit/6504268) — `fix(capture): resolve KScreen output before setting refresh rate` (CachyOS-Test: weiterhin 60 Hz)
 - **Regressions-Commit auf `dev`**: `723537a` / HEAD `ec832c8` — CachyOS-Test am 2026-05-13: KWin Direct Capture bricht komplett ab, weil `zkde_screencast_unstable_v1` nicht im Wayland Registry-Set auftaucht.
 - **Hotfix auf `dev`**: `edc144e` — KWin Direct Capture fällt bei fehlendem ScreenCast-Interface wieder geordnet auf xdg-desktop-portal Monitor-Capture zurück; KWin-Permission-Datei listet jetzt ScreenCast + Output-Management. WSL2-Rebuild grün.
+- **Rollback-Entscheidung des Maintainers (2026-05-13)**: Zurück auf den letzten funktionierenden Code-Stand vor `723537a`, also `6504268`/Branch-Stand `67a93e3`. Ziel: Stream wieder stabil; 90 Hz/HDR nicht weiter auf diesem riskanten Pfad verfolgen. WSL2-Rollback-Build grün.
 - **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (297 Steps grün) + CachyOS (GCC 16.1.1, RTX 3070, Plasma 6.6.4 Wayland)
 - **Erreichter Meilenstein (Phase 4)**:
   - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, aktuell ~1720 Zeilen)
@@ -38,11 +39,10 @@
   - ✅ **KWin Direct Stream validiert**: `stream_virtual_output` liefert PipeWire direkt aus dem virtuellen Output, kein KDE-XDG-`VIRTUAL`-Fallback.
   - ✅ **Headless-Mode funktioniert**: Physische Monitore werden beim Stream deaktiviert und danach wiederhergestellt.
   - 🔴 **SteamDeck-Refresh bleibt trotz `6504268` bei 60 Hz**: Maintainer-Test am 2026-05-13 bestätigt, dass der KScreen-Resolver/`kscreen-doctor mode set` den laufenden KWin-Direct-Stream nicht auf 90 Hz bringt.
-  - 🔴 **Regression in `723537a` bestätigt**: Auf CachyOS bindet `pwgrab.cpp` zwar `kde_output_management_v2 version 19`, sieht aber kein `zkde_screencast_unstable_v1`; weil der neue Code den Portal-Fallback blockiert, schlägt die Session fehl und Moonlight endet mit `Initial Ping Timeout`.
-  - 🟡 **PipeWire-Pacing für 90 Hz eingebaut (`723537a`)**: Wenn KWin/PipeWire trotzdem nur 60 neue Frames liefert, blockiert der Capture-Loop nicht mehr auf neue Frames, sondern taktet den Encoder mit dem Client-FPS und wiederholt den letzten Frame.
-  - 🟡 **HDR-Pfad für Virtual Display aktiviert (`723537a`)**: Client-`dynamicRange` aktiviert `display.is_hdr()`, HDR10-Metadaten werden geliefert; echtes 10-bit-PipeWire-Inputformat bleibt bewusst noch aus, weil der aktuelle Software-Konverter Eingangsframes als `AV_PIX_FMT_BGR0` behandelt.
+  - 🔴 **Regression in `723537a` bestätigt und wird zurückgerollt**: Auf CachyOS bindet `pwgrab.cpp` zwar `kde_output_management_v2 version 19`, sieht aber kein `zkde_screencast_unstable_v1`; die Session schlägt fehl und Moonlight endet mit `Initial Ping Timeout`.
+  - ⏪ **Rollback-Kandidat `PENDING_ROLLBACK`**: `pwgrab.cpp` und `cmake/compile_definitions/linux.cmake` sind exakt auf den Stand `67a93e3` zurückgesetzt. Damit sind Output-Management-v2, HDR-Metadaten und PipeWire-Duplicate-Pacing aus `723537a/edc144e` entfernt. WSL2-Build grün.
   - ✅ **WSL-Build grün**: `/root/snsbuild`, `cmake --build . --target sunshine -j8`, `pwgrab.cpp` kompiliert und `sunshine-0.0.0` linkt.
-- **Aktueller Blocker**: CachyOS muss `edc144e` validieren: kein `Initial Ping Timeout` mehr. Plug-and-play-Regel bleibt: Wenn KWin Direct nicht verfügbar ist, muss Sonnenschein geordnet auf den stabilen PipeWire/Portal-Pfad zurückfallen, statt den Stream zu töten.
+- **Aktueller Blocker**: CachyOS muss nach Rollback `PENDING_ROLLBACK` bestätigen: Stream startet wieder wie bei `6504268`/`67a93e3`. Das bekannte 60-Hz-Problem bleibt offen, aber darf nicht mehr über einen großen KWin-Output-Management/HDR-Mischpatch angefasst werden.
 - **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless ebenfalls unterstützt.
 
 ---
@@ -829,6 +829,12 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
 - Die Permission-Datei `sonnenschein-kwin-screencast.desktop` schreibt jetzt `X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1,kde_output_management_v2,kde_output_device_registry_v2`.
 - Erwartung: Stream startet wieder. Wenn KWin Direct danach weiterhin fehlt, ist das im Log sichtbar und Portal ist ein funktionaler Fallback; Refresh/HDR bleiben dann als KWin-Direct-spezifischer Folgefix offen.
 
+**Rollback-Entscheidung (2026-05-13)**: Der Maintainer hat entschieden, den letzten funktionierenden Stand wiederherzustellen. `PENDING_ROLLBACK` setzt die betroffenen Code-Dateien auf `67a93e3` zurück:
+- `src/platform/linux/pwgrab.cpp`
+- `cmake/compile_definitions/linux.cmake`
+
+Damit sind der Output-Management-v2-Patch `723537a`, der STATUS-HEAD `ec832c8` und der Fallback-Hotfix `edc144e` inhaltlich aus dem Laufzeitcode entfernt. Diese Regressionskette darf nicht erneut als großer Kombi-Patch für Refresh/HDR eingeführt werden. Nächster 90-Hz-Versuch nur in kleinen, einzeln testbaren Schritten.
+
 ### 9.15 Portal-Dialog erscheint bei jedem Stream
 
 **Symptom**: Bei jedem Test muss der Maintainer im KDE-Screen-Record-Dialog manuell eine Quelle auswählen.
@@ -844,6 +850,7 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+PENDING_ROLLBACK — revert(capture): restore stable KWin direct capture path — 2026-05-13
 edc144e — fix(capture): fall back when KWin direct capture is unavailable — 2026-05-13
 723537a — fix(capture): configure KWin virtual outputs via output management — 2026-05-13
 6504268 — fix(capture): resolve KScreen output before setting refresh rate — 2026-05-13
@@ -896,7 +903,7 @@ a95f2ee — Phase 1.3: Init submodules + pin tray pre-Qt — 2026-05-09
 
 `main` Branch zeigt nur auf `235920b` (initial import). `dev` ist die aktive Entwicklungs-Linie und liegt ca. 30+ Commits vor `main`.
 
-**Auf `dev` nächster Hotfix-Test-Commit = `edc144e`** (Stand 2026-05-13, nach Push). Nächster Schritt ist CachyOS-Validierung, dass die Session nicht mehr bei fehlendem `zkde_screencast_unstable_v1` abbricht. Danach erneut prüfen, ob KWin Direct verfügbar ist und ob Refresh/HDR über Output-Management greift.
+**Auf `dev` nächster Test-Commit = `PENDING_ROLLBACK`** (Stand 2026-05-13, vor Push). Nächster Schritt ist ausschließlich CachyOS-Validierung, dass der Stream wieder wie beim letzten guten Stand startet. 90-Hz/HDR-Arbeit pausiert bis diese Basis wieder bestätigt ist.
 
 ---
 
@@ -946,7 +953,7 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 - `src/process.cpp` (PATCH) — Linux-Branch in `execute()` + `terminate()`
 
 ### C++ — PipeWire Capture (Phase 4)
-- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; `4c63d36` nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback; `d84072e` migriert den KWin-Pfad auf `stream_virtual_output`; `bf7d939` versucht den erzeugten KScreen-Output nach Stream-Start auf die Client-Refresh-Rate zu setzen; `6504268` pollt `kscreen-doctor -o`, setzt den Mode auf dem tatsächlich registrierten Output und verifiziert das Ergebnis; `723537a` bindet KWin Output-Management-v2, setzt Custom Modes/HDR direkt über Wayland und paced den Capture-Loop auf Client-FPS; `edc144e` stellt Portal-Fallback wieder her, wenn KWin Direct Capture nicht verfügbar ist.
+- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; `4c63d36` nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback; `d84072e` migriert den KWin-Pfad auf `stream_virtual_output`; `bf7d939` versucht den erzeugten KScreen-Output nach Stream-Start auf die Client-Refresh-Rate zu setzen; `6504268` pollt `kscreen-doctor -o`, setzt den Mode auf dem tatsächlich registrierten Output und verifiziert das Ergebnis; `PENDING_ROLLBACK` setzt den Laufzeitcode zurück auf diesen stabilen Stand.
 
 ### Submodule-Pin
 - `third-party/tray/` — gepinnt auf `7936cb35` (vor `.gitmodules`-Datei; gitlink im Tree)
@@ -958,22 +965,17 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 In Reihenfolge der Priorität.
 
-### A) KWin-Direct-Regressions-Hotfix auf CachyOS testen
+### A) Rollback auf letzten funktionierenden KWin-Direct-Stand testen
 
 1. `dev` auf dem CachyOS-Rechner ziehen, clean builden.
 2. Sonnenschein aus einer KDE-Konsole innerhalb der Plasma-Sitzung starten.
 3. SteamDeck OLED/Moonlight mit `1280x800x90` verbinden.
-4. Erfolgskriterium 1: Kein `Initial Ping Timeout`; Session startet auch dann, wenn `zkde_screencast_unstable_v1 not available` geloggt wird.
-5. Erfolgskriterium 2: Wenn KWin Direct verfügbar ist, erscheinen wieder `KWin direct capture: selected for output ...` und die Output-Management-Logs. Wenn nicht, muss `Falling back to xdg-desktop-portal monitor capture` erscheinen und KDE muss den Sonnenschein-Monitor als auswählbare Quelle anbieten.
+4. Erfolgskriterium: Verhalten wieder wie beim letzten guten Stand `6504268`/`67a93e3`: KWin Direct Stream startet, kein `Initial Ping Timeout`, Ton/Eingabe weiter funktionsfähig.
+5. Erwarteter bekannter Restfehler: SteamDeck/Moonlight bleibt noch bei 60 Hz. Das wird erst nach bestätigter Stabilität in einem kleinen Folgepatch erneut angefasst.
 
-### B) KWin Output-Management-v2 Refresh/HDR-Fix auf CachyOS testen
+### B) 90-Hz-Fix neu planen, erst nach bestätigtem Rollback
 
-1. `dev` auf dem CachyOS-Rechner ziehen, Submodules aktualisieren, clean builden.
-2. Sonnenschein aus einer KDE-Konsole innerhalb der Plasma-Sitzung starten.
-3. SteamDeck OLED/Moonlight mit `1280x800x90` verbinden.
-4. Erfolgskriterium im Log: `KWin output management: bound ...`, `resolved output ...`, `applying mode 1280x800@90`, `verified mode 1280x800@90`, kein `Portal: stream source_type=VIRTUAL`.
-5. PipeWire-Erfolgskriterium: `PipeWire: requesting format 1280x800@90`; wenn `PipeWire: format negotiated ... fps=60` erscheint, muss zusätzlich die Warning `capture will pace duplicate frames at the client rate` erscheinen und Moonlight/SteamDeck trotzdem 90-FPS-Encoding bekommen.
-6. HDR-Erfolgskriterium: Bei HDR-fähigem Client erscheint `HDR enabled` in der KWin-Output-Management-Verifikation oder eine klare Warning, dass KWin HDR am Virtual Output nicht bestätigt. Moonlight muss HDR anzeigen; wenn Farben falsch wirken, nächster Fix: 10-bit/scRGB PipeWire-Inputformat + Konverterpfad statt aktuellem `AV_PIX_FMT_BGR0`-Input.
+Kein neuer Output-Management/HDR-Kombi-Patch. Nächster Versuch muss genau einen Hebel ändern, z.B. nur KWin-Protokoll-Verfügbarkeit/Permission diagnostizieren oder nur den bestehenden `kscreen-doctor`-Setzzeitpunkt verbessern.
 
 ### C) Phase 1.6 — CMake-Rebrand (nach 2D)
 
