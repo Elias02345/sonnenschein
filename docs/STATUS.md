@@ -5,13 +5,14 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-13 — **Phase 4 (PipeWire/KWin-Capture): KScreen-Refresh-Resolver implementiert, CachyOS-Test ausstehend.**
+**Stand:** 2026-05-13 — **Phase 4 (PipeWire/KWin-Capture): KWin Output-Management-v2 Refresh/HDR-Fix implementiert, CachyOS-Test offen.**
 
 ---
 
 ## TL;DR — Wo stehen wir gerade
 
-- **Letzter Test-Commit auf `dev`**: [`6504268`](https://github.com/Elias02345/sonnenschein/commit/6504268) — `fix(capture): resolve KScreen output before setting refresh rate`
+- **Letzter Test-Commit auf `dev`**: [`6504268`](https://github.com/Elias02345/sonnenschein/commit/6504268) — `fix(capture): resolve KScreen output before setting refresh rate` (CachyOS-Test: weiterhin 60 Hz)
+- **Nächster Test-Commit auf `dev`**: `PENDING_HASH` — `fix(capture): configure KWin virtual outputs via output management` (WSL-Build grün, CachyOS-Test offen)
 - **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (297 Steps grün) + CachyOS (GCC 16.1.1, RTX 3070, Plasma 6.6.4 Wayland)
 - **Erreichter Meilenstein (Phase 4)**:
   - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, aktuell ~1720 Zeilen)
@@ -35,9 +36,12 @@
   - 🔴 **Mode-Mismatch bestätigt**: Portal-Stream ist `source_type=VIRTUAL`, `logical size=1920x1080`; PipeWire requested `1280x800@90`, negotiated aber `1920x1080`.
   - ✅ **KWin Direct Stream validiert**: `stream_virtual_output` liefert PipeWire direkt aus dem virtuellen Output, kein KDE-XDG-`VIRTUAL`-Fallback.
   - ✅ **Headless-Mode funktioniert**: Physische Monitore werden beim Stream deaktiviert und danach wiederhergestellt.
-  - 🟡 **SteamDeck-Refresh-Fix in `6504268` implementiert, CachyOS-Test offen**: Client fordert `1280x800x90`, `pwgrab.cpp` löst jetzt nach `stream_virtual_output` den tatsächlichen KScreen-Namen auf, setzt den Mode auf diesem Output und verifiziert danach den aktiven Mode.
+  - 🔴 **SteamDeck-Refresh bleibt trotz `6504268` bei 60 Hz**: Maintainer-Test am 2026-05-13 bestätigt, dass der KScreen-Resolver/`kscreen-doctor mode set` den laufenden KWin-Direct-Stream nicht auf 90 Hz bringt.
+  - 🟡 **KWin Output-Management-v2 Fix implementiert (`PENDING_HASH`)**: `pwgrab.cpp` bindet jetzt KWins Output-Management-Protokolle, setzt Custom Modes direkt auf dem von `stream_virtual_output` erzeugten Output, aktiviert HDR/WCG wenn KWin die Capability meldet und verifiziert den aktiven Mode.
+  - 🟡 **PipeWire-Pacing für 90 Hz eingebaut (`PENDING_HASH`)**: Wenn KWin/PipeWire trotzdem nur 60 neue Frames liefert, blockiert der Capture-Loop nicht mehr auf neue Frames, sondern taktet den Encoder mit dem Client-FPS und wiederholt den letzten Frame.
+  - 🟡 **HDR-Pfad für Virtual Display aktiviert (`PENDING_HASH`)**: Client-`dynamicRange` aktiviert `display.is_hdr()`, HDR10-Metadaten werden geliefert; echtes 10-bit-PipeWire-Inputformat bleibt bewusst noch aus, weil der aktuelle Software-Konverter Eingangsframes als `AV_PIX_FMT_BGR0` behandelt.
   - ✅ **WSL-Build grün**: `/root/snsbuild`, `cmake --build . --target sunshine -j8`, `pwgrab.cpp` kompiliert und `sunshine-0.0.0` linkt.
-- **Aktueller Blocker**: CachyOS muss validieren, ob KScreen nach `stream_virtual_output` den Mode wirklich auf `1280x800@90` übernimmt. Erfolgslog: `resolved KScreen output ...`, `setting refresh rate via output.<real>.mode.1280x800@90`, `verified mode 1280x800@90`.
+- **Aktueller Blocker**: CachyOS muss `PENDING_HASH` validieren. Erfolgskriterien: KWin-Output-Management verifiziert `1280x800@90`; falls PipeWire weiter `fps=60` negotiated, muss der Capture-Loop trotzdem mit Client-FPS weiterlaufen; HDR muss im Client sichtbar werden oder KWin muss klar loggen, warum HDR am virtuellen Output nicht bestätigt wurde.
 - **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless ebenfalls unterstützt.
 
 ---
@@ -802,7 +806,12 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
 
 **Ursache (aktuelle Arbeitshypothese)**: Der alte `source_type=VIRTUAL`/`1920x1080`-Pfad ist durch KWin Direct ScreenCast gelöst. `stream_virtual_output` erzeugt den virtuellen Output aber initial mit 60 Hz. Der nachträgliche `kscreen-doctor output.Sonnenschein-...mode.1280x800@90`-Befehl trifft wahrscheinlich nicht zuverlässig den tatsächlichen KScreen-Namen, weil KWin/KScreen den Output intern häufig als `Virtual-*` registriert.
 
-**Status**: Fix in `6504268` implementiert, CachyOS-Test ausstehend. `pwgrab.cpp` pollt nach `stream_virtual_output` bis zu 3 Sekunden `kscreen-doctor -o`, löst den tatsächlichen virtuellen Output-Namen robust auf (exakt `Sonnenschein-*`, danach passender `Virtual-*`, danach einziger aktiver virtueller Output), setzt den Mode über `kscreen-doctor output.<real-name>.mode.<WxH>@<Hz>` und verifiziert danach den aktiven Mode. Kein Rückfall auf KDE-Portal-`VIRTUAL`, weil dieser Pfad bereits als falsch validiert ist. WSL2-Build in `/root/snsbuild` ist grün.
+**Status**: `6504268` reicht nicht. Maintainer-Test am 2026-05-13: Stream bleibt bei 60 Hz. Fix-Kandidat `PENDING_HASH` ersetzt den reinen `kscreen-doctor`-Ansatz durch KWin Output-Management-v2:
+- `cmake/compile_definitions/linux.cmake` generiert zusätzlich `kde-output-device-v2` und `kde-output-management-v2`.
+- `pwgrab.cpp` bindet KWins Output-Device-Registry, löst den echten Virtual Output auf, legt bei Bedarf einen Custom Mode `WxH@Hz` an, wendet den Mode atomar an und aktiviert HDR/WCG, wenn der Output die Capability meldet.
+- Nach der Anwendung wird der aktive Mode über die Wayland-Events verifiziert; `kscreen-doctor` bleibt nur Fallback.
+- PipeWire loggt jetzt die negotiated Framerate. Wenn sie unter dem Client-FPS liegt, taktet der Capture-Loop den Encoder weiter mit der Client-Framerate und wiederholt den letzten Frame, statt auf 60 neue Frames pro Sekunde zu blockieren.
+- HDR: `display.is_hdr()` und HDR10-Metadaten sind für den PipeWire/KWin-Direct-Pfad aktiv, sobald der Client `dynamicRange > 0` anfragt. 10-bit/scRGB PipeWire-Input wird noch nicht negotiated, weil der aktuelle Software-Konverter Eingangsframes fest als `AV_PIX_FMT_BGR0` behandelt; das ist der nächste gezielte HDR-Qualitäts-Fix, falls der Client zwar HDR signalisiert, aber Farben nicht korrekt sind.
 
 ### 9.15 Portal-Dialog erscheint bei jedem Stream
 
@@ -819,6 +828,7 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+PENDING_HASH — fix(capture): configure KWin virtual outputs via output management — 2026-05-13
 6504268 — fix(capture): resolve KScreen output before setting refresh rate — 2026-05-13
 bf7d939 — fix(capture): bypass '@' character corruption in compiler and add delay for KWin mode registration — 2026-05-10
 2d5b81a — docs: finalized E2E Refresh Rate and Headless Mode documentation — 2026-05-10
@@ -869,7 +879,7 @@ a95f2ee — Phase 1.3: Init submodules + pin tray pre-Qt — 2026-05-09
 
 `main` Branch zeigt nur auf `235920b` (initial import). `dev` ist die aktive Entwicklungs-Linie und liegt ca. 30+ Commits vor `main`.
 
-**Auf `dev` aktueller Test-HEAD = `6504268`** (Stand 2026-05-13). Nächster Schritt ist CachyOS-Validierung des KScreen-Refresh-Resolvers für `stream_virtual_output`, damit SteamDeck OLED und andere Clients automatisch mit der angefragten Bildwiederholrate laufen.
+**Auf `dev` aktueller Test-HEAD = `PENDING_HASH`** (Stand 2026-05-13, nach Push). Nächster Schritt ist CachyOS-Validierung des KWin-Output-Management-v2-Fixes für `stream_virtual_output`, damit SteamDeck OLED und andere Clients automatisch mit der angefragten Bildwiederholrate und HDR laufen.
 
 ---
 
@@ -900,7 +910,7 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 ### CMake-Patches
 - `cmake/dependencies/Boost_Sunshine.cmake` (PATCH) — Pre-flight + FetchContent-fallback
-- `cmake/compile_definitions/linux.cmake` (PATCH) — virtual_display sources eingehängt, CUDA-Pfad-Auto-Detection (/opt/cuda), tray_linux.c (statt .cpp wegen Pin), PipeWire + KWin-Direct-ScreenCast-Protokollgeneration.
+- `cmake/compile_definitions/linux.cmake` (PATCH) — virtual_display sources eingehängt, CUDA-Pfad-Auto-Detection (/opt/cuda), tray_linux.c (statt .cpp wegen Pin), PipeWire + KWin-Direct-ScreenCast + KWin-Output-Management-v2-Protokollgeneration.
 - `cmake/prep/options.cmake` (PATCH) — `SUNSHINE_ENABLE_KWIN` für optionalen KWin-Direct-ScreenCast-Pfad.
 
 ### C++ — virtual_display Modul (NEU, 14 Files)
@@ -919,7 +929,7 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 - `src/process.cpp` (PATCH) — Linux-Branch in `execute()` + `terminate()`
 
 ### C++ — PipeWire Capture (Phase 4)
-- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; `4c63d36` nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback; `d84072e` migriert den KWin-Pfad auf `stream_virtual_output`; `bf7d939` versucht den erzeugten KScreen-Output nach Stream-Start auf die Client-Refresh-Rate zu setzen; `6504268` pollt `kscreen-doctor -o`, setzt den Mode auf dem tatsächlich registrierten Output und verifiziert das Ergebnis.
+- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; `4c63d36` nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback; `d84072e` migriert den KWin-Pfad auf `stream_virtual_output`; `bf7d939` versucht den erzeugten KScreen-Output nach Stream-Start auf die Client-Refresh-Rate zu setzen; `6504268` pollt `kscreen-doctor -o`, setzt den Mode auf dem tatsächlich registrierten Output und verifiziert das Ergebnis; `PENDING_HASH` bindet KWin Output-Management-v2, setzt Custom Modes/HDR direkt über Wayland und paced den Capture-Loop auf Client-FPS.
 
 ### Submodule-Pin
 - `third-party/tray/` — gepinnt auf `7936cb35` (vor `.gitmodules`-Datei; gitlink im Tree)
@@ -931,13 +941,14 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 In Reihenfolge der Priorität.
 
-### A) KScreen-Refresh-Resolver auf CachyOS testen
+### A) KWin Output-Management-v2 Refresh/HDR-Fix auf CachyOS testen
 
 1. `dev` auf dem CachyOS-Rechner ziehen, Submodules aktualisieren, clean builden.
 2. Sonnenschein aus einer KDE-Konsole innerhalb der Plasma-Sitzung starten.
 3. SteamDeck OLED/Moonlight mit `1280x800x90` verbinden.
-4. Erfolgskriterium im Log: `KWin direct capture: streaming output 'Sonnenschein-...' 1280x800`, `resolved KScreen output ...`, `setting refresh rate via output.<real>.mode.1280x800@90`, `verified mode 1280x800@90`, kein `Portal: stream source_type=VIRTUAL`.
-5. Wenn die Verifikation fehlschlägt: komplette Logzeilen ab `KWin direct capture:` plus `kscreen-doctor -o`-Block prüfen; dann ist der nächste Ansatz KWin Output-Management-v2 Custom Modes statt `kscreen-doctor`-Mode-Set.
+4. Erfolgskriterium im Log: `KWin output management: bound ...`, `resolved output ...`, `applying mode 1280x800@90`, `verified mode 1280x800@90`, kein `Portal: stream source_type=VIRTUAL`.
+5. PipeWire-Erfolgskriterium: `PipeWire: requesting format 1280x800@90`; wenn `PipeWire: format negotiated ... fps=60` erscheint, muss zusätzlich die Warning `capture will pace duplicate frames at the client rate` erscheinen und Moonlight/SteamDeck trotzdem 90-FPS-Encoding bekommen.
+6. HDR-Erfolgskriterium: Bei HDR-fähigem Client erscheint `HDR enabled` in der KWin-Output-Management-Verifikation oder eine klare Warning, dass KWin HDR am Virtual Output nicht bestätigt. Moonlight muss HDR anzeigen; wenn Farben falsch wirken, nächster Fix: 10-bit/scRGB PipeWire-Inputformat + Konverterpfad statt aktuellem `AV_PIX_FMT_BGR0`-Input.
 
 ### B) Phase 1.6 — CMake-Rebrand (nach 2D)
 
