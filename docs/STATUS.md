@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-13 — **Phase 4 (PipeWire/KWin-Capture): KWin-Direct-Fatal-Fallback wird minimal repariert.**
+**Stand:** 2026-05-13 — **Phase 4 (PipeWire/KWin-Capture): Minimaler KWin-Direct-Portal-Fallback-Fix auf `dev`, CachyOS-Test offen.**
 
 ---
 
@@ -44,7 +44,7 @@
   - ⏪ **Rollback-Kandidat `74c63cf`**: `pwgrab.cpp` ist auf `bf7d939` zurückgesetzt, also vor den KScreen-Resolver aus `6504268`. Damit werden sowohl der KScreen-Resolver als auch die späteren Output-Management/HDR/Pacing-Experimente aus dem Laufzeitcode entfernt. WSL2-Build grün.
   - ✅ **WSL-Build grün**: `/root/snsbuild`, `cmake --build . --target sunshine -j8`, `pwgrab.cpp` kompiliert und `sunshine-0.0.0` linkt.
 - **Aktueller Blocker**: CachyOS muss nach Rollback `74c63cf` bestätigen: Stream startet wieder wie beim Stand `bf7d939`/`2d5b81a`. Das bekannte 60-Hz-Problem bleibt offen.
-- **Minimal-Fix in Arbeit**: `PENDING_PORTAL_FALLBACK` entfernt nur den fatalen `return -1` nach fehlgeschlagenem KWin Direct Capture. Ziel ist funktionierender Stream über Portal-Fallback, wenn KWin das Direct-ScreenCast-Interface nicht anbietet.
+- **Minimal-Fix auf `dev`**: `41fa9ba` entfernt nur den fatalen `return -1` nach fehlgeschlagenem KWin Direct Capture. Ziel ist funktionierender Stream über Portal-Fallback, wenn KWin das Direct-ScreenCast-Interface nicht anbietet. WSL2-Build grün.
 - **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless ebenfalls unterstützt.
 
 ---
@@ -839,7 +839,7 @@ Damit sind der Output-Management-v2-Patch `723537a`, der STATUS-HEAD `ec832c8` u
 
 **Korrektur (2026-05-13)**: Der Maintainer hat direkt nach `501431a` klargestellt, dass `67a93e3`/`6504268` bereits die defekte Version nach dem letzten guten Stand war. Der tatsächliche Zielstand für den Laufzeitcode ist `bf7d939`/`2d5b81a`, also vor dem KScreen-Resolver. `74c63cf` setzt `pwgrab.cpp` entsprechend zurück.
 
-**Weitere Korrektur (2026-05-13 23:10)**: Der neue Log wurde mit Binary `0.0.0.4d47b5e` erzeugt, also nicht mit dem danach gepushten `74c63cf`/`c451725`. Trotzdem ist der eigentliche Defekt noch im aktuellen Laufzeitcode: der KWin-Direct-Pfad gibt bei fehlendem `zkde_screencast_unstable_v1` `-1` zurück und verhindert damit den Portal-Fallback. `PENDING_PORTAL_FALLBACK` muss diesen fatalen Abbruch entfernen, ohne erneut Output-Management, HDR oder Frame-Pacing anzufassen.
+**Weitere Korrektur (2026-05-13 23:10)**: Der neue Log wurde mit Binary `0.0.0.4d47b5e` erzeugt, also nicht mit dem danach gepushten `74c63cf`/`c451725`. Trotzdem ist der eigentliche Defekt noch im aktuellen Laufzeitcode: der KWin-Direct-Pfad gibt bei fehlendem `zkde_screencast_unstable_v1` `-1` zurück und verhindert damit den Portal-Fallback. `41fa9ba` entfernt diesen fatalen Abbruch, ohne erneut Output-Management, HDR oder Frame-Pacing anzufassen.
 
 ### 9.15 Portal-Dialog erscheint bei jedem Stream
 
@@ -856,7 +856,7 @@ Damit sind der Output-Management-v2-Patch `723537a`, der STATUS-HEAD `ec832c8` u
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
-PENDING_PORTAL_FALLBACK — fix(capture): use portal fallback when KWin screencast is unavailable — 2026-05-13
+41fa9ba — fix(capture): use portal fallback when KWin screencast is unavailable — 2026-05-13
 74c63cf — revert(capture): restore pre KScreen resolver capture path — 2026-05-13
 501431a — revert(capture): restore stable KWin direct capture path — 2026-05-13
 edc144e — fix(capture): fall back when KWin direct capture is unavailable — 2026-05-13
@@ -911,7 +911,7 @@ a95f2ee — Phase 1.3: Init submodules + pin tray pre-Qt — 2026-05-09
 
 `main` Branch zeigt nur auf `235920b` (initial import). `dev` ist die aktive Entwicklungs-Linie und liegt ca. 30+ Commits vor `main`.
 
-**Auf `dev` nächster Test-Commit = `PENDING_PORTAL_FALLBACK`** (Stand 2026-05-13, vor Push). Nächster Schritt ist ausschließlich CachyOS-Validierung, dass der Stream bei fehlendem `zkde_screencast_unstable_v1` nicht mehr abbricht, sondern den Portal-Pfad nutzt. 90-Hz/HDR-Arbeit pausiert bis diese Basis wieder bestätigt ist.
+**Auf `dev` nächster Test-Commit = `41fa9ba`** (Stand 2026-05-13, nach Push). Nächster Schritt ist ausschließlich CachyOS-Validierung, dass der Stream bei fehlendem `zkde_screencast_unstable_v1` nicht mehr abbricht, sondern den Portal-Pfad nutzt. 90-Hz/HDR-Arbeit pausiert bis diese Basis wieder bestätigt ist.
 
 ---
 
@@ -961,7 +961,7 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 - `src/process.cpp` (PATCH) — Linux-Branch in `execute()` + `terminate()`
 
 ### C++ — PipeWire Capture (Phase 4)
-- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; `4c63d36` nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback; `d84072e` migriert den KWin-Pfad auf `stream_virtual_output`; `bf7d939` versucht den erzeugten KScreen-Output nach Stream-Start auf die Client-Refresh-Rate zu setzen; `6504268` pollt `kscreen-doctor -o`, setzt den Mode auf dem tatsächlich registrierten Output und verifiziert das Ergebnis; `501431a` setzte zunächst zurück auf `67a93e3`; `74c63cf` setzt weiter zurück auf `bf7d939`, weil `6504268` laut Maintainer schon defekt war; `PENDING_PORTAL_FALLBACK` entfernt den fatalen Abbruch, wenn KWin Direct nicht verfügbar ist.
+- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; `4c63d36` nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback; `d84072e` migriert den KWin-Pfad auf `stream_virtual_output`; `bf7d939` versucht den erzeugten KScreen-Output nach Stream-Start auf die Client-Refresh-Rate zu setzen; `6504268` pollt `kscreen-doctor -o`, setzt den Mode auf dem tatsächlich registrierten Output und verifiziert das Ergebnis; `501431a` setzte zunächst zurück auf `67a93e3`; `74c63cf` setzt weiter zurück auf `bf7d939`, weil `6504268` laut Maintainer schon defekt war; `41fa9ba` entfernt den fatalen Abbruch, wenn KWin Direct nicht verfügbar ist.
 
 ### Submodule-Pin
 - `third-party/tray/` — gepinnt auf `7936cb35` (vor `.gitmodules`-Datei; gitlink im Tree)
