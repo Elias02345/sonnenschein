@@ -5,16 +5,16 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-10 — **Phase 4 (PipeWire/KWin-Capture): KWin-Direktcapture implementiert, CachyOS-Test ausstehend.**
+**Stand:** 2026-05-13 — **Phase 4 (PipeWire/KWin-Capture): KScreen-Refresh-Resolver implementiert, CachyOS-Test ausstehend.**
 
 ---
 
 ## TL;DR — Wo stehen wir gerade
 
-- **Letzter Test-Commit auf `dev`**: [`4c63d36`](https://github.com/Elias02345/sonnenschein/commit/4c63d36) — `fix(capture): use KWin direct screencast for virtual outputs`
+- **Letzter Test-Commit auf `dev`**: [`bf7d939`](https://github.com/Elias02345/sonnenschein/commit/bf7d939) — `fix(capture): bypass '@' character corruption in compiler and add delay for KWin mode registration`
 - **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (297 Steps grün) + CachyOS (GCC 16.1.1, RTX 3070, Plasma 6.6.4 Wayland)
 - **Erreichter Meilenstein (Phase 4)**:
-  - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, aktuell ~1180 Zeilen)
+  - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, aktuell ~1720 Zeilen)
   - ✅ D-Bus Portal Session + PipeWire Stream + platf::display_t
   - ✅ CMake: optionale libpipewire-0.3 + gio-2.0 Dependency
   - ✅ Automatische Backend-Auswahl: PipeWire wenn Virtual Display aktiv
@@ -33,10 +33,11 @@
   - ✅ **Eingaben funktionieren im Stream** (CachyOS-Test mit `bb3e758`, 2026-05-10 17:06).
   - ✅ **Diagnose-/Cursor-Patch validiert**: Portal meldet `available source types=7 cursor modes=7`, `cursor_mode=Embedded` wird angefordert.
   - 🔴 **Mode-Mismatch bestätigt**: Portal-Stream ist `source_type=VIRTUAL`, `logical size=1920x1080`; PipeWire requested `1280x800@90`, negotiated aber `1920x1080`.
-  - 🔴 **SteamDeck-Refresh bleibt zu niedrig/inkorrekt**: Client fordert `1280x800x90`, aber Stream läuft über den 1920x1080-KDE-Virtual-Source-Pfad statt über den Sonnenschein-Output.
-  - 🟡 **Fix-Kandidat in `4c63d36` implementiert**: KWin-Direct-ScreenCast (`zkde_screencast_unstable_v1`) targetet den erzeugten `Sonnenschein-...`-`wl_output` direkt und verweigert den KDE-XDG-`VIRTUAL`-Fallback.
-  - ✅ **WSL-Build grün**: `/root/snsbuild`, `cmake --build . --target sunshine -j8`, danach `ninja: no work to do`.
-- **Aktueller Blocker**: CachyOS muss jetzt validieren, ob KWin den Direct-ScreenCast-Zugriff erlaubt und PipeWire dann `1280x800@90` statt `1920x1080` negotiated. Erfolgsziel: kein KDE-Portal-Dialog oder zumindest kein `source_type=VIRTUAL`; Log muss `KWin direct capture: streaming output 'Sonnenschein-...'` zeigen.
+  - ✅ **KWin Direct Stream validiert**: `stream_virtual_output` liefert PipeWire direkt aus dem virtuellen Output, kein KDE-XDG-`VIRTUAL`-Fallback.
+  - ✅ **Headless-Mode funktioniert**: Physische Monitore werden beim Stream deaktiviert und danach wiederhergestellt.
+  - 🟡 **SteamDeck-Refresh-Fix implementiert, CachyOS-Test offen**: Client fordert `1280x800x90`, `pwgrab.cpp` löst jetzt nach `stream_virtual_output` den tatsächlichen KScreen-Namen auf, setzt den Mode auf diesem Output und verifiziert danach den aktiven Mode.
+  - ✅ **WSL-Build grün**: `/root/snsbuild`, `cmake --build . --target sunshine -j8`, `pwgrab.cpp` kompiliert und `sunshine-0.0.0` linkt.
+- **Aktueller Blocker**: CachyOS muss validieren, ob KScreen nach `stream_virtual_output` den Mode wirklich auf `1280x800@90` übernimmt. Erfolgslog: `resolved KScreen output ...`, `setting refresh rate via output.<real>.mode.1280x800@90`, `verified mode 1280x800@90`.
 - **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless ebenfalls unterstützt.
 
 ---
@@ -795,13 +796,13 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
 
 **Status**: Teilweise erledigt. CachyOS-Test mit `bb3e758` bestätigt: Ton und Eingaben funktionieren. Cursor wurde über `cursor_mode=Embedded` angefordert; falls der Cursor weiter fehlt, bleibt das ein separater Cursor-Compositing-Bug. Touch/Input ist nicht mehr Hauptblocker.
 
-### 9.16 SteamDeck Refresh/Mode wird durch KDE-XDG-Virtual-Source begrenzt
+### 9.16 SteamDeck Refresh bleibt nach KWin Direct bei 60 Hz
 
 **Symptom**: Steam/Moonlight auf dem SteamDeck zeigt eine niedrigere bzw. falsche Bildwiederholrate im Stream an, obwohl das Deck-Display mehr kann und der Client `1280x800x90` anfragt.
 
-**Ursache (bestätigt)**: Sonnenschein erstellt den KWin-Output mit `1280x800@90`, aber der Portal-Stream kommt aus `source_type=VIRTUAL` mit `logical size=1920x1080`. Damit verliert der Capture-Pfad den Client-Mode; Refresh und Aspect Ratio folgen nicht dem erzeugten Sonnenschein-Output.
+**Ursache (aktuelle Arbeitshypothese)**: Der alte `source_type=VIRTUAL`/`1920x1080`-Pfad ist durch KWin Direct ScreenCast gelöst. `stream_virtual_output` erzeugt den virtuellen Output aber initial mit 60 Hz. Der nachträgliche `kscreen-doctor output.Sonnenschein-...mode.1280x800@90`-Befehl trifft wahrscheinlich nicht zuverlässig den tatsächlichen KScreen-Namen, weil KWin/KScreen den Output intern häufig als `Virtual-*` registriert.
 
-**Status**: Fix-Kandidat implementiert. Der nächste CachyOS-Test muss zeigen, ob KWin den direkten ScreenCast-Zugriff erlaubt und ob PipeWire dann den erzeugten `Sonnenschein-...`-Output mit `1280x800@90` liefert. Wenn KWin den privaten Zugriff verweigert, ist der nächste Ansatz ein persistenter Portal-Token/Monitor-Source-Pfad oder ein kontrollierter Fallback mit temporär eindeutigem Output-Set.
+**Status**: Fix implementiert, CachyOS-Test ausstehend. `pwgrab.cpp` pollt nach `stream_virtual_output` bis zu 3 Sekunden `kscreen-doctor -o`, löst den tatsächlichen virtuellen Output-Namen robust auf (exakt `Sonnenschein-*`, danach passender `Virtual-*`, danach einziger aktiver virtueller Output), setzt den Mode über `kscreen-doctor output.<real-name>.mode.<WxH>@<Hz>` und verifiziert danach den aktiven Mode. Kein Rückfall auf KDE-Portal-`VIRTUAL`, weil dieser Pfad bereits als falsch validiert ist. WSL2-Build in `/root/snsbuild` ist grün.
 
 ### 9.15 Portal-Dialog erscheint bei jedem Stream
 
@@ -818,6 +819,19 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+bf7d939 — fix(capture): bypass '@' character corruption in compiler and add delay for KWin mode registration — 2026-05-10
+2d5b81a — docs: finalized E2E Refresh Rate and Headless Mode documentation — 2026-05-10
+6c798e4 — fix(capture): remove string_view literals from BOOST_LOG formatting that caused string corruption in fps metadata — 2026-05-10
+9c63e32 — docs: update STATUS.md regarding framerate string fixes — 2026-05-10
+be20703 — fix(capture): replace error-prone float formatting with simple string conversions to fix garbage log output and 60Hz mode-set lock — 2026-05-10
+6bbb820 — fix(capture): dynamically set virtual output refresh rate using kscreen-doctor after stream starts — 2026-05-10
+e453afa — fix(capture): format framerate correctly and disable physical screens in KWin virtual output backend — 2026-05-10
+23d0778 — docs: document stream_virtual_output migration — 2026-05-10
+d84072e — fix(capture): migrate KWin virtual display to stream_virtual_output — 2026-05-10
+96203b1 — docs: update STATUS.md with Wayland roundtrip hotfix — 2026-05-10
+f40b4f5 — fix(capture): sync Wayland display roundtrip in KWin direct capture to catch delayed virtual outputs — 2026-05-10
+102b36b — fix(capture): capture wl_output description and add Virtual-* fallback for KWin — 2026-05-10
+2df15c4 — docs: update STATUS.md with KWin direct capture fix — 2026-05-10
 4c63d36 — fix(capture): use KWin direct screencast for virtual outputs — 2026-05-10
 bb3e758 — docs: update STATUS.md with portal source diagnostics — 2026-05-10
 447dc8b — fix(capture): log portal source and request cursor — 2026-05-10
@@ -854,7 +868,7 @@ a95f2ee — Phase 1.3: Init submodules + pin tray pre-Qt — 2026-05-09
 
 `main` Branch zeigt nur auf `235920b` (initial import). `dev` ist die aktive Entwicklungs-Linie und liegt ca. 30+ Commits vor `main`.
 
-**Auf `dev` aktueller Test-HEAD = `4c63d36`** (Stand 2026-05-10). Nächster Schritt ist CachyOS-Validierung des KWin-Direktcapture-Pfads.
+**Auf `dev` aktueller Test-HEAD = `bf7d939`** (Stand 2026-05-13). Nächster Schritt ist der KScreen-Refresh-Resolver für `stream_virtual_output`, damit SteamDeck OLED und andere Clients automatisch mit der angefragten Bildwiederholrate laufen.
 
 ---
 
@@ -904,7 +918,7 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 - `src/process.cpp` (PATCH) — Linux-Branch in `execute()` + `terminate()`
 
 ### C++ — PipeWire Capture (Phase 4)
-- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; `4c63d36` nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback.
+- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; `4c63d36` nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback; `d84072e` migriert den KWin-Pfad auf `stream_virtual_output`; `bf7d939` versucht den erzeugten KScreen-Output nach Stream-Start auf die Client-Refresh-Rate zu setzen; der aktuelle Refresh-Resolver pollt `kscreen-doctor -o`, setzt den Mode auf dem tatsächlich registrierten Output und verifiziert das Ergebnis.
 
 ### Submodule-Pin
 - `third-party/tray/` — gepinnt auf `7936cb35` (vor `.gitmodules`-Datei; gitlink im Tree)
@@ -916,13 +930,13 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 In Reihenfolge der Priorität.
 
-### A) KWin-Direktcapture auf CachyOS testen (Phase 4, nächster Schritt)
+### A) KScreen-Refresh-Resolver auf CachyOS testen
 
-1. `dev` ziehen, neue Submodules holen, clean builden.
+1. `dev` auf dem CachyOS-Rechner ziehen, Submodules aktualisieren, clean builden.
 2. Sonnenschein aus einer KDE-Konsole innerhalb der Plasma-Sitzung starten.
-3. Erfolgslog prüfen: `KWin direct capture: bound zkde_screencast_unstable_v1`, `found output 'Sonnenschein-...' 1280x800`, `streaming output 'Sonnenschein-...'`, danach `PipeWire: requesting format 1280x800@90`.
-4. Ziel: kein KDE-Screen-Record-Dialog und keine `Portal: stream source_type=VIRTUAL`-Zeilen beim Stream-Start. Wenn KWin Direct funktioniert, sollte PipeWire nicht mehr auf `1920x1080` negotiated werden.
-5. Wenn der Direct-Pfad scheitert: Logzeilen ab `KWin direct capture:` schicken. Dann prüfen wir KWin-Berechtigung/`.desktop`-Permission oder bauen den nächsten Fallback über persistente Portal-Monitor-Auswahl.
+3. SteamDeck OLED/Moonlight mit `1280x800x90` verbinden.
+4. Erfolgskriterium im Log: `KWin direct capture: streaming output 'Sonnenschein-...' 1280x800`, `resolved KScreen output ...`, `setting refresh rate via output.<real>.mode.1280x800@90`, `verified mode 1280x800@90`, kein `Portal: stream source_type=VIRTUAL`.
+5. Wenn die Verifikation fehlschlägt: komplette Logzeilen ab `KWin direct capture:` plus `kscreen-doctor -o`-Block prüfen; dann ist der nächste Ansatz KWin Output-Management-v2 Custom Modes statt `kscreen-doctor`-Mode-Set.
 
 ### B) Phase 1.6 — CMake-Rebrand (nach 2D)
 

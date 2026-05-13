@@ -13,18 +13,24 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cctype>
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <fcntl.h>
 #include <fstream>
 #include <cstring>
+#include <iomanip>
 #include <limits.h>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <poll.h>
 #include <pwd.h>
+#include <sstream>
 #include <thread>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 
 // pipewire includes
@@ -82,6 +88,16 @@ namespace pw {
     }
     if (!sender.empty() && sender[0] == '_') sender = sender.substr(1);
     return "/org/freedesktop/portal/desktop/request/" + sender + "/" + token;
+  }
+
+  static uint32_t normalize_framerate_hz(uint32_t requested_framerate) {
+    if (requested_framerate == 0) {
+      return 60;
+    }
+    if (requested_framerate > 1000) {
+      return std::max<uint32_t>(1, (requested_framerate + 500) / 1000);
+    }
+    return requested_framerate;
   }
 
 #ifdef SUNSHINE_BUILD_KWIN
@@ -238,25 +254,7 @@ namespace pw {
         return false;
       }
 
-      // Best effort: set the mode via kscreen-doctor to ensure the framerate is respected.
-      // KWin's stream_virtual_output creates it at 60Hz by default.
-      if (requested_framerate > 0) {
-        std::string hz_str = std::to_string(static_cast<int>(requested_framerate));
-
-        // Wait a bit for KWin to register the newly created virtual output in its config system
-        std::this_thread::sleep_for(500ms);
-
-        std::ostringstream mode_arg;
-        const char at_sign = 0x40; // '@' character, avoided as literal to prevent weird macro/compiler corruption
-        mode_arg << "output." << target_output_name << ".mode."
-                 << width << "x" << height << at_sign << hz_str;
-                 
-        BOOST_LOG(info) << "KWin direct capture: setting refresh rate via " << mode_arg.str();
-        auto mode_res = sonnenschein::vdisplay::run_args({"kscreen-doctor", mode_arg.str()}, "kscreen-doctor mode set");
-        if (!mode_res.ok) {
-          BOOST_LOG(warning) << "KWin direct capture: mode set failed: " << mode_res.output;
-        }
-      }
+      apply_refresh_rate(target_output_name, width, height, requested_framerate);
 
       BOOST_LOG(info) << "KWin direct capture: streaming output '"
                       << target_output_name << "' " << width << "x" << height
@@ -265,6 +263,486 @@ namespace pw {
     }
 
   private:
+    struct mode_t {
+      int width = 0;
+      int height = 0;
+      double refresh_hz = 0.0;
+    };
+
+    struct kscreen_output_t {
+      std::string name;
+      std::string raw;
+      bool enabled = false;
+      bool connected = false;
+      bool current_mode_confirmed = false;
+      mode_t current_mode;
+    };
+
+    struct kscreen_snapshot_t {
+      bool ok = false;
+      std::string raw;
+      std::vector<kscreen_output_t> outputs;
+    };
+
+    static std::string trim_copy(const std::string &value) {
+      auto begin = value.begin();
+      while (begin != value.end() && std::isspace(static_cast<unsigned char>(*begin))) {
+        ++begin;
+      }
+
+      auto end = value.end();
+      while (end != begin && std::isspace(static_cast<unsigned char>(*(end - 1)))) {
+        --end;
+      }
+
+      return {begin, end};
+    }
+
+    static bool starts_with(const std::string &value, const std::string &prefix) {
+      return value.size() >= prefix.size() && value.compare(0, prefix.size(), prefix) == 0;
+    }
+
+    static bool contains_case_insensitive(std::string value, std::string needle) {
+      std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+      });
+      std::transform(needle.begin(), needle.end(), needle.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+      });
+      return value.find(needle) != std::string::npos;
+    }
+
+    static bool has_mode(const mode_t &mode) {
+      return mode.width > 0 && mode.height > 0 && mode.refresh_hz > 0.0;
+    }
+
+    static std::string format_refresh_hz(double hz) {
+      const auto rounded = std::round(hz);
+      if (std::fabs(hz - rounded) < 0.001) {
+        return std::to_string(static_cast<int>(rounded));
+      }
+
+      std::ostringstream out;
+      out << std::fixed << std::setprecision(3) << hz;
+      auto text = out.str();
+      while (text.size() > 1 && text.back() == '0') {
+        text.pop_back();
+      }
+      if (!text.empty() && text.back() == '.') {
+        text.pop_back();
+      }
+      return text;
+    }
+
+    static double normalize_refresh_hz(double requested_framerate) {
+      if (requested_framerate <= 0.0) {
+        return 0.0;
+      }
+      if (requested_framerate > 1000.0) {
+        return requested_framerate / 1000.0;
+      }
+      return requested_framerate;
+    }
+
+    static std::string format_mode(int width, int height, double refresh_hz) {
+      const char at_sign = 0x40;
+      std::ostringstream out;
+      out << width << "x" << height << at_sign << format_refresh_hz(refresh_hz);
+      return out.str();
+    }
+
+    static std::optional<mode_t> parse_mode_from_text(const std::string &line) {
+      for (size_t at_pos = line.find(static_cast<char>(0x40));
+           at_pos != std::string::npos;
+           at_pos = line.find(static_cast<char>(0x40), at_pos + 1)) {
+        const auto x_pos = line.rfind('x', at_pos);
+        if (x_pos == std::string::npos || x_pos == 0 || x_pos + 1 >= at_pos) {
+          continue;
+        }
+
+        size_t width_begin = x_pos;
+        while (width_begin > 0 && std::isdigit(static_cast<unsigned char>(line[width_begin - 1]))) {
+          --width_begin;
+        }
+        if (width_begin == x_pos) {
+          continue;
+        }
+
+        bool height_digits = true;
+        for (size_t i = x_pos + 1; i < at_pos; ++i) {
+          if (!std::isdigit(static_cast<unsigned char>(line[i]))) {
+            height_digits = false;
+            break;
+          }
+        }
+        if (!height_digits) {
+          continue;
+        }
+
+        size_t refresh_end = at_pos + 1;
+        while (
+          refresh_end < line.size() &&
+          (std::isdigit(static_cast<unsigned char>(line[refresh_end])) || line[refresh_end] == '.')
+        ) {
+          ++refresh_end;
+        }
+        if (refresh_end == at_pos + 1) {
+          continue;
+        }
+
+        mode_t mode;
+        try {
+          mode.width = std::stoi(line.substr(width_begin, x_pos - width_begin));
+          mode.height = std::stoi(line.substr(x_pos + 1, at_pos - x_pos - 1));
+          mode.refresh_hz = std::stod(line.substr(at_pos + 1, refresh_end - at_pos - 1));
+        } catch (...) {
+          continue;
+        }
+
+        if (has_mode(mode)) {
+          return mode;
+        }
+      }
+
+      return std::nullopt;
+    }
+
+    static std::optional<std::pair<int, int>> parse_geometry_from_text(const std::string &line) {
+      if (line.find("Geometry:") == std::string::npos) {
+        return std::nullopt;
+      }
+
+      for (size_t x_pos = line.find('x'); x_pos != std::string::npos; x_pos = line.find('x', x_pos + 1)) {
+        if (x_pos == 0 || x_pos + 1 >= line.size()) {
+          continue;
+        }
+
+        size_t width_begin = x_pos;
+        while (width_begin > 0 && std::isdigit(static_cast<unsigned char>(line[width_begin - 1]))) {
+          --width_begin;
+        }
+        size_t height_end = x_pos + 1;
+        while (height_end < line.size() && std::isdigit(static_cast<unsigned char>(line[height_end]))) {
+          ++height_end;
+        }
+        if (width_begin == x_pos || height_end == x_pos + 1) {
+          continue;
+        }
+
+        try {
+          return std::make_pair(
+            std::stoi(line.substr(width_begin, x_pos - width_begin)),
+            std::stoi(line.substr(x_pos + 1, height_end - x_pos - 1)));
+        } catch (...) {
+          return std::nullopt;
+        }
+      }
+
+      return std::nullopt;
+    }
+
+    static kscreen_snapshot_t read_kscreen_outputs() {
+      auto result = sonnenschein::vdisplay::run_args({"kscreen-doctor", "-o"}, "kscreen-doctor -o");
+
+      kscreen_snapshot_t snapshot;
+      snapshot.ok = result.ok;
+      snapshot.raw = result.output;
+      if (!result.ok) {
+        return snapshot;
+      }
+
+      std::istringstream stream(result.output);
+      std::string line;
+      kscreen_output_t *current = nullptr;
+
+      while (std::getline(stream, line)) {
+        const auto trimmed = trim_copy(line);
+        if (starts_with(trimmed, "Output: ")) {
+          std::istringstream parts(trimmed);
+          std::string label;
+          std::string index;
+
+          kscreen_output_t output;
+          output.raw = line;
+          if (parts >> label >> index >> output.name) {
+            std::string token;
+            while (parts >> token) {
+              if (token == "enabled") {
+                output.enabled = true;
+              } else if (token == "connected") {
+                output.connected = true;
+              }
+            }
+            snapshot.outputs.push_back(std::move(output));
+            current = &snapshot.outputs.back();
+          } else {
+            current = nullptr;
+          }
+          continue;
+        }
+
+        if (!current) {
+          continue;
+        }
+
+        current->raw += '\n';
+        current->raw += line;
+
+        if (auto mode = parse_mode_from_text(trimmed)) {
+          const auto lower_current = contains_case_insensitive(trimmed, "current");
+          const auto has_marker = trimmed.find('*') != std::string::npos;
+          if (!has_mode(current->current_mode) || lower_current || has_marker) {
+            current->current_mode = *mode;
+            current->current_mode_confirmed = lower_current || has_marker;
+          }
+        } else if (auto geometry = parse_geometry_from_text(trimmed)) {
+          if (current->current_mode.width == 0) {
+            current->current_mode.width = geometry->first;
+          }
+          if (current->current_mode.height == 0) {
+            current->current_mode.height = geometry->second;
+          }
+        }
+      }
+
+      return snapshot;
+    }
+
+    static bool is_virtual_output(const kscreen_output_t &output) {
+      return starts_with(output.name, "Virtual-") ||
+             starts_with(output.name, "Sonnenschein-") ||
+             output.raw.find("Virtual") != std::string::npos ||
+             output.raw.find("Sonnenschein") != std::string::npos;
+    }
+
+    static bool matches_resolution(const kscreen_output_t &output, int width, int height) {
+      if (width <= 0 || height <= 0) {
+        return true;
+      }
+      return output.current_mode.width == width && output.current_mode.height == height;
+    }
+
+    static bool matches_mode(const kscreen_output_t &output, int width, int height, double refresh_hz) {
+      return matches_resolution(output, width, height) &&
+             output.current_mode.refresh_hz > 0.0 &&
+             std::fabs(output.current_mode.refresh_hz - refresh_hz) < 0.5;
+    }
+
+    static int virtual_output_index(const kscreen_output_t &output) {
+      if (!starts_with(output.name, "Virtual-")) {
+        return -1;
+      }
+
+      try {
+        return std::stoi(output.name.substr(std::string("Virtual-").size()));
+      } catch (...) {
+        return -1;
+      }
+    }
+
+    static std::string describe_mode(const kscreen_output_t &output) {
+      if (!has_mode(output.current_mode)) {
+        if (output.current_mode.width > 0 && output.current_mode.height > 0) {
+          return std::to_string(output.current_mode.width) + "x" + std::to_string(output.current_mode.height);
+        }
+        return "unknown";
+      }
+      return format_mode(output.current_mode.width, output.current_mode.height, output.current_mode.refresh_hz);
+    }
+
+    static std::optional<kscreen_output_t> resolve_kscreen_output(
+      const kscreen_snapshot_t &snapshot,
+      const std::string &target_output_name,
+      int requested_width,
+      int requested_height
+    ) {
+      auto active = [](const kscreen_output_t &output) {
+        return output.enabled && output.connected;
+      };
+      auto target_match = [&](const kscreen_output_t &output) {
+        return output.name == target_output_name || output.raw.find(target_output_name) != std::string::npos;
+      };
+
+      for (const auto &output : snapshot.outputs) {
+        if (active(output) && target_match(output) && matches_resolution(output, requested_width, requested_height)) {
+          return output;
+        }
+      }
+
+      for (const auto &output : snapshot.outputs) {
+        if (active(output) && target_match(output)) {
+          return output;
+        }
+      }
+
+      std::optional<kscreen_output_t> virtual_match;
+      for (const auto &output : snapshot.outputs) {
+        if (!active(output) || !is_virtual_output(output) || !matches_resolution(output, requested_width, requested_height)) {
+          continue;
+        }
+
+        if (!virtual_match || virtual_output_index(output) >= virtual_output_index(*virtual_match)) {
+          virtual_match = output;
+        }
+      }
+      if (virtual_match) {
+        return virtual_match;
+      }
+
+      std::optional<kscreen_output_t> single_virtual;
+      int virtual_count = 0;
+      for (const auto &output : snapshot.outputs) {
+        if (active(output) && is_virtual_output(output)) {
+          single_virtual = output;
+          ++virtual_count;
+        }
+      }
+      if (virtual_count == 1) {
+        return single_virtual;
+      }
+
+      return std::nullopt;
+    }
+
+    static std::optional<kscreen_output_t> resolve_kscreen_output_by_name(
+      const kscreen_snapshot_t &snapshot,
+      const std::string &name
+    ) {
+      for (const auto &output : snapshot.outputs) {
+        if (output.name == name) {
+          return output;
+        }
+      }
+      return std::nullopt;
+    }
+
+    static std::optional<kscreen_output_t> wait_for_kscreen_output(
+      const std::string &target_output_name,
+      int requested_width,
+      int requested_height,
+      std::chrono::milliseconds timeout,
+      std::string &last_output
+    ) {
+      const auto deadline = std::chrono::steady_clock::now() + timeout;
+
+      while (true) {
+        const auto snapshot = read_kscreen_outputs();
+        last_output = snapshot.raw;
+        if (snapshot.ok) {
+          if (auto output = resolve_kscreen_output(snapshot, target_output_name, requested_width, requested_height)) {
+            return output;
+          }
+        }
+
+        if (std::chrono::steady_clock::now() >= deadline) {
+          break;
+        }
+        std::this_thread::sleep_for(150ms);
+      }
+
+      return std::nullopt;
+    }
+
+    static std::optional<kscreen_output_t> wait_for_verified_mode(
+      const std::string &kscreen_name,
+      int requested_width,
+      int requested_height,
+      double requested_hz,
+      std::chrono::milliseconds timeout,
+      std::string &last_output
+    ) {
+      const auto deadline = std::chrono::steady_clock::now() + timeout;
+      std::optional<kscreen_output_t> last_seen;
+
+      while (true) {
+        const auto snapshot = read_kscreen_outputs();
+        last_output = snapshot.raw;
+        if (snapshot.ok) {
+          last_seen = resolve_kscreen_output_by_name(snapshot, kscreen_name);
+          if (last_seen && matches_mode(*last_seen, requested_width, requested_height, requested_hz)) {
+            return last_seen;
+          }
+        }
+
+        if (std::chrono::steady_clock::now() >= deadline) {
+          break;
+        }
+        std::this_thread::sleep_for(150ms);
+      }
+
+      return last_seen;
+    }
+
+    static void apply_refresh_rate(
+      const std::string &target_output_name,
+      int requested_width,
+      int requested_height,
+      double requested_framerate
+    ) {
+      const auto requested_hz = normalize_refresh_hz(requested_framerate);
+      if (requested_hz <= 0.0 || requested_width <= 0 || requested_height <= 0) {
+        return;
+      }
+
+      const auto requested_mode = format_mode(requested_width, requested_height, requested_hz);
+      std::string last_output;
+      auto resolved = wait_for_kscreen_output(
+        target_output_name,
+        requested_width,
+        requested_height,
+        3000ms,
+        last_output);
+
+      if (!resolved) {
+        BOOST_LOG(warning)
+          << "KWin direct capture: could not resolve KScreen output for '"
+          << target_output_name << "' requested mode " << requested_mode
+          << "; kscreen-doctor -o output: " << last_output;
+        return;
+      }
+
+      BOOST_LOG(info)
+        << "KWin direct capture: resolved KScreen output '" << resolved->name
+        << "' for '" << target_output_name
+        << "' current mode " << describe_mode(*resolved)
+        << ", requested mode " << requested_mode;
+
+      std::ostringstream mode_arg;
+      mode_arg << "output." << resolved->name << ".mode." << requested_mode;
+
+      BOOST_LOG(info) << "KWin direct capture: setting refresh rate via " << mode_arg.str();
+      const auto mode_res = sonnenschein::vdisplay::run_args({"kscreen-doctor", mode_arg.str()}, "kscreen-doctor mode set");
+      if (!mode_res.ok) {
+        BOOST_LOG(warning)
+          << "KWin direct capture: mode set failed for output '" << resolved->name
+          << "' requested mode " << requested_mode
+          << ": " << mode_res.output;
+        return;
+      }
+
+      std::string verify_output;
+      auto verified = wait_for_verified_mode(
+        resolved->name,
+        requested_width,
+        requested_height,
+        requested_hz,
+        1500ms,
+        verify_output);
+
+      if (verified && matches_mode(*verified, requested_width, requested_height, requested_hz)) {
+        BOOST_LOG(info)
+          << "KWin direct capture: verified mode " << requested_mode
+          << " on KScreen output '" << verified->name << "'";
+        return;
+      }
+
+      BOOST_LOG(warning)
+        << "KWin direct capture: mode set did not verify for output '" << resolved->name
+        << "' requested mode " << requested_mode
+        << ", current mode " << (verified ? describe_mode(*verified) : std::string("unknown"))
+        << "; kscreen-doctor -o output: " << verify_output;
+    }
+
     static std::string env_string(const char *key) {
       const char *value = std::getenv(key);
       return value ? value : "";
@@ -902,7 +1380,7 @@ namespace pw {
     bool init(int fd, uint32_t node_id, uint32_t req_width, uint32_t req_height, uint32_t req_framerate) {
       requested_width = req_width ? req_width : 1920;
       requested_height = req_height ? req_height : 1080;
-      requested_framerate = req_framerate ? req_framerate : 60;
+      requested_framerate = normalize_framerate_hz(req_framerate);
 
       pw_init(nullptr, nullptr);
 
@@ -1024,9 +1502,11 @@ namespace pw {
 
   class pw_display_t : public platf::display_t {
   public:
-    int init(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
-      mem_type = hwdevice_type;
-      delay = std::chrono::nanoseconds{1s} / config.framerate;
+      int init(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
+        mem_type = hwdevice_type;
+      const auto capture_framerate = normalize_framerate_hz(
+        config.framerate > 0 ? static_cast<uint32_t>(config.framerate) : 60);
+      delay = std::chrono::nanoseconds{1s} / capture_framerate;
 
       if (::video::is_encoder_probing_active) {
         // This is an encoder probe (boot-time or stream pre-flight).
