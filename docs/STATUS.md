@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-13 — **Phase 4 (PipeWire/KWin-Capture): Rollback auf Stand vor KScreen-Resolver in Arbeit.**
+**Stand:** 2026-05-13 — **Phase 4 (PipeWire/KWin-Capture): Rollback auf Stand vor KScreen-Resolver auf `dev`, CachyOS-Test offen.**
 
 ---
 
@@ -40,9 +40,9 @@
   - ✅ **Headless-Mode funktioniert**: Physische Monitore werden beim Stream deaktiviert und danach wiederhergestellt.
   - 🔴 **SteamDeck-Refresh bleibt trotz `6504268` bei 60 Hz**: Maintainer-Test am 2026-05-13 bestätigt, dass der KScreen-Resolver/`kscreen-doctor mode set` den laufenden KWin-Direct-Stream nicht auf 90 Hz bringt.
   - 🔴 **Regression in `723537a` bestätigt und wird zurückgerollt**: Auf CachyOS bindet `pwgrab.cpp` zwar `kde_output_management_v2 version 19`, sieht aber kein `zkde_screencast_unstable_v1`; die Session schlägt fehl und Moonlight endet mit `Initial Ping Timeout`.
-  - ⏪ **Rollback-Kandidat `PENDING_ROLLBACK2`**: `pwgrab.cpp` ist auf `bf7d939` zurückgesetzt, also vor den KScreen-Resolver aus `6504268`. Damit werden sowohl der KScreen-Resolver als auch die späteren Output-Management/HDR/Pacing-Experimente aus dem Laufzeitcode entfernt. WSL2-Build grün.
+  - ⏪ **Rollback-Kandidat `74c63cf`**: `pwgrab.cpp` ist auf `bf7d939` zurückgesetzt, also vor den KScreen-Resolver aus `6504268`. Damit werden sowohl der KScreen-Resolver als auch die späteren Output-Management/HDR/Pacing-Experimente aus dem Laufzeitcode entfernt. WSL2-Build grün.
   - ✅ **WSL-Build grün**: `/root/snsbuild`, `cmake --build . --target sunshine -j8`, `pwgrab.cpp` kompiliert und `sunshine-0.0.0` linkt.
-- **Aktueller Blocker**: CachyOS muss nach Rollback `PENDING_ROLLBACK2` bestätigen: Stream startet wieder wie beim Stand `bf7d939`/`2d5b81a`. Das bekannte 60-Hz-Problem bleibt offen.
+- **Aktueller Blocker**: CachyOS muss nach Rollback `74c63cf` bestätigen: Stream startet wieder wie beim Stand `bf7d939`/`2d5b81a`. Das bekannte 60-Hz-Problem bleibt offen.
 - **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless ebenfalls unterstützt.
 
 ---
@@ -835,7 +835,7 @@ Damit ist bestätigt: der falsche 1920x1080-Pfad kommt von der ausgewählten KDE
 
 Damit sind der Output-Management-v2-Patch `723537a`, der STATUS-HEAD `ec832c8` und der Fallback-Hotfix `edc144e` inhaltlich aus dem Laufzeitcode entfernt. Diese Regressionskette darf nicht erneut als großer Kombi-Patch für Refresh/HDR eingeführt werden. Nächster 90-Hz-Versuch nur in kleinen, einzeln testbaren Schritten.
 
-**Korrektur (2026-05-13)**: Der Maintainer hat direkt nach `501431a` klargestellt, dass `67a93e3`/`6504268` bereits die defekte Version nach dem letzten guten Stand war. Der tatsächliche Zielstand für den Laufzeitcode ist `bf7d939`/`2d5b81a`, also vor dem KScreen-Resolver. `PENDING_ROLLBACK2` setzt `pwgrab.cpp` entsprechend zurück.
+**Korrektur (2026-05-13)**: Der Maintainer hat direkt nach `501431a` klargestellt, dass `67a93e3`/`6504268` bereits die defekte Version nach dem letzten guten Stand war. Der tatsächliche Zielstand für den Laufzeitcode ist `bf7d939`/`2d5b81a`, also vor dem KScreen-Resolver. `74c63cf` setzt `pwgrab.cpp` entsprechend zurück.
 
 ### 9.15 Portal-Dialog erscheint bei jedem Stream
 
@@ -852,7 +852,7 @@ Damit sind der Output-Management-v2-Patch `723537a`, der STATUS-HEAD `ec832c8` u
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
-PENDING_ROLLBACK2 — revert(capture): restore pre KScreen resolver capture path — 2026-05-13
+74c63cf — revert(capture): restore pre KScreen resolver capture path — 2026-05-13
 501431a — revert(capture): restore stable KWin direct capture path — 2026-05-13
 edc144e — fix(capture): fall back when KWin direct capture is unavailable — 2026-05-13
 723537a — fix(capture): configure KWin virtual outputs via output management — 2026-05-13
@@ -906,7 +906,7 @@ a95f2ee — Phase 1.3: Init submodules + pin tray pre-Qt — 2026-05-09
 
 `main` Branch zeigt nur auf `235920b` (initial import). `dev` ist die aktive Entwicklungs-Linie und liegt ca. 30+ Commits vor `main`.
 
-**Auf `dev` nächster Test-Commit = `PENDING_ROLLBACK2`** (Stand 2026-05-13, vor Push). Nächster Schritt ist ausschließlich CachyOS-Validierung, dass der Stream wieder wie beim Stand `bf7d939` startet. 90-Hz/HDR-Arbeit pausiert bis diese Basis wieder bestätigt ist.
+**Auf `dev` nächster Test-Commit = `74c63cf`** (Stand 2026-05-13, nach Push). Nächster Schritt ist ausschließlich CachyOS-Validierung, dass der Stream wieder wie beim Stand `bf7d939` startet. 90-Hz/HDR-Arbeit pausiert bis diese Basis wieder bestätigt ist.
 
 ---
 
@@ -956,7 +956,7 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 - `src/process.cpp` (PATCH) — Linux-Branch in `execute()` + `terminate()`
 
 ### C++ — PipeWire Capture (Phase 4)
-- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; `4c63d36` nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback; `d84072e` migriert den KWin-Pfad auf `stream_virtual_output`; `bf7d939` versucht den erzeugten KScreen-Output nach Stream-Start auf die Client-Refresh-Rate zu setzen; `6504268` pollt `kscreen-doctor -o`, setzt den Mode auf dem tatsächlich registrierten Output und verifiziert das Ergebnis; `501431a` setzte zunächst zurück auf `67a93e3`; `PENDING_ROLLBACK2` setzt weiter zurück auf `bf7d939`, weil `6504268` laut Maintainer schon defekt war.
+- `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; `4c63d36` nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback; `d84072e` migriert den KWin-Pfad auf `stream_virtual_output`; `bf7d939` versucht den erzeugten KScreen-Output nach Stream-Start auf die Client-Refresh-Rate zu setzen; `6504268` pollt `kscreen-doctor -o`, setzt den Mode auf dem tatsächlich registrierten Output und verifiziert das Ergebnis; `501431a` setzte zunächst zurück auf `67a93e3`; `74c63cf` setzt weiter zurück auf `bf7d939`, weil `6504268` laut Maintainer schon defekt war.
 
 ### Submodule-Pin
 - `third-party/tray/` — gepinnt auf `7936cb35` (vor `.gitmodules`-Datei; gitlink im Tree)
