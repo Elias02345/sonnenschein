@@ -992,7 +992,8 @@ Vorteile: rock-solid, distroübergreifend, funktioniert ohne KDE-spezifische API
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
-TBD ← (Rollback) — revert(vdisplay): roll back 29cd4b6 — kscreen-doctor add-virtual-output proven wirkungslos on CachyOS — 2026-05-14
+d77a2be — revert(vdisplay): roll back 29cd4b6 — kscreen-doctor add-virtual-output proven wirkungslos on CachyOS — 2026-05-14
+150dfd0 — docs(status): update STATUS.md for 60-Hz fix commit 29cd4b6 — 2026-05-14
 29cd4b6 — fix(vdisplay): pre-create KWin virtual output via kscreen-doctor for correct refresh rate — 2026-05-14 (NICHT WIRKSAM — KDE-Cache-Eintrag, kein wl_output)
 41fa9ba — fix(capture): use portal fallback when KWin screencast is unavailable — 2026-05-13
 74c63cf — revert(capture): restore pre KScreen resolver capture path — 2026-05-13
