@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-14 — **Phase 4 (PipeWire/KWin-Capture): 60-Hz-Fix-Versuch via Pre-Create-Output-Vorhang in `kwin_wayland.cpp`, CachyOS-Test offen.**
+**Stand:** 2026-05-14 (spät) — **60-Hz-Bug verstanden: KWin Wayland ignoriert non-EDID-Modi. Echte Lösung = `kde_output_management_v2::set_custom_modes` (KWin MR !8766, in Plasma 6.6). Mein `29cd4b6`-Versuch (kscreen-doctor add-virtual-output Pre-Create) ist auf CachyOS getestet → ohne Wirkung, Output erscheint nicht im wl_output Registry. Rollback auf Stand `41fa9ba` + detaillierte Implementierungs-Anleitung für nächste Session.**
 
 ---
 
@@ -851,36 +851,131 @@ Damit sind der Output-Management-v2-Patch `723537a`, der STATUS-HEAD `ec832c8` u
 
 **Weitere Korrektur (2026-05-13 23:10)**: Der neue Log wurde mit Binary `0.0.0.4d47b5e` erzeugt, also nicht mit dem danach gepushten `74c63cf`/`c451725`. Trotzdem ist der eigentliche Defekt noch im aktuellen Laufzeitcode: der KWin-Direct-Pfad gibt bei fehlendem `zkde_screencast_unstable_v1` `-1` zurück und verhindert damit den Portal-Fallback. `41fa9ba` entfernt diesen fatalen Abbruch, ohne erneut Output-Management, HDR oder Frame-Pacing anzufassen.
 
-### 9.18 60-Hz-Fix-Versuch via Pre-Create-Output (Commit `29cd4b6`, 2026-05-14)
+### 9.18 60-Hz-Bug — Endgültige Diagnose + echte Lösung (Stand 2026-05-14 spät)
 
 **Symptom**: SteamDeck-OLED (oder beliebiger 90/120 Hz Client) bleibt im Stream bei 60 Hz, obwohl der Stream sonst sauber läuft (Bild + Ton + Eingaben + Headless funktionieren).
 
-**Root Cause** (endgültig verstanden): `zkde_screencast_unstable_v1::stream_virtual_output` nimmt nur `name`, `width`, `height`, `scale`, `pointer` als Argumente — **keine Refresh-Rate**. KWin erzeugt den Output mit fixem 60-Hz-Default. Die Mode-Liste des Outputs enthält danach **nur** diese 60 Hz, weshalb `kscreen-doctor output.NAME.mode.WxH@HZ` mit anderen Hz fehlschlägt. Codex' Versuche `6504268` (KScreen-Resolver) und `723537a` (kde_output_management_v2) scheiterten genau daran: Mode-Set nach Stream-Start funktioniert nicht.
+#### Root Cause (online verifiziert)
 
-**Fix-Strategie** (uncommitted, in Arbeit am 2026-05-14):
-1. `KwinWaylandBackend::create()` erstellt den Output **vor** dem Stream-Start via `kscreen-doctor add-virtual-output NAME W H`. KWin generiert dabei eine Mode-Liste mit allen für die Auflösung sinnvollen Refresh-Raten (typisch: 60, 75, 90, 100, 120, 144, 165, 240).
-2. `kscreen-doctor output.NAME.mode.WxH@HZ` selektiert die vom Client gewünschte Rate (jetzt erfolgreich, weil sie in der Mode-Liste enthalten ist).
-3. `pwgrab.cpp::find_target()` findet den nun-existierenden Wayland-Output und nutzt `stream_output(wl_output*)` statt `stream_virtual_output(name, w, h, scale)`. Refresh-Rate kommt aus der existierenden Mode-Liste.
-4. Falls `add-virtual-output` fehlschlägt (Plasma < 6.4, kscreen-doctor unreachable): kein Abort — `pwgrab.cpp` fällt auf `stream_virtual_output` zurück (60 Hz, aber Stream läuft).
-5. `destroy()` ruft `remove-virtual-output` nur, wenn `add-virtual-output` erfolgreich war (`ActiveDisplay::added_via_kscreen` tracked das).
+KWin Wayland ignoriert **alle** Modi, die nicht in der nativen Mode-Liste eines Outputs sind. Zitat aus der KDE-Mod-Diskussion (KDE Discuss thread 13642): *"Unfortunately, Kwin (Wayland) does not support running the display in any geometry other than what is supported by a native mode."*
 
-**Erwartung beim CachyOS-Test (Plasma 6.6.4 + RTX 3070)**: Output wird vor dem Stream erstellt und konfiguriert; Client-Refresh-Rate (z.B. 90 Hz vom SteamDeck OLED) wird durchgereicht; HDR-Toggle ist wieder möglich; physische Outputs werden weiter ausgeschaltet.
+Konkret im Sonnenschein-Pfad:
+1. `zkde_screencast_unstable_v1::stream_virtual_output(name, w, h, scale, pointer)` — **kein Refresh-Rate-Argument** (siehe `third-party/plasma-wayland-protocols/src/protocols/zkde-screencast-unstable-v1.xml`).
+2. KWin erstellt den Output mit fixem 60-Hz-Default; die Mode-Liste des Outputs enthält **nur** 60 Hz.
+3. Jeder spätere `kscreen-doctor output.NAME.mode.1280x800@90` schlägt fehl (silent), weil `1280x800@90` nicht in der Mode-Liste ist.
 
-**Test-Plan auf CachyOS**:
-1. `git pull && rm -rf build && mkdir build && cd build`
-2. `cmake -G Ninja -S .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DSUNSHINE_BUILD_DOCS=OFF -DSUNSHINE_BUILD_FLATPAK=OFF && cmake --build . -j$(nproc)`
-3. **KDE-Konsole innerhalb der Plasma-Sitzung** (nicht SSH!): `./build/sunshine 2>&1 | tee ~/sonnenschein-test.log`
-4. SteamDeck/Moonlight koppeln, App starten.
-5. Erwartete Log-Zeilen:
-   - `Sonnenschein vdisplay (kwin): pre-created virtual output 'Sonnenschein-XXXXX' 1280x800`
-   - `Sonnenschein vdisplay (kwin): setting mode via output.Sonnenschein-XXXXX.mode.1280x800@90`
-   - `KWin direct capture: found output 'Sonnenschein-XXXXX' ... 1280x800`
-   - `KWin direct capture: streaming output 'Sonnenschein-XXXXX' 1280x800 node_id=...`
-6. SteamDeck-Display sollte mit 90 Hz laufen, nicht 60.
+#### Was `29cd4b6` (mein Versuch vom Vormittag) versucht hat — und warum es nicht greift
 
-**Falls Fix nicht funktioniert (Backup-Plan)**:
-- Möglichkeit A: `kscreen-doctor add-virtual-output` akzeptiert nur ganzzahlige W/H ohne Mode-Liste-Init → Custom Mode-Add via `kscreen-doctor` (vermutlich nicht supported) oder via `kde_output_management_v2`-Wayland-Protokoll (Codex' Pfad, aber dieses Mal **vor** Stream-Start).
-- Möglichkeit B: KWin den `stream_virtual_output`-Output direkt mit Custom-Mode patchen — KWin-Plugin nötig (Phase 2B.5).
+`KwinWaylandBackend::create()` ruft `kscreen-doctor add-virtual-output NAME W H` + `kscreen-doctor output.NAME.mode.WxH@HZ` + `kscreen-doctor output.NAME.hdr.true` **vor** dem Stream-Start. Die Befehle exit-en alle mit 0. Aber:
+- `kscreen-doctor add-virtual-output` erzeugt einen **rein KScreen-internen Cache-Eintrag**, **keinen echten DRM-Connector** und **keinen wl_output**.
+- Der Output erscheint NICHT im Wayland Registry (`pwgrab.cpp::find_target()` sieht nur `HDMI-A-1` und `HDMI-A-2`).
+- Folge: `pwgrab.cpp` fällt auf `stream_virtual_output` zurück, das einen *anderen* Output erstellt — der wieder 60-Hz-fixed ist.
+
+CachyOS-Test-Log Auszug (2026-05-14 09:39:14):
+```
+Sonnenschein vdisplay (kwin): pre-created virtual output 'Sonnenschein-00E8F1E1' 1280x800   ← exit 0, aber wirkungslos
+KWin direct capture: found output 'HDMI-A-1' ... 3840x2160
+KWin direct capture: found output 'HDMI-A-2' ... 1920x1080
+KWin direct capture: target not found yet, doing a display roundtrip...
+KWin direct capture: output 'Sonnenschein-00E8F1E1' not found in Wayland registry.
+                    Requesting KWin to create a stream_virtual_output directly.   ← ergibt 60-Hz-Default
+```
+
+Konsequenz: `29cd4b6` ist auf `41fa9ba` zurückgerollt. Der Aufruf war wirkungslos und produzierte verwirrende Logs, ohne Mehrwert.
+
+#### Echte Lösung — `kde_output_management_v2::set_custom_modes`
+
+KWin MR [!8766](https://invent.kde.org/plasma/kwin/-/merge_requests/8766) (Februar 2026, gelandet in Plasma 6.6 — Maintainer hat 6.6.4, also **ist die API verfügbar**) hat `Capability::CustomModes` für virtual outputs eingeführt. Damit kann ein Wayland-Client per `kde_output_management_v2` synthetische Modi mit beliebigen Refresh-Raten zur Mode-Liste eines Outputs hinzufügen. KWin akzeptiert sie als Native-Modi.
+
+Modifizierte Files in MR !8766:
+- `src/backends/drm/drm_virtual_output.cpp`
+- `src/backends/drm/drm_virtual_output.h`
+- `src/backends/virtual/virtual_output.cpp`
+
+Sequenz für den Client (aus `kde-output-management-v2.xml`):
+
+```
+kde_output_management_v2.create_mode_list()             → kde_mode_list_v2
+kde_mode_list_v2.set_resolution(W, H)
+kde_mode_list_v2.set_refresh_rate(mhz)                  // milliHz, also 90000 für 90 Hz
+kde_mode_list_v2.set_reduced_blanking(1)
+kde_mode_list_v2.add_mode()
+// optional: weitere Modi anhängen
+kde_output_management_v2.create_configuration()         → kde_output_configuration_v2
+kde_output_configuration_v2.set_custom_modes(device, mode_list)
+kde_output_configuration_v2.apply()
+// dann: kde_output_configuration_v2.set_mode(device, new_mode) + apply() um zu aktivieren
+```
+
+#### Was Codex in `723537a` versucht hat — und warum es kollabierte
+
+Codex hat in `723537a` genau diesen Pfad implementiert (+850 Zeilen in `pwgrab.cpp`). Sein Code-Architektur war **korrekt** (Wayland-Binding für `kde_output_management_v2` + `kde_output_device_registry_v2`, `add_custom_kde_mode()`, `apply_kde_configuration()` etc.). Aber im selben Commit hat er `zkde_screencast_unstable_v1` als Bedingung verworfen und stattdessen einen Output-Management-zentrierten Pfad gebaut — das Resultat war:
+- `kde_output_management_v2` wurde gebunden, OK.
+- `zkde_screencast_unstable_v1` wurde **nicht mehr** gebunden, weil die Setup-Reihenfolge geändert wurde.
+- Stream brach komplett ab (`Initial Ping Timeout` auf SteamDeck).
+
+Maintainer hat `723537a` deshalb in `501431a` + `74c63cf` zurückgerollt.
+
+#### Schritt-für-Schritt-Anleitung für nächste Session (Phase 4.5 / 60-Hz-Fix v2)
+
+Der konkrete Implementierungsweg, der weder Codex' Falle noch meine `add-virtual-output`-Falle wiederholt:
+
+1. **Wayland-Protocol-Bindings erzeugen lassen**: Stelle sicher dass `cmake/compile_definitions/linux.cmake` `kde-output-management-v2.xml` und `kde-output-device-v2.xml` aus `third-party/plasma-wayland-protocols/src/protocols/` via `wayland-scanner` zu C-Bindings macht. Codex' `723537a` hatte das schon (siehe `git show 723537a -- cmake/compile_definitions/linux.cmake`). Cherry-pick exakt diese CMake-Zeilen.
+
+2. **In `pwgrab.cpp` parallel zu `zkde_screencast` ein zweites Wayland-Binding-Set einbauen**:
+   - `kde_output_management_v2` global
+   - `kde_output_device_registry_v2` global (liefert die `kde_output_device_v2` Liste)
+   - Listener für `kde_output_device_v2` der Name, Modi und Capabilities trackt
+   - **Beide Bindings müssen koexistieren**, nicht eines das andere ersetzen — das war Codex' Fehler.
+
+3. **Nach `stream_virtual_output` Aufruf** (pwgrab.cpp Z. 219 ff):
+   - `wl_display_roundtrip` damit der neue Output via `kde_output_device_registry_v2` ankommt
+   - In der `kde_output_device_v2` Liste den Output mit Name `Sonnenschein-XXXX` finden
+   - Prüfen: hat er `KDE_OUTPUT_DEVICE_V2_CAPABILITY_CUSTOM_MODES`? Falls nein, log warning und mit 60 Hz weitermachen.
+   - `kde_output_management_v2_create_mode_list()` + `set_resolution/refresh_rate/reduced_blanking/add_mode`
+   - `kde_output_management_v2_create_configuration()` + `set_custom_modes()` + `apply()` + warten auf `applied`-Callback
+   - Dann zweite Configuration: `set_mode(neuer_mode)` + `apply()` um die neue Mode aktiv zu machen
+   - Roundtrip + KWin schaltet den Stream auf die neue Refresh-Rate um
+
+4. **Code-Vorlage**: `git show 723537a -- src/platform/linux/pwgrab.cpp` zeigt die volle Implementierung. Cherry-pick chirurgisch: nur die Klassen `kde_output_t`, `kde_mode_t`, `apply_kde_configuration`, `add_custom_kde_mode`, `wait_for_kde_output` und die Registry-Binding-Logic. Alle Änderungen am `zkde_screencast`-Pfad ignorieren.
+
+5. **Test auf CachyOS**: erwartete neue Log-Zeilen:
+   ```
+   KWin output management: bound kde_output_management_v2 version 19
+   KWin output management: bound kde_output_device_registry_v2 version N
+   KWin output management: output 'Sonnenschein-XXXX' caps=0x... custom_modes=yes
+   KWin output management: adding custom mode 1280x800@90 to 'Sonnenschein-XXXX'
+   KWin output management: applied custom mode list
+   KWin output management: activated mode 1280x800@90 on 'Sonnenschein-XXXX'
+   ```
+   Und im Stream: 90 Hz statt 60 Hz auf dem SteamDeck.
+
+6. **Falls KWin trotzdem 60 Hz liefert (Plasma-Version hat MR !8766 nicht)**: Maintainer-Log poste mir, dann Fallback-Plan: EDID-Firmware-Injection als Boot-Setup (HarryAnkers-Methode), siehe §9.19 unten.
+
+#### §9.19 Fallback-Plan: EDID-Firmware-Injection (Boot-time Setup)
+
+Falls `kde_output_management_v2::set_custom_modes` auf Plasma 6.6.4 nicht funktioniert (z.B. weil MR !8766 nicht in 6.6.4 sondern erst 6.7 ist), Fallback-Methode aus dem HarryAnkers Gist:
+
+1. Custom EDID-Binary generieren mit gewünschten Modi (1280x800@90, 1920x1080@120, 4K@60 etc.) inkl. HDMI VSDBs für NVIDIA-Unlock.
+2. EDID-Binary nach `/usr/lib/firmware/edid/sonnenschein.bin` kopieren, in initramfs einbinden (`mkinitcpio` / `dracut`).
+3. Kernel-Boot-Parameter setzen: `drm.edid_firmware=DP-2:edid/sonnenschein.bin video=DP-2:e`.
+4. Nach Reboot: DRM erstellt einen vollwertigen Output mit den definierten Modi. KWin sieht ihn als echten Wayland-Output mit korrekter Mode-Liste.
+5. `stream_output(wl_output*)` (statt `stream_virtual_output`) capturet ihn — Refresh-Rate kommt aus der EDID-Mode-Liste.
+
+Nachteile: 
+- Erfordert Boot-Konfiguration (Reboot beim Setup, Modi sind statisch).
+- HDR funktioniert auf virtuellen Connectors nicht (NVIDIA-Treiber-Limitation: SCDC-Negotiation nur auf echten Links).
+- Pro Setup nur eine fixe Konnektor-Konfiguration; Multi-Client-Multi-Resolution skaliert nicht.
+
+Vorteile: rock-solid, distroübergreifend, funktioniert ohne KDE-spezifische API.
+
+#### Externe Quellen für die Diagnose
+
+- KDE Discuss: [KDE Wayland custom resolution AND refresh rate](https://discuss.kde.org/t/kde-wayland-custom-resolution-and-refresh-rate/13642) — *"Kwin (Wayland) does not support running the display in any geometry other than what is supported by a native mode."*
+- KWin MR [!8766](https://invent.kde.org/plasma/kwin/-/merge_requests/8766) — `backends: add support for custom modes in virtual outputs`.
+- KDE Protokoll-Spezifikation: [kde_output_management_v2 + kde_mode_list_v2](https://wayland.app/protocols/kde-output-management-v2).
+- [HarryAnkers' EDID-Firmware-Injection-Anleitung für Sunshine/Moonlight auf NVIDIA Linux](https://gist.github.com/HarryAnkers/8dbf551d66f00e8156ef4dd2b2b090a0).
+- `third-party/plasma-wayland-protocols/src/protocols/kde-output-management-v2.xml` (im Repo).
 
 ### 9.15 Portal-Dialog erscheint bei jedem Stream
 
@@ -897,7 +992,8 @@ Damit sind der Output-Management-v2-Patch `723537a`, der STATUS-HEAD `ec832c8` u
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
-29cd4b6 — fix(vdisplay): pre-create KWin virtual output via kscreen-doctor for correct refresh rate — 2026-05-14
+TBD ← (Rollback) — revert(vdisplay): roll back 29cd4b6 — kscreen-doctor add-virtual-output proven wirkungslos on CachyOS — 2026-05-14
+29cd4b6 — fix(vdisplay): pre-create KWin virtual output via kscreen-doctor for correct refresh rate — 2026-05-14 (NICHT WIRKSAM — KDE-Cache-Eintrag, kein wl_output)
 41fa9ba — fix(capture): use portal fallback when KWin screencast is unavailable — 2026-05-13
 74c63cf — revert(capture): restore pre KScreen resolver capture path — 2026-05-13
 501431a — revert(capture): restore stable KWin direct capture path — 2026-05-13
@@ -1015,53 +1111,31 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 In Reihenfolge der Priorität.
 
-### A) CachyOS-Test des 60-Hz-Fix `29cd4b6` (höchste Prio, blockiert alles andere)
+### A) 60-Hz-Fix v2 — `kde_output_management_v2::set_custom_modes` Client implementieren (höchste Prio)
 
-1. Auf dem CachyOS-Rechner:
-   ```bash
-   cd ~/sonnenschein
-   git pull          # dev → 29cd4b6
-   cd build
-   cmake --build . -j$(nproc)
-   ```
-   Wenn `build/` älter als die letzten Plasma-Protokoll-Submodule-Updates ist: `rm -rf build && mkdir build && cd build && cmake -G Ninja -S .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DSUNSHINE_BUILD_DOCS=OFF -DSUNSHINE_BUILD_FLATPAK=OFF && cmake --build . -j$(nproc)`.
+Detail-Anleitung in §9.18. Kurz:
 
-2. **Aus KDE-Konsole INNERHALB der Plasma-Wayland-Sitzung** (nicht SSH!):
-   ```bash
-   ./build/sunshine 2>&1 | tee ~/sonnenschein-test.log
-   ```
-
-3. SteamDeck/Moonlight mit `1280x800@90` verbinden, App starten.
-
-4. Erwartete Log-Signaturen (in dieser Reihenfolge):
-   - `Sonnenschein vdisplay (kwin): disabling physical output HDMI-A-1` (o.ä.)
-   - `Sonnenschein vdisplay (kwin): pre-created virtual output 'Sonnenschein-XXXXXXX' 1280x800`
-   - `Sonnenschein vdisplay (kwin): setting mode via output.Sonnenschein-XXXXXXX.mode.1280x800@90`
-   - `KWin direct capture: found output 'Sonnenschein-XXXXXXX' ... 1280x800`
-   - `KWin direct capture: streaming output 'Sonnenschein-XXXXXXX' 1280x800 node_id=...`
-
-5. Erfolgskriterien:
-   - Stream läuft (Bild + Ton + Eingaben)
-   - Physische Outputs sind aus
-   - **Bildwiederholrate auf SteamDeck = 90 Hz** (Steam-Overlay zeigt das)
-   - Beim Disconnect: physische Outputs wieder an, virtueller Output weg
-
-6. Falls 60-Hz-Bug weg ist: weiter zu B).
-
-7. Falls 60-Hz-Bug bleibt: Log analysieren — vermutlich greift `add-virtual-output` nicht (Plasma-Syntax-Drift oder Permission-Issue), oder `find_target()` findet den vor-erstellten Output nicht (Timing). Maintainer-Log poste mir.
-
-8. Falls Stream komplett bricht (Regression): erst nach Logs schauen. **Niemals** wild Codex-Style rumpatchen — kleine, einzeln testbare Schritte.
+1. **Setup**: CMake-Generation für `kde-output-management-v2.xml` + `kde-output-device-v2.xml` aktivieren (cherry-pick aus `723537a`-`cmake/compile_definitions/linux.cmake`-Diff).
+2. **Code**: In `pwgrab.cpp` parallel zum bestehenden `zkde_screencast`-Pfad ein zweites Wayland-Binding-Set für `kde_output_management_v2` + `kde_output_device_registry_v2`. **Beide koexistieren — keiner ersetzt den anderen.**
+3. **Logik**: Nach `stream_virtual_output` Aufruf den neu erstellten Output via `kde_output_device_registry_v2` finden, `set_custom_modes` mit `(W, H, refresh_mhz, reduced_blanking=1)` + `apply()`, dann `set_mode(neue_mode_id)` + `apply()`.
+4. **Code-Vorlage**: `git show 723537a -- src/platform/linux/pwgrab.cpp` zeigt die volle (funktionierende) Architektur. **Nur den Output-Management-Pfad cherry-picken — NICHT die zkde_screencast-Änderungen.** Das war Codex' Bug.
+5. **Test auf CachyOS** mit erwarteten Log-Zeilen aus §9.18.
+6. **Falls Plasma 6.6.4 die MR !8766 noch nicht hat**: Fallback auf §9.19 EDID-Firmware-Injection.
 
 ### B) Falls 60-Hz-Fix grün: weitere Stabilisierung
 
 - HDR-Pfad nochmal validieren (`hdr_enable` Log-Zeile + Moonlight HDR10-Indikator)
 - Multi-Client-Test (zwei Moonlight-Clients gleichzeitig — verschiedene Virtual Outputs)
-- `kscreen-doctor add-virtual-output` Output-Naming-Schema prüfen — kommt KWin gut mit unserem `Sonnenschein-XXXX`-Namen klar oder soll's einfacher `Virtual-XXXX` heißen?
 - Restore-Token persistent speichern (§9.15) → kein Portal-Dialog mehr beim Re-Start
 
-### C) Falls 60-Hz-Fix rot bleibt: KWin-Plugin-Path (Phase 2B.5)
+### C) Phase 1.6 — CMake-Rebrand (nach Phase 2D-Done)
 
-Wenn `add-virtual-output` partout keine Mode-Liste mit der gewünschten Hz generiert: KWin-Plugin schreiben, das direkt einen Custom-Mode auf dem virtuellen Output anbringt. Dies ist tiefer KDE-Eingriff und sollte nur Plan C sein.
+Sobald der 60-Hz-Fix steht und der Stream auf 90Hz auf dem SteamDeck läuft:
+- `CMakeLists.txt`: `project(Sonnenschein)`
+- `cmake/prep/build_version.cmake`: `Sunshine Branch:` → `Sonnenschein Branch:`
+- Add-Executable-Target: `sunshine` → `sonnenschein` (Symlink `sunshine` für Rückwärts-Kompat)
+- Service-Files / .desktop-Files: `dev.lizardbyte.app.Sunshine` → eigener FQDN
+- README/Docs: alle "Sunshine"-Erwähnungen prüfen
 
 ### C) Phase 1.6 — CMake-Rebrand (nach 2D)
 
