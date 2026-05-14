@@ -5,47 +5,57 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-13 — **Phase 4 (PipeWire/KWin-Capture): Minimaler KWin-Direct-Portal-Fallback-Fix auf `dev`, CachyOS-Test offen.**
+**Stand:** 2026-05-14 — **Phase 4 (PipeWire/KWin-Capture): 60-Hz-Fix-Versuch via Pre-Create-Output-Vorhang in `kwin_wayland.cpp`, CachyOS-Test offen.**
 
 ---
 
 ## TL;DR — Wo stehen wir gerade
 
-- **Letzter guter Zielstand laut Maintainer-Korrektur**: `bf7d939` / `2d5b81a` — vor dem KScreen-Resolver `6504268`.
-- **Regressions-Commit auf `dev`**: `723537a` / HEAD `ec832c8` — CachyOS-Test am 2026-05-13: KWin Direct Capture bricht komplett ab, weil `zkde_screencast_unstable_v1` nicht im Wayland Registry-Set auftaucht.
-- **Hotfix auf `dev`**: `edc144e` — KWin Direct Capture fällt bei fehlendem ScreenCast-Interface wieder geordnet auf xdg-desktop-portal Monitor-Capture zurück; KWin-Permission-Datei listet jetzt ScreenCast + Output-Management. WSL2-Rebuild grün.
-- **Korrektur des Maintainers (2026-05-13)**: `6504268`/`67a93e3` war nicht der letzte gute Stand, sondern bereits die defekte Version direkt nach dem letzten guten Stand. Rollback muss eine Stufe weiter zurück auf `bf7d939`/`2d5b81a`.
-- **Neuer CachyOS-Log (2026-05-13 23:10)**: getestete Binary meldet `Apollo version: 0.0.0.4d47b5e`; der aktuellere Push `74c63cf`/`c451725` war in diesem Test noch nicht gebaut. Der zugrunde liegende Fehler ist trotzdem im aktuellen Code vorhanden: KWin Direct fehlt (`zkde_screencast_unstable_v1 not available`) und der Code bricht fatal ab, statt Portal-Capture zu nutzen.
-- **Letztes erfolgreiches Build-Ziel**: WSL2 Ubuntu 24.04 (297 Steps grün) + CachyOS (GCC 16.1.1, RTX 3070, Plasma 6.6.4 Wayland)
-- **Erreichter Meilenstein (Phase 4)**:
-  - ✅ PipeWire-Capture-Backend implementiert (`pwgrab.cpp`, aktuell ~1720 Zeilen)
-  - ✅ D-Bus Portal Session + PipeWire Stream + platf::display_t
-  - ✅ CMake: optionale libpipewire-0.3 + gio-2.0 Dependency
-  - ✅ Automatische Backend-Auswahl: PipeWire wenn Virtual Display aktiv
-  - ✅ WSL-Build grün, CachyOS-Build grün
-  - ✅ `Screencasting with PipeWire Portal` erscheint in Logs
-  - ✅ D-Bus Signal Timeout behoben (GLib Main Context wird gepumpt)
-  - ✅ hwdevice_type Restriktionen für PipeWire gelöst (NVENC Fallback auf System Memory funktioniert)
-  - ✅ Fataler Boot-Fehler behoben (PipeWire als Fallback registriert, wenn KMS wegen fehlendem setcap fehlschlägt)
-  - ✅ **D-Bus Timeouts beim Boot & Stream-Start behoben**: Portal-Dialog wird während des Encoder-Probes (Boot & Pre-Flight) übersprungen.
-  - ✅ **D-Bus Token/Path Mismatch gefixt**: `make_request_path()` und `handle_token` verwenden nun denselben Token. Portal-Response-Signale werden jetzt korrekt empfangen.
-  - ✅ **KDE-Portal-Dialog erreicht**: Maintainer konnte den virtuellen Bildschirm im KDE-Screen-Record-Dialog auswählen.
-  - ✅ **OpenPipeWireRemote-Fix validiert**: Portal liefert `PipeWire fd=68 node_id=140`, kein GLib-Abbruch mehr.
-  - ✅ **Erster echter Stream auf Virtual Display**: PipeWire `streaming`, NVENC HEVC aktiv, Disconnect entfernt `Sonnenschein-00E8F1E1`.
-  - 🔴 **Mode-Mismatch bleibt**: `76d03a4` fordert `PipeWire: requesting format 1280x800@90`, aber KDE/Portal negotiated weiterhin `1920x1080 fmt=8`.
-  - ✅ **Ton funktioniert im Stream** (CachyOS-Test mit `bb3e758`, 2026-05-10 17:06).
-  - ✅ **Eingaben funktionieren im Stream** (CachyOS-Test mit `bb3e758`, 2026-05-10 17:06).
-  - ✅ **Diagnose-/Cursor-Patch validiert**: Portal meldet `available source types=7 cursor modes=7`, `cursor_mode=Embedded` wird angefordert.
-  - 🔴 **Mode-Mismatch bestätigt**: Portal-Stream ist `source_type=VIRTUAL`, `logical size=1920x1080`; PipeWire requested `1280x800@90`, negotiated aber `1920x1080`.
-  - ✅ **KWin Direct Stream validiert**: `stream_virtual_output` liefert PipeWire direkt aus dem virtuellen Output, kein KDE-XDG-`VIRTUAL`-Fallback.
-  - ✅ **Headless-Mode funktioniert**: Physische Monitore werden beim Stream deaktiviert und danach wiederhergestellt.
-  - 🔴 **SteamDeck-Refresh bleibt trotz `6504268` bei 60 Hz**: Maintainer-Test am 2026-05-13 bestätigt, dass der KScreen-Resolver/`kscreen-doctor mode set` den laufenden KWin-Direct-Stream nicht auf 90 Hz bringt.
-  - 🔴 **Regression in `723537a` bestätigt und wird zurückgerollt**: Auf CachyOS bindet `pwgrab.cpp` zwar `kde_output_management_v2 version 19`, sieht aber kein `zkde_screencast_unstable_v1`; die Session schlägt fehl und Moonlight endet mit `Initial Ping Timeout`.
-  - ⏪ **Rollback-Kandidat `74c63cf`**: `pwgrab.cpp` ist auf `bf7d939` zurückgesetzt, also vor den KScreen-Resolver aus `6504268`. Damit werden sowohl der KScreen-Resolver als auch die späteren Output-Management/HDR/Pacing-Experimente aus dem Laufzeitcode entfernt. WSL2-Build grün.
-  - ✅ **WSL-Build grün**: `/root/snsbuild`, `cmake --build . --target sunshine -j8`, `pwgrab.cpp` kompiliert und `sunshine-0.0.0` linkt.
-- **Aktueller Blocker**: CachyOS muss nach Rollback `74c63cf` bestätigen: Stream startet wieder wie beim Stand `bf7d939`/`2d5b81a`. Das bekannte 60-Hz-Problem bleibt offen.
-- **Minimal-Fix auf `dev`**: `41fa9ba` entfernt nur den fatalen `return -1` nach fehlgeschlagenem KWin Direct Capture. Ziel ist funktionierender Stream über Portal-Fallback, wenn KWin das Direct-ScreenCast-Interface nicht anbietet. WSL2-Build grün.
-- **Hauptanwendungsfall (Maintainer)**: Physische Monitore deaktivieren beim Streaming → Virtual Display als einziger Output → PipeWire captured ihn. Headless ebenfalls unterstützt.
+**Eine-Zeile-Wahrheit**: Stream + Ton + Eingaben + Headless funktionieren auf CachyOS Plasma 6.6.4 + RTX 3070. Auflösung wird respektiert. **Refresh-Rate hängt immer bei 60 Hz**, egal was der Client (z.B. SteamDeck OLED 90 Hz) anfordert.
+
+### Was Codex am 2026-05-13 verbockt hat — und der Stand jetzt
+
+| # | Commit | Was es war | Ergebnis |
+|---|---|---|---|
+| 1 | `bf7d939` (10.05) | Maintainer-Stand: Bild+Ton+Eingaben+Headless ✅, 60 Hz ❌ | **letzter wirklich guter Code-Stand** |
+| 2 | `6504268` (13.05) | Codex: KScreen-Resolver, Mode-Set NACH `stream_virtual_output` | 60 Hz blieb (KWin akzeptiert Mode-Set nicht nachträglich) |
+| 3 | `723537a` (13.05) | Codex: eskaliert auf `kde_output_management_v2` (+850 Zeilen) | KWin Direct Capture brach komplett ab → Moonlight Ping Timeout |
+| 4 | `edc144e` (13.05) | Codex: Portal-Fallback bei fehlendem ScreenCast | Mini-Hotfix |
+| 5 | `501431a` (13.05) | Codex: revert „stable KWin direct capture path" (-884 Zeilen) | erster Rollback-Versuch |
+| 6 | `74c63cf` (13.05) | Codex: revert „pre KScreen resolver path" (-491 Zeilen) | **pwgrab.cpp jetzt byte-identisch mit `bf7d939`** |
+| 7 | `41fa9ba` (13.05) | Maintainer: Portal-Fallback statt fatalem `return -1` | letzter Push vor Pause; nur 8 Zeilen über `bf7d939` |
+| 8 | **`29cd4b6` (14.05)** | **60-Hz-Fix-Versuch**: `kscreen-doctor add-virtual-output` + `mode-set` zurück VOR Stream-Start | gepusht, WSL2-Build 3/3 grün, CachyOS-Test ausstehend |
+
+`git diff bf7d939 HEAD -- src/platform/linux/pwgrab.cpp` = **nur 28 Zeilen**. Codex' destruktive Experimente sind rausgerollt. Der laufzeit-relevante Code ist heute effektiv `bf7d939` + Portal-Fallback (`41fa9ba`).
+
+### Der 60-Hz-Fix-Versuch (uncommitted, in Arbeit am 2026-05-14)
+
+**Root Cause (verstanden)**: `zkde_screencast_unstable_v1::stream_virtual_output` hat **keinen Refresh-Rate-Parameter** (siehe `third-party/plasma-wayland-protocols/src/protocols/zkde-screencast-unstable-v1.xml`). KWin erstellt den Virtual Output beim Stream-Start mit fixem 60-Hz-Default, dessen Mode-Liste *nur* 60 Hz enthält. Nachträgliche `kscreen-doctor output.NAME.mode.WxH@HZ`-Aufrufe werden ignoriert, weil der Modus nicht in der Mode-Liste existiert.
+
+**Fix-Strategie**: Output **vorher** via `kscreen-doctor add-virtual-output NAME W H` erstellen, dann `mode WxH@HZ` setzen, dann erst Stream öffnen. `pwgrab.cpp::find_target()` findet den existierenden Output → nutzt `stream_output` (mit `wl_output*`) statt `stream_virtual_output`. Refresh-Rate kommt durch die Mode-Liste, nicht durch Argument.
+
+Codex hat das Pattern abgelehnt (vermutlich weil es `e453afa`/`d84072e` widerspricht, die `kscreen-doctor add-virtual-output` als „doppelt-gemoppelt" entfernt haben). Aber: damals war pwgrab.cpp noch nicht in der `find_target → stream_output` / `stream_virtual_output`-Hybrid-Form. Heute (HEAD pwgrab.cpp Z. 209-228) wird der Fall korrekt unterschieden.
+
+**Implementierung im 60-Hz-Fix-Commit**:
+- `src/platform/linux/virtual_display/backends/kwin_wayland.cpp::create()` bringt `kscreen-doctor add-virtual-output` + `mode-set` + `hdr-enable` zurück.
+- Neues Feld `ActiveDisplay::added_via_kscreen` trackt, ob wir den Output erstellt haben → `destroy()` ruft nur dann `remove-virtual-output`.
+- Bei `add-virtual-output`-Failure (Plasma < 6.4, kscreen-doctor unreachable): **kein Abort** — wir fallen durch und `pwgrab.cpp` nutzt seinen `stream_virtual_output`-Fallback (60 Hz, aber funktionierender Stream).
+
+**Erwartung**: Stream startet wie bisher (Bild+Ton+Eingaben+Headless), aber jetzt mit der vom Client angeforderten Refresh-Rate. SteamDeck-OLED 90 Hz wird durchgereicht.
+
+### Was beim letzten CachyOS-Stand erreicht ist
+
+- ✅ KWin Direct Capture (`zkde_screencast`) statt Portal-Dialog
+- ✅ Virtual Display wird transparent erstellt, kein KDE-Auswahldialog
+- ✅ Physische Monitore werden beim Stream deaktiviert, beim Disconnect wieder eingeschaltet
+- ✅ Bild läuft, Ton läuft, Eingaben gehen durch
+- ✅ Client-Auflösung wird respektiert (1280x800 vom SteamDeck arrived als 1280x800)
+- 🟡 **Refresh-Rate steckt bei 60 Hz** (Fix-Versuch oben)
+- 🟡 HDR theoretisch im Encoder-Metadata, aber nicht KWin-aktiviert
+
+### Hauptanwendungsfall (Maintainer)
+
+Physische Monitore am CachyOS-PC. Beim Streaming → alle physischen Outputs aus → Virtual Display als einziger aktiver Output → PipeWire/KWin captured ihn → Moonlight zeigt das Bild auf dem Client (z.B. SteamDeck oder TV via Moonlight für Android). Beim Disconnect → physische Outputs wieder an.
 
 ---
 
@@ -841,6 +851,37 @@ Damit sind der Output-Management-v2-Patch `723537a`, der STATUS-HEAD `ec832c8` u
 
 **Weitere Korrektur (2026-05-13 23:10)**: Der neue Log wurde mit Binary `0.0.0.4d47b5e` erzeugt, also nicht mit dem danach gepushten `74c63cf`/`c451725`. Trotzdem ist der eigentliche Defekt noch im aktuellen Laufzeitcode: der KWin-Direct-Pfad gibt bei fehlendem `zkde_screencast_unstable_v1` `-1` zurück und verhindert damit den Portal-Fallback. `41fa9ba` entfernt diesen fatalen Abbruch, ohne erneut Output-Management, HDR oder Frame-Pacing anzufassen.
 
+### 9.18 60-Hz-Fix-Versuch via Pre-Create-Output (Commit `29cd4b6`, 2026-05-14)
+
+**Symptom**: SteamDeck-OLED (oder beliebiger 90/120 Hz Client) bleibt im Stream bei 60 Hz, obwohl der Stream sonst sauber läuft (Bild + Ton + Eingaben + Headless funktionieren).
+
+**Root Cause** (endgültig verstanden): `zkde_screencast_unstable_v1::stream_virtual_output` nimmt nur `name`, `width`, `height`, `scale`, `pointer` als Argumente — **keine Refresh-Rate**. KWin erzeugt den Output mit fixem 60-Hz-Default. Die Mode-Liste des Outputs enthält danach **nur** diese 60 Hz, weshalb `kscreen-doctor output.NAME.mode.WxH@HZ` mit anderen Hz fehlschlägt. Codex' Versuche `6504268` (KScreen-Resolver) und `723537a` (kde_output_management_v2) scheiterten genau daran: Mode-Set nach Stream-Start funktioniert nicht.
+
+**Fix-Strategie** (uncommitted, in Arbeit am 2026-05-14):
+1. `KwinWaylandBackend::create()` erstellt den Output **vor** dem Stream-Start via `kscreen-doctor add-virtual-output NAME W H`. KWin generiert dabei eine Mode-Liste mit allen für die Auflösung sinnvollen Refresh-Raten (typisch: 60, 75, 90, 100, 120, 144, 165, 240).
+2. `kscreen-doctor output.NAME.mode.WxH@HZ` selektiert die vom Client gewünschte Rate (jetzt erfolgreich, weil sie in der Mode-Liste enthalten ist).
+3. `pwgrab.cpp::find_target()` findet den nun-existierenden Wayland-Output und nutzt `stream_output(wl_output*)` statt `stream_virtual_output(name, w, h, scale)`. Refresh-Rate kommt aus der existierenden Mode-Liste.
+4. Falls `add-virtual-output` fehlschlägt (Plasma < 6.4, kscreen-doctor unreachable): kein Abort — `pwgrab.cpp` fällt auf `stream_virtual_output` zurück (60 Hz, aber Stream läuft).
+5. `destroy()` ruft `remove-virtual-output` nur, wenn `add-virtual-output` erfolgreich war (`ActiveDisplay::added_via_kscreen` tracked das).
+
+**Erwartung beim CachyOS-Test (Plasma 6.6.4 + RTX 3070)**: Output wird vor dem Stream erstellt und konfiguriert; Client-Refresh-Rate (z.B. 90 Hz vom SteamDeck OLED) wird durchgereicht; HDR-Toggle ist wieder möglich; physische Outputs werden weiter ausgeschaltet.
+
+**Test-Plan auf CachyOS**:
+1. `git pull && rm -rf build && mkdir build && cd build`
+2. `cmake -G Ninja -S .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DSUNSHINE_BUILD_DOCS=OFF -DSUNSHINE_BUILD_FLATPAK=OFF && cmake --build . -j$(nproc)`
+3. **KDE-Konsole innerhalb der Plasma-Sitzung** (nicht SSH!): `./build/sunshine 2>&1 | tee ~/sonnenschein-test.log`
+4. SteamDeck/Moonlight koppeln, App starten.
+5. Erwartete Log-Zeilen:
+   - `Sonnenschein vdisplay (kwin): pre-created virtual output 'Sonnenschein-XXXXX' 1280x800`
+   - `Sonnenschein vdisplay (kwin): setting mode via output.Sonnenschein-XXXXX.mode.1280x800@90`
+   - `KWin direct capture: found output 'Sonnenschein-XXXXX' ... 1280x800`
+   - `KWin direct capture: streaming output 'Sonnenschein-XXXXX' 1280x800 node_id=...`
+6. SteamDeck-Display sollte mit 90 Hz laufen, nicht 60.
+
+**Falls Fix nicht funktioniert (Backup-Plan)**:
+- Möglichkeit A: `kscreen-doctor add-virtual-output` akzeptiert nur ganzzahlige W/H ohne Mode-Liste-Init → Custom Mode-Add via `kscreen-doctor` (vermutlich nicht supported) oder via `kde_output_management_v2`-Wayland-Protokoll (Codex' Pfad, aber dieses Mal **vor** Stream-Start).
+- Möglichkeit B: KWin den `stream_virtual_output`-Output direkt mit Custom-Mode patchen — KWin-Plugin nötig (Phase 2B.5).
+
 ### 9.15 Portal-Dialog erscheint bei jedem Stream
 
 **Symptom**: Bei jedem Test muss der Maintainer im KDE-Screen-Record-Dialog manuell eine Quelle auswählen.
@@ -856,6 +897,7 @@ Damit sind der Output-Management-v2-Patch `723537a`, der STATUS-HEAD `ec832c8` u
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+29cd4b6 — fix(vdisplay): pre-create KWin virtual output via kscreen-doctor for correct refresh rate — 2026-05-14
 41fa9ba — fix(capture): use portal fallback when KWin screencast is unavailable — 2026-05-13
 74c63cf — revert(capture): restore pre KScreen resolver capture path — 2026-05-13
 501431a — revert(capture): restore stable KWin direct capture path — 2026-05-13
@@ -952,7 +994,7 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 - `src/platform/linux/virtual_display/factory.h+cpp` — Backend-Auswahl
 - `src/platform/linux/virtual_display/subprocess.h+cpp` — popen/fork+exec Helper
 - `src/platform/linux/virtual_display/backends/all.h` — make_*-Deklarationen
-- `src/platform/linux/virtual_display/backends/kwin_wayland.cpp` — ✅ implementiert
+- `src/platform/linux/virtual_display/backends/kwin_wayland.cpp` — ✅ implementiert. `29cd4b6` bringt das `kscreen-doctor add-virtual-output` + `mode-set` Pre-Create-Pattern zurück, das `e453afa` entfernt hatte; dazu Track-Feld `ActiveDisplay::added_via_kscreen` damit `destroy()` korrekt entscheidet ob `remove-virtual-output` aufgerufen wird.
 - `src/platform/linux/virtual_display/backends/{mutter_headless,wlroots_headless,xorg_nvidia,xorg_dummy,amdgpu_param,evdi}.cpp` — Stubs
 - `src/platform/linux/virtual_display/README.md` — Architektur
 
@@ -973,18 +1015,53 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 In Reihenfolge der Priorität.
 
-### A) Rollback auf Stand vor KScreen-Resolver testen
+### A) CachyOS-Test des 60-Hz-Fix `29cd4b6` (höchste Prio, blockiert alles andere)
 
-1. `dev` auf dem CachyOS-Rechner ziehen, clean builden.
-2. Sonnenschein aus einer KDE-Konsole innerhalb der Plasma-Sitzung starten.
-3. SteamDeck OLED/Moonlight mit `1280x800x90` verbinden.
-4. Erfolgskriterium: Wenn KWin Direct verfügbar ist, Verhalten wie beim Stand `bf7d939`/`2d5b81a`: KWin Direct Stream startet, kein `Initial Ping Timeout`, Ton/Eingabe weiter funktionsfähig.
-5. Fallback-Erfolgskriterium: Wenn `zkde_screencast_unstable_v1 not available` erscheint, darf danach kein `Not falling back ...` und kein fataler Session-Abbruch mehr folgen. Stattdessen muss der normale Portal-Dialog bzw. Portal-Capture-Pfad weiterlaufen.
-6. Erwarteter bekannter Restfehler: SteamDeck/Moonlight bleibt noch bei 60 Hz. Das wird erst nach bestätigter Stabilität in einem kleinen Folgepatch erneut angefasst.
+1. Auf dem CachyOS-Rechner:
+   ```bash
+   cd ~/sonnenschein
+   git pull          # dev → 29cd4b6
+   cd build
+   cmake --build . -j$(nproc)
+   ```
+   Wenn `build/` älter als die letzten Plasma-Protokoll-Submodule-Updates ist: `rm -rf build && mkdir build && cd build && cmake -G Ninja -S .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DSUNSHINE_BUILD_DOCS=OFF -DSUNSHINE_BUILD_FLATPAK=OFF && cmake --build . -j$(nproc)`.
 
-### B) 90-Hz-Fix neu planen, erst nach bestätigtem Rollback
+2. **Aus KDE-Konsole INNERHALB der Plasma-Wayland-Sitzung** (nicht SSH!):
+   ```bash
+   ./build/sunshine 2>&1 | tee ~/sonnenschein-test.log
+   ```
 
-Kein neuer Output-Management/HDR-Kombi-Patch. Nächster Versuch muss genau einen Hebel ändern, z.B. nur KWin-Protokoll-Verfügbarkeit/Permission diagnostizieren oder nur den bestehenden `kscreen-doctor`-Setzzeitpunkt verbessern.
+3. SteamDeck/Moonlight mit `1280x800@90` verbinden, App starten.
+
+4. Erwartete Log-Signaturen (in dieser Reihenfolge):
+   - `Sonnenschein vdisplay (kwin): disabling physical output HDMI-A-1` (o.ä.)
+   - `Sonnenschein vdisplay (kwin): pre-created virtual output 'Sonnenschein-XXXXXXX' 1280x800`
+   - `Sonnenschein vdisplay (kwin): setting mode via output.Sonnenschein-XXXXXXX.mode.1280x800@90`
+   - `KWin direct capture: found output 'Sonnenschein-XXXXXXX' ... 1280x800`
+   - `KWin direct capture: streaming output 'Sonnenschein-XXXXXXX' 1280x800 node_id=...`
+
+5. Erfolgskriterien:
+   - Stream läuft (Bild + Ton + Eingaben)
+   - Physische Outputs sind aus
+   - **Bildwiederholrate auf SteamDeck = 90 Hz** (Steam-Overlay zeigt das)
+   - Beim Disconnect: physische Outputs wieder an, virtueller Output weg
+
+6. Falls 60-Hz-Bug weg ist: weiter zu B).
+
+7. Falls 60-Hz-Bug bleibt: Log analysieren — vermutlich greift `add-virtual-output` nicht (Plasma-Syntax-Drift oder Permission-Issue), oder `find_target()` findet den vor-erstellten Output nicht (Timing). Maintainer-Log poste mir.
+
+8. Falls Stream komplett bricht (Regression): erst nach Logs schauen. **Niemals** wild Codex-Style rumpatchen — kleine, einzeln testbare Schritte.
+
+### B) Falls 60-Hz-Fix grün: weitere Stabilisierung
+
+- HDR-Pfad nochmal validieren (`hdr_enable` Log-Zeile + Moonlight HDR10-Indikator)
+- Multi-Client-Test (zwei Moonlight-Clients gleichzeitig — verschiedene Virtual Outputs)
+- `kscreen-doctor add-virtual-output` Output-Naming-Schema prüfen — kommt KWin gut mit unserem `Sonnenschein-XXXX`-Namen klar oder soll's einfacher `Virtual-XXXX` heißen?
+- Restore-Token persistent speichern (§9.15) → kein Portal-Dialog mehr beim Re-Start
+
+### C) Falls 60-Hz-Fix rot bleibt: KWin-Plugin-Path (Phase 2B.5)
+
+Wenn `add-virtual-output` partout keine Mode-Liste mit der gewünschten Hz generiert: KWin-Plugin schreiben, das direkt einen Custom-Mode auf dem virtuellen Output anbringt. Dies ist tiefer KDE-Eingriff und sollte nur Plan C sein.
 
 ### C) Phase 1.6 — CMake-Rebrand (nach 2D)
 
