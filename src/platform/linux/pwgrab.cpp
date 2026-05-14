@@ -13,16 +13,21 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cctype>
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <fcntl.h>
 #include <fstream>
 #include <cstring>
+#include <iomanip>
 #include <limits.h>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <poll.h>
 #include <pwd.h>
+#include <sstream>
 #include <thread>
 #include <unistd.h>
 #include <vector>
@@ -39,6 +44,8 @@
 #include <gio/gio.h>
 
 #ifdef SUNSHINE_BUILD_KWIN
+#include <kde-output-device-v2.h>
+#include <kde-output-management-v2.h>
 #include <zkde-screencast-unstable-v1.h>
 #include "virtual_display/subprocess.h"
 #endif
@@ -104,11 +111,40 @@ namespace pw {
       int y = 0;
     };
 
+    struct kde_mode_t {
+      kde_output_device_mode_v2 *mode = nullptr;
+      int width = 0;
+      int height = 0;
+      int32_t refresh_mhz = 0;
+      uint32_t flags = 0;
+      bool preferred = false;
+      bool removed = false;
+    };
+
+    struct kde_output_t {
+      kde_output_device_v2 *device = nullptr;
+      std::string name;
+      std::string make;
+      std::string model;
+      int x = 0;
+      int y = 0;
+      bool enabled = false;
+      bool removed = false;
+      uint32_t capabilities = 0;
+      kde_output_device_mode_v2 *current_mode = nullptr;
+      std::vector<std::unique_ptr<kde_mode_t>> modes;
+    };
+
     wl_display *display = nullptr;
     wl_registry *registry = nullptr;
     zkde_screencast_unstable_v1 *screencast = nullptr;
     zkde_screencast_stream_unstable_v1 *stream = nullptr;
+    kde_output_management_v2 *output_management = nullptr;
+    kde_output_device_registry_v2 *output_device_registry = nullptr;
     std::map<wl_output *, output_t> outputs;
+    std::map<kde_output_device_v2 *, std::unique_ptr<kde_output_t>> kde_outputs;
+    std::map<kde_output_device_mode_v2 *, kde_mode_t *> kde_modes;
+    uint32_t output_management_version = 0;
     uint32_t node_id = PW_ID_ANY;
     int width = 0;
     int height = 0;
@@ -124,6 +160,28 @@ namespace pw {
       if (screencast) {
         zkde_screencast_unstable_v1_destroy(screencast);
         screencast = nullptr;
+      }
+      for (auto &[_, output] : kde_outputs) {
+        for (auto &mode : output->modes) {
+          if (mode->mode && !mode->removed) {
+            kde_output_device_mode_v2_destroy(mode->mode);
+            mode->mode = nullptr;
+          }
+        }
+        if (output->device && !output->removed) {
+          kde_output_device_v2_release(output->device);
+          output->device = nullptr;
+        }
+      }
+      kde_modes.clear();
+      kde_outputs.clear();
+      if (output_device_registry) {
+        kde_output_device_registry_v2_destroy(output_device_registry);
+        output_device_registry = nullptr;
+      }
+      if (output_management) {
+        kde_output_management_v2_destroy(output_management);
+        output_management = nullptr;
       }
       for (auto &[output, _] : outputs) {
         wl_output_destroy(output);
@@ -238,23 +296,32 @@ namespace pw {
         return false;
       }
 
-      // Best effort: set the mode via kscreen-doctor to ensure the framerate is respected.
-      // KWin's stream_virtual_output creates it at 60Hz by default.
+      // Apply the client-requested refresh rate. KWin's stream_virtual_output
+      // creates the output with a mode-list containing only 60Hz, so plain
+      // kscreen-doctor mode-set calls are silently ignored (the mode is not in
+      // the native list). We try kde_output_management_v2::set_custom_modes
+      // first (KWin MR !8766, Plasma 6.6+) and fall back to kscreen-doctor
+      // only when the protocol or Capability::CustomModes is unavailable.
       if (requested_framerate > 0) {
-        std::string hz_str = std::to_string(static_cast<int>(requested_framerate));
-
-        // Wait a bit for KWin to register the newly created virtual output in its config system
+        // Give KWin a moment to register the freshly created virtual output
+        // so it appears in both kde_output_device_registry_v2 and kscreen.
         std::this_thread::sleep_for(500ms);
 
-        std::ostringstream mode_arg;
-        const char at_sign = 0x40; // '@' character, avoided as literal to prevent weird macro/compiler corruption
-        mode_arg << "output." << target_output_name << ".mode."
-                 << width << "x" << height << at_sign << hz_str;
+        const bool output_mgmt_ok = apply_output_management_settings(
+          target_output_name, width, height, requested_framerate, 1500ms);
 
-        BOOST_LOG(info) << "KWin direct capture: setting refresh rate via " << mode_arg.str();
-        auto mode_res = sonnenschein::vdisplay::run_args({"kscreen-doctor", mode_arg.str()}, "kscreen-doctor mode set");
-        if (!mode_res.ok) {
-          BOOST_LOG(warning) << "KWin direct capture: mode set failed: " << mode_res.output;
+        if (!output_mgmt_ok) {
+          std::string hz_str = std::to_string(static_cast<int>(requested_framerate));
+          std::ostringstream mode_arg;
+          const char at_sign = 0x40; // '@' character, avoided as literal to prevent weird macro/compiler corruption
+          mode_arg << "output." << target_output_name << ".mode."
+                   << width << "x" << height << at_sign << hz_str;
+
+          BOOST_LOG(info) << "KWin direct capture: setting refresh rate via " << mode_arg.str();
+          auto mode_res = sonnenschein::vdisplay::run_args({"kscreen-doctor", mode_arg.str()}, "kscreen-doctor mode set");
+          if (!mode_res.ok) {
+            BOOST_LOG(warning) << "KWin direct capture: mode set failed: " << mode_res.output;
+          }
         }
       }
 
@@ -373,6 +440,457 @@ namespace pw {
       return ready && !failed;
     }
 
+    // ------------------------------------------------------------------
+    // kde_output_management_v2 support (60-Hz fix v2 — KWin MR !8766)
+    //
+    // KWin Wayland silently ignores modes that are not in an output's native
+    // mode-list. Virtual outputs created via stream_virtual_output ship with
+    // a 60-Hz-only list, so we use kde_output_management_v2 to add a custom
+    // mode at the client-requested refresh and then activate it. If the
+    // bound protocol version or the per-output capability does not advertise
+    // CustomModes, apply_output_management_settings() returns false and the
+    // caller falls back to kscreen-doctor (legacy path, ineffective on its
+    // own but harmless).
+    // ------------------------------------------------------------------
+
+    static bool starts_with(const std::string &value, const std::string &prefix) {
+      return value.size() >= prefix.size() && value.compare(0, prefix.size(), prefix) == 0;
+    }
+
+    static bool contains_case_insensitive(std::string value, std::string needle) {
+      std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+      });
+      std::transform(needle.begin(), needle.end(), needle.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+      });
+      return value.find(needle) != std::string::npos;
+    }
+
+    static double normalize_refresh_hz(double requested_framerate) {
+      if (requested_framerate <= 0.0) {
+        return 0.0;
+      }
+      if (requested_framerate > 1000.0) {
+        return requested_framerate / 1000.0;
+      }
+      return requested_framerate;
+    }
+
+    static std::string format_refresh_hz(double hz) {
+      const auto rounded = std::round(hz);
+      if (std::fabs(hz - rounded) < 0.001) {
+        return std::to_string(static_cast<int>(rounded));
+      }
+      std::ostringstream out;
+      out << std::fixed << std::setprecision(3) << hz;
+      auto text = out.str();
+      while (text.size() > 1 && text.back() == '0') {
+        text.pop_back();
+      }
+      if (!text.empty() && text.back() == '.') {
+        text.pop_back();
+      }
+      return text;
+    }
+
+    static std::string format_mode(int width, int height, double refresh_hz) {
+      const char at_sign = 0x40;
+      std::ostringstream out;
+      out << width << "x" << height << at_sign << format_refresh_hz(refresh_hz);
+      return out.str();
+    }
+
+    static uint32_t refresh_millihz(double requested_framerate) {
+      const auto hz = normalize_refresh_hz(requested_framerate);
+      if (hz <= 0.0) {
+        return 0;
+      }
+      return static_cast<uint32_t>(std::max<double>(1.0, std::llround(hz * 1000.0)));
+    }
+
+    static double mode_refresh_hz(const kde_mode_t &mode) {
+      return static_cast<double>(mode.refresh_mhz) / 1000.0;
+    }
+
+    static bool has_kde_mode(const kde_mode_t &mode) {
+      return !mode.removed && mode.width > 0 && mode.height > 0 && mode.refresh_mhz > 0;
+    }
+
+    static bool matches_kde_mode(const kde_mode_t &mode, int requested_width, int requested_height, uint32_t requested_mhz) {
+      return has_kde_mode(mode) &&
+             mode.width == requested_width &&
+             mode.height == requested_height &&
+             std::abs(static_cast<int64_t>(mode.refresh_mhz) - static_cast<int64_t>(requested_mhz)) <= 500;
+    }
+
+    kde_mode_t *mode_for(kde_output_device_mode_v2 *mode) const {
+      const auto it = kde_modes.find(mode);
+      return it == kde_modes.end() ? nullptr : it->second;
+    }
+
+    kde_mode_t *current_mode_for(const kde_output_t &output) const {
+      return output.current_mode ? mode_for(output.current_mode) : nullptr;
+    }
+
+    static std::string describe_kde_mode(const kde_mode_t *mode) {
+      if (!mode || !has_kde_mode(*mode)) {
+        return "unknown";
+      }
+      return format_mode(mode->width, mode->height, mode_refresh_hz(*mode));
+    }
+
+    static std::string kde_output_label(const kde_output_t &output) {
+      if (!output.name.empty()) {
+        return output.name;
+      }
+      if (!output.model.empty()) {
+        return output.model;
+      }
+      return "unnamed";
+    }
+
+    static bool is_kde_virtual_output(const kde_output_t &output) {
+      const auto label = kde_output_label(output);
+      return starts_with(label, "Virtual-") ||
+             starts_with(label, "Sonnenschein-") ||
+             contains_case_insensitive(label, "virtual") ||
+             contains_case_insensitive(output.model, "virtual") ||
+             contains_case_insensitive(output.make, "virtual") ||
+             contains_case_insensitive(output.model, "sonnenschein");
+    }
+
+    bool kde_output_matches_resolution(const kde_output_t &output, int requested_width, int requested_height) const {
+      if (requested_width <= 0 || requested_height <= 0) {
+        return true;
+      }
+      if (auto *mode = current_mode_for(output); mode && mode->width > 0 && mode->height > 0) {
+        return mode->width == requested_width && mode->height == requested_height;
+      }
+      for (const auto &mode : output.modes) {
+        if (!mode->removed && mode->width == requested_width && mode->height == requested_height) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    kde_mode_t *find_kde_mode(kde_output_t &output, int requested_width, int requested_height, uint32_t requested_mhz) const {
+      for (auto &mode : output.modes) {
+        if (matches_kde_mode(*mode, requested_width, requested_height, requested_mhz)) {
+          return mode.get();
+        }
+      }
+      return nullptr;
+    }
+
+    kde_output_t *resolve_kde_output(const std::string &target_output_name, int requested_width, int requested_height) const {
+      auto active = [](const kde_output_t &output) {
+        return output.enabled && !output.removed;
+      };
+      auto target_match = [&](const kde_output_t &output) {
+        return output.name == target_output_name ||
+               output.model == target_output_name ||
+               output.make == target_output_name ||
+               (!target_output_name.empty() && contains_case_insensitive(kde_output_label(output), target_output_name));
+      };
+
+      for (const auto &[_, output] : kde_outputs) {
+        if (active(*output) && target_match(*output) && kde_output_matches_resolution(*output, requested_width, requested_height)) {
+          return output.get();
+        }
+      }
+
+      for (const auto &[_, output] : kde_outputs) {
+        if (active(*output) && target_match(*output)) {
+          return output.get();
+        }
+      }
+
+      kde_output_t *virtual_match = nullptr;
+      for (const auto &[_, output] : kde_outputs) {
+        if (!active(*output) || !is_kde_virtual_output(*output) || !kde_output_matches_resolution(*output, requested_width, requested_height)) {
+          continue;
+        }
+        virtual_match = output.get();
+      }
+      if (virtual_match) {
+        return virtual_match;
+      }
+
+      kde_output_t *single_virtual = nullptr;
+      int virtual_count = 0;
+      for (const auto &[_, output] : kde_outputs) {
+        if (active(*output) && is_kde_virtual_output(*output)) {
+          single_virtual = output.get();
+          ++virtual_count;
+        }
+      }
+      return virtual_count == 1 ? single_virtual : nullptr;
+    }
+
+    std::string describe_kde_outputs() const {
+      std::ostringstream out;
+      bool first = true;
+      for (const auto &[_, output] : kde_outputs) {
+        if (output->removed) {
+          continue;
+        }
+        if (!first) {
+          out << "; ";
+        }
+        first = false;
+        out << kde_output_label(*output)
+            << " enabled=" << (output->enabled ? "true" : "false")
+            << " mode=" << describe_kde_mode(current_mode_for(*output))
+            << " caps=0x" << std::hex << output->capabilities << std::dec;
+      }
+      return first ? "none" : out.str();
+    }
+
+    template <typename Predicate>
+    bool dispatch_until(Predicate predicate, std::chrono::milliseconds timeout, std::string &dispatch_error) {
+      const auto deadline = std::chrono::steady_clock::now() + timeout;
+      while (!predicate()) {
+        if (wl_display_dispatch_pending(display) < 0) {
+          dispatch_error = "wl_display_dispatch_pending failed";
+          return false;
+        }
+        if (predicate()) {
+          break;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= deadline) {
+          break;
+        }
+
+        wl_display_flush(display);
+        pollfd pfd {};
+        pfd.fd = wl_display_get_fd(display);
+        pfd.events = POLLIN;
+
+        const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now);
+        const auto poll_ms = static_cast<int>(std::min<std::chrono::milliseconds>(remaining, 100ms).count());
+        const auto poll_result = poll(&pfd, 1, poll_ms);
+        if (poll_result < 0) {
+          dispatch_error = std::string("poll failed: ") + std::strerror(errno);
+          return false;
+        }
+        if (poll_result > 0 && (pfd.revents & POLLIN)) {
+          if (wl_display_dispatch(display) < 0) {
+            dispatch_error = "wl_display_dispatch failed";
+            return false;
+          }
+        }
+      }
+      return predicate();
+    }
+
+    kde_output_t *wait_for_kde_output(
+      const std::string &target_output_name,
+      int requested_width,
+      int requested_height,
+      std::chrono::milliseconds timeout
+    ) {
+      std::string dispatch_error;
+      dispatch_until(
+        [&] {
+          return resolve_kde_output(target_output_name, requested_width, requested_height) != nullptr;
+        },
+        timeout,
+        dispatch_error);
+
+      if (!dispatch_error.empty()) {
+        BOOST_LOG(warning) << "KWin output management: " << dispatch_error;
+      }
+      return resolve_kde_output(target_output_name, requested_width, requested_height);
+    }
+
+    struct config_state_t {
+      bool done = false;
+      bool applied = false;
+      std::string failure_reason;
+    };
+
+    template <typename Configure>
+    bool apply_kde_configuration(const std::string &description, Configure configure, std::chrono::milliseconds timeout) {
+      if (!output_management) {
+        return false;
+      }
+
+      auto *configuration = kde_output_management_v2_create_configuration(output_management);
+      if (!configuration) {
+        BOOST_LOG(warning) << "KWin output management: failed to create configuration for " << description;
+        return false;
+      }
+
+      config_state_t state;
+      kde_output_configuration_v2_add_listener(configuration, &configuration_listener, &state);
+      configure(configuration);
+      kde_output_configuration_v2_apply(configuration);
+      wl_display_flush(display);
+
+      std::string dispatch_error;
+      const auto completed = dispatch_until([&] { return state.done; }, timeout, dispatch_error);
+      if (!dispatch_error.empty()) {
+        BOOST_LOG(warning) << "KWin output management: " << dispatch_error << " while applying " << description;
+      }
+
+      const auto applied = completed && state.applied;
+      if (!applied) {
+        BOOST_LOG(warning)
+          << "KWin output management: failed to apply " << description
+          << (state.failure_reason.empty() ? "" : std::string(": ") + state.failure_reason);
+      }
+
+      kde_output_configuration_v2_destroy(configuration);
+      (void)wl_display_roundtrip(display);
+      return applied;
+    }
+
+    bool add_custom_kde_mode(kde_output_t &output, int requested_width, int requested_height, uint32_t requested_mhz) {
+      if (!output_management || output_management_version < KDE_OUTPUT_CONFIGURATION_V2_SET_CUSTOM_MODES_SINCE_VERSION) {
+        BOOST_LOG(warning) << "KWin output management: custom modes not supported by bound protocol version " << output_management_version;
+        return false;
+      }
+      if (!(output.capabilities & KDE_OUTPUT_DEVICE_V2_CAPABILITY_CUSTOM_MODES)) {
+        BOOST_LOG(warning) << "KWin output management: output '" << kde_output_label(output) << "' does not advertise custom mode support";
+        return false;
+      }
+
+      auto *mode_list = kde_output_management_v2_create_mode_list(output_management);
+      if (!mode_list) {
+        BOOST_LOG(warning) << "KWin output management: failed to create custom mode list";
+        return false;
+      }
+
+      kde_mode_list_v2_set_resolution(mode_list, static_cast<uint32_t>(requested_width), static_cast<uint32_t>(requested_height));
+      kde_mode_list_v2_set_refresh_rate(mode_list, requested_mhz);
+      kde_mode_list_v2_set_reduced_blanking(mode_list, 1);
+      kde_mode_list_v2_add_mode(mode_list);
+
+      BOOST_LOG(info)
+        << "KWin output management: adding custom mode "
+        << format_mode(requested_width, requested_height, static_cast<double>(requested_mhz) / 1000.0)
+        << " to output '" << kde_output_label(output) << "'";
+
+      const auto applied = apply_kde_configuration(
+        "custom mode list",
+        [&](kde_output_configuration_v2 *configuration) {
+          kde_output_configuration_v2_set_custom_modes(configuration, output.device, mode_list);
+        },
+        1500ms);
+
+      kde_mode_list_v2_destroy(mode_list);
+      return applied;
+    }
+
+    bool apply_mode_only(kde_output_t &output, kde_mode_t *mode) {
+      const auto description = std::string("mode for ") + kde_output_label(output);
+      return apply_kde_configuration(
+        description,
+        [&](kde_output_configuration_v2 *configuration) {
+          if (mode && mode->mode) {
+            kde_output_configuration_v2_mode(configuration, output.device, mode->mode);
+          }
+        },
+        1500ms);
+    }
+
+    bool apply_output_management_settings(
+      const std::string &target_output_name,
+      int requested_width,
+      int requested_height,
+      double requested_framerate,
+      std::chrono::milliseconds timeout
+    ) {
+      const auto requested_mhz = refresh_millihz(requested_framerate);
+      if (!output_management || !output_device_registry) {
+        BOOST_LOG(info) << "KWin output management: protocol unavailable; falling back to kscreen-doctor";
+        return false;
+      }
+      if (requested_width <= 0 || requested_height <= 0 || requested_mhz == 0) {
+        return false;
+      }
+
+      auto *output = wait_for_kde_output(target_output_name, requested_width, requested_height, timeout);
+      if (!output) {
+        BOOST_LOG(warning)
+          << "KWin output management: could not resolve output '" << target_output_name
+          << "' for " << format_mode(requested_width, requested_height, static_cast<double>(requested_mhz) / 1000.0)
+          << "; known outputs: " << describe_kde_outputs();
+        return false;
+      }
+
+      BOOST_LOG(info)
+        << "KWin output management: resolved output '" << kde_output_label(*output)
+        << "' current mode " << describe_kde_mode(current_mode_for(*output))
+        << ", caps=0x" << std::hex << output->capabilities << std::dec;
+
+      auto *target_mode = find_kde_mode(*output, requested_width, requested_height, requested_mhz);
+      if (!target_mode) {
+        if (!add_custom_kde_mode(*output, requested_width, requested_height, requested_mhz)) {
+          return false;
+        }
+        std::string dispatch_error;
+        dispatch_until(
+          [&] {
+            return find_kde_mode(*output, requested_width, requested_height, requested_mhz) != nullptr;
+          },
+          1500ms,
+          dispatch_error);
+        if (!dispatch_error.empty()) {
+          BOOST_LOG(warning) << "KWin output management: " << dispatch_error << " while waiting for custom mode";
+        }
+        target_mode = find_kde_mode(*output, requested_width, requested_height, requested_mhz);
+      }
+
+      if (!target_mode) {
+        BOOST_LOG(warning)
+          << "KWin output management: requested mode "
+          << format_mode(requested_width, requested_height, static_cast<double>(requested_mhz) / 1000.0)
+          << " is not advertised by output '" << kde_output_label(*output) << "'";
+        return false;
+      }
+
+      BOOST_LOG(info)
+        << "KWin output management: applying mode " << describe_kde_mode(target_mode)
+        << " to output '" << kde_output_label(*output) << "'";
+
+      if (!apply_mode_only(*output, target_mode)) {
+        return false;
+      }
+
+      std::string dispatch_error;
+      dispatch_until(
+        [&] {
+          auto *current = current_mode_for(*output);
+          return current && matches_kde_mode(*current, requested_width, requested_height, requested_mhz);
+        },
+        1500ms,
+        dispatch_error);
+      if (!dispatch_error.empty()) {
+        BOOST_LOG(warning) << "KWin output management: " << dispatch_error << " while verifying mode";
+      }
+
+      auto *current = current_mode_for(*output);
+      const auto mode_ok = current && matches_kde_mode(*current, requested_width, requested_height, requested_mhz);
+
+      if (mode_ok) {
+        BOOST_LOG(info)
+          << "KWin output management: activated mode " << describe_kde_mode(current)
+          << " on output '" << kde_output_label(*output) << "'";
+      } else {
+        BOOST_LOG(warning)
+          << "KWin output management: mode verification failed for output '" << kde_output_label(*output)
+          << "', current mode " << describe_kde_mode(current)
+          << ", requested " << format_mode(requested_width, requested_height, static_cast<double>(requested_mhz) / 1000.0);
+      }
+
+      return mode_ok;
+    }
+
     static void on_registry_global(void *data, wl_registry *registry, uint32_t name, const char *interface, uint32_t version) {
       auto *self = static_cast<kwin_session_t *>(data);
       if (!std::strcmp(interface, zkde_screencast_unstable_v1_interface.name)) {
@@ -380,6 +898,23 @@ namespace pw {
         self->screencast = static_cast<zkde_screencast_unstable_v1 *>(
           wl_registry_bind(registry, name, &zkde_screencast_unstable_v1_interface, bind_version));
         BOOST_LOG(info) << "KWin direct capture: bound zkde_screencast_unstable_v1 version "sv << bind_version;
+      } else if (!std::strcmp(interface, kde_output_management_v2_interface.name)) {
+        const auto bind_version = std::min(version, static_cast<uint32_t>(21));
+        self->output_management_version = bind_version;
+        self->output_management = static_cast<kde_output_management_v2 *>(
+          wl_registry_bind(registry, name, &kde_output_management_v2_interface, bind_version));
+        BOOST_LOG(info) << "KWin output management: bound kde_output_management_v2 version "sv << bind_version;
+      } else if (!std::strcmp(interface, kde_output_device_registry_v2_interface.name)) {
+        if (version < 21) {
+          BOOST_LOG(warning) << "KWin output management: ignoring kde_output_device_registry_v2 version "sv
+                             << version << " because version 21+ is required";
+          return;
+        }
+        const auto bind_version = std::min(version, static_cast<uint32_t>(23));
+        self->output_device_registry = static_cast<kde_output_device_registry_v2 *>(
+          wl_registry_bind(registry, name, &kde_output_device_registry_v2_interface, bind_version));
+        kde_output_device_registry_v2_add_listener(self->output_device_registry, &output_device_registry_listener, self);
+        BOOST_LOG(info) << "KWin output management: bound kde_output_device_registry_v2 version "sv << bind_version;
       } else if (!std::strcmp(interface, wl_output_interface.name)) {
         const auto bind_version = std::min(version, static_cast<uint32_t>(4));
         auto *output = static_cast<wl_output *>(
@@ -460,6 +995,246 @@ namespace pw {
       .created = on_stream_created,
       .failed = on_stream_failed,
       .serial = on_stream_serial,
+    };
+
+    // ------------------------------------------------------------------
+    // kde_output_device_registry_v2 + kde_output_device_v2 listeners
+    // ------------------------------------------------------------------
+
+    static void on_output_device_registry_finished(void *, kde_output_device_registry_v2 *) {}
+
+    static void on_output_device_registry_output(
+      void *data,
+      kde_output_device_registry_v2 *,
+      kde_output_device_v2 *device
+    ) {
+      auto *self = static_cast<kwin_session_t *>(data);
+      auto output = std::make_unique<kde_output_t>();
+      output->device = device;
+      auto *raw = output.get();
+      self->kde_outputs.emplace(device, std::move(output));
+      kde_output_device_v2_add_listener(device, &kde_output_device_listener, self);
+      BOOST_LOG(debug) << "KWin output management: announced output device "sv << raw;
+    }
+
+    static constexpr kde_output_device_registry_v2_listener output_device_registry_listener {
+      .finished = on_output_device_registry_finished,
+      .output = on_output_device_registry_output,
+    };
+
+    static kde_output_t *kde_output_for(kwin_session_t *self, kde_output_device_v2 *device) {
+      const auto it = self->kde_outputs.find(device);
+      return it == self->kde_outputs.end() ? nullptr : it->second.get();
+    }
+
+    static void on_kde_output_geometry(
+      void *data,
+      kde_output_device_v2 *device,
+      int32_t x,
+      int32_t y,
+      int32_t,
+      int32_t,
+      int32_t,
+      const char *make,
+      const char *model,
+      int32_t
+    ) {
+      auto *self = static_cast<kwin_session_t *>(data);
+      if (auto *output = kde_output_for(self, device)) {
+        output->x = x;
+        output->y = y;
+        output->make = make ? make : "";
+        output->model = model ? model : "";
+      }
+    }
+
+    static void on_kde_output_current_mode(void *data, kde_output_device_v2 *device, kde_output_device_mode_v2 *mode) {
+      auto *self = static_cast<kwin_session_t *>(data);
+      if (auto *output = kde_output_for(self, device)) {
+        output->current_mode = mode;
+      }
+    }
+
+    static void on_kde_output_mode(void *data, kde_output_device_v2 *device, kde_output_device_mode_v2 *mode) {
+      auto *self = static_cast<kwin_session_t *>(data);
+      auto *output = kde_output_for(self, device);
+      if (!output) {
+        kde_output_device_mode_v2_destroy(mode);
+        return;
+      }
+
+      auto info = std::make_unique<kde_mode_t>();
+      info->mode = mode;
+      auto *raw = info.get();
+      output->modes.push_back(std::move(info));
+      self->kde_modes[mode] = raw;
+      kde_output_device_mode_v2_add_listener(mode, &kde_mode_listener, raw);
+    }
+
+    static void on_kde_output_done(void *, kde_output_device_v2 *) {}
+    static void on_kde_output_scale(void *, kde_output_device_v2 *, wl_fixed_t) {}
+    static void on_kde_output_edid(void *, kde_output_device_v2 *, const char *) {}
+
+    static void on_kde_output_enabled(void *data, kde_output_device_v2 *device, int32_t enabled) {
+      auto *self = static_cast<kwin_session_t *>(data);
+      if (auto *output = kde_output_for(self, device)) {
+        output->enabled = enabled != 0;
+      }
+    }
+
+    static void on_kde_output_uuid(void *, kde_output_device_v2 *, const char *) {}
+    static void on_kde_output_serial_number(void *, kde_output_device_v2 *, const char *) {}
+    static void on_kde_output_eisa_id(void *, kde_output_device_v2 *, const char *) {}
+
+    static void on_kde_output_capabilities(void *data, kde_output_device_v2 *device, uint32_t flags) {
+      auto *self = static_cast<kwin_session_t *>(data);
+      if (auto *output = kde_output_for(self, device)) {
+        output->capabilities = flags;
+      }
+    }
+
+    static void on_kde_output_overscan(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_vrr_policy(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_rgb_range(void *, kde_output_device_v2 *, uint32_t) {}
+
+    static void on_kde_output_name(void *data, kde_output_device_v2 *device, const char *name) {
+      auto *self = static_cast<kwin_session_t *>(data);
+      if (auto *output = kde_output_for(self, device)) {
+        output->name = name ? name : "";
+      }
+    }
+
+    static void on_kde_output_high_dynamic_range(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_sdr_brightness(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_wide_color_gamut(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_auto_rotate_policy(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_icc_profile_path(void *, kde_output_device_v2 *, const char *) {}
+    static void on_kde_output_brightness_metadata(void *, kde_output_device_v2 *, uint32_t, uint32_t, uint32_t) {}
+    static void on_kde_output_brightness_overrides(void *, kde_output_device_v2 *, int32_t, int32_t, int32_t) {}
+    static void on_kde_output_sdr_gamut_wideness(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_color_profile_source(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_brightness(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_color_power_tradeoff(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_dimming(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_replication_source(void *, kde_output_device_v2 *, const char *) {}
+    static void on_kde_output_ddc_ci_allowed(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_max_bits_per_color(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_max_bits_per_color_range(void *, kde_output_device_v2 *, uint32_t, uint32_t) {}
+    static void on_kde_output_automatic_max_bits_per_color_limit(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_edr_policy(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_sharpness(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_priority(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_auto_brightness(void *, kde_output_device_v2 *, uint32_t) {}
+
+    static void on_kde_output_removed(void *data, kde_output_device_v2 *device) {
+      auto *self = static_cast<kwin_session_t *>(data);
+      if (auto *output = kde_output_for(self, device)) {
+        output->removed = true;
+      }
+    }
+
+    static void on_kde_output_hdr_icc_profile_path(void *, kde_output_device_v2 *, const char *) {}
+    static void on_kde_output_hdr_color_profile_source(void *, kde_output_device_v2 *, uint32_t) {}
+    static void on_kde_output_abm_level(void *, kde_output_device_v2 *, uint32_t) {}
+
+    static constexpr kde_output_device_v2_listener kde_output_device_listener {
+      .geometry = on_kde_output_geometry,
+      .current_mode = on_kde_output_current_mode,
+      .mode = on_kde_output_mode,
+      .done = on_kde_output_done,
+      .scale = on_kde_output_scale,
+      .edid = on_kde_output_edid,
+      .enabled = on_kde_output_enabled,
+      .uuid = on_kde_output_uuid,
+      .serial_number = on_kde_output_serial_number,
+      .eisa_id = on_kde_output_eisa_id,
+      .capabilities = on_kde_output_capabilities,
+      .overscan = on_kde_output_overscan,
+      .vrr_policy = on_kde_output_vrr_policy,
+      .rgb_range = on_kde_output_rgb_range,
+      .name = on_kde_output_name,
+      .high_dynamic_range = on_kde_output_high_dynamic_range,
+      .sdr_brightness = on_kde_output_sdr_brightness,
+      .wide_color_gamut = on_kde_output_wide_color_gamut,
+      .auto_rotate_policy = on_kde_output_auto_rotate_policy,
+      .icc_profile_path = on_kde_output_icc_profile_path,
+      .brightness_metadata = on_kde_output_brightness_metadata,
+      .brightness_overrides = on_kde_output_brightness_overrides,
+      .sdr_gamut_wideness = on_kde_output_sdr_gamut_wideness,
+      .color_profile_source = on_kde_output_color_profile_source,
+      .brightness = on_kde_output_brightness,
+      .color_power_tradeoff = on_kde_output_color_power_tradeoff,
+      .dimming = on_kde_output_dimming,
+      .replication_source = on_kde_output_replication_source,
+      .ddc_ci_allowed = on_kde_output_ddc_ci_allowed,
+      .max_bits_per_color = on_kde_output_max_bits_per_color,
+      .max_bits_per_color_range = on_kde_output_max_bits_per_color_range,
+      .automatic_max_bits_per_color_limit = on_kde_output_automatic_max_bits_per_color_limit,
+      .edr_policy = on_kde_output_edr_policy,
+      .sharpness = on_kde_output_sharpness,
+      .priority = on_kde_output_priority,
+      .auto_brightness = on_kde_output_auto_brightness,
+      .removed = on_kde_output_removed,
+      .hdr_icc_profile_path = on_kde_output_hdr_icc_profile_path,
+      .hdr_color_profile_source = on_kde_output_hdr_color_profile_source,
+      .abm_level = on_kde_output_abm_level,
+    };
+
+    static void on_kde_mode_size(void *data, kde_output_device_mode_v2 *, int32_t width, int32_t height) {
+      auto *mode = static_cast<kde_mode_t *>(data);
+      mode->width = width;
+      mode->height = height;
+    }
+
+    static void on_kde_mode_refresh(void *data, kde_output_device_mode_v2 *, int32_t refresh) {
+      auto *mode = static_cast<kde_mode_t *>(data);
+      mode->refresh_mhz = refresh;
+    }
+
+    static void on_kde_mode_preferred(void *data, kde_output_device_mode_v2 *) {
+      auto *mode = static_cast<kde_mode_t *>(data);
+      mode->preferred = true;
+    }
+
+    static void on_kde_mode_removed(void *data, kde_output_device_mode_v2 *) {
+      auto *mode = static_cast<kde_mode_t *>(data);
+      mode->removed = true;
+    }
+
+    static void on_kde_mode_flags(void *data, kde_output_device_mode_v2 *, uint32_t flags) {
+      auto *mode = static_cast<kde_mode_t *>(data);
+      mode->flags = flags;
+    }
+
+    static constexpr kde_output_device_mode_v2_listener kde_mode_listener {
+      .size = on_kde_mode_size,
+      .refresh = on_kde_mode_refresh,
+      .preferred = on_kde_mode_preferred,
+      .removed = on_kde_mode_removed,
+      .flags = on_kde_mode_flags,
+    };
+
+    static void on_configuration_applied(void *data, kde_output_configuration_v2 *) {
+      auto *state = static_cast<config_state_t *>(data);
+      state->done = true;
+      state->applied = true;
+    }
+
+    static void on_configuration_failed(void *data, kde_output_configuration_v2 *) {
+      auto *state = static_cast<config_state_t *>(data);
+      state->done = true;
+      state->applied = false;
+    }
+
+    static void on_configuration_failure_reason(void *data, kde_output_configuration_v2 *, const char *reason) {
+      auto *state = static_cast<config_state_t *>(data);
+      state->failure_reason = reason ? reason : "";
+    }
+
+    static constexpr kde_output_configuration_v2_listener configuration_listener {
+      .applied = on_configuration_applied,
+      .failed = on_configuration_failed,
+      .failure_reason = on_configuration_failure_reason,
     };
   };
 #endif
