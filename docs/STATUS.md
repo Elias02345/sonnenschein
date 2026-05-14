@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-14 (spät II) — **60-Hz-Fix v2 implementiert, WSL2-Build grün, CachyOS-Test ausstehend.** Commits `2996b4e` (CMake-Generation für `kde-output-management-v2.xml` + `kde-output-device-v2.xml`) und `806a7ca` (pwgrab.cpp: paralleles `kde_output_management_v2` + `kde_output_device_registry_v2`-Binding mit `set_custom_modes`-Pfad, Fallback auf bestehende `kscreen-doctor`-Logik wenn KWin `Capability::CustomModes` nicht meldet). Chirurgischer Cherry-Pick aus `723537a` — die drei `apply_output_management_settings()`-Aufrufe mit 2500 ms-Timeouts in `start()`, die Codex' SteamDeck-Initial-Ping-Timeout verursacht hatten, sind durch genau **einen** Aufruf NACH erfolgreichem `wait_for_stream()` ersetzt. `init()`, `find_target()`, `stream_output()`/`stream_virtual_output()`, `wait_for_stream()` byte-identisch zu `41fa9ba`.
+**Stand:** 2026-05-14 (Nacht) — **60-Hz-Fix v2 ZURÜCKGEROLLT.** CachyOS-Test von `806a7ca` zeigte schwere Regression: Portal-Dialog kommt wieder, SteamDeck zeigt Stream-Fehler, physische Monitore bleiben nach Disconnect/Force-Shutdown aus. Reverts `ea201f5` (pwgrab.cpp) + `d7afb8b` (cmake) bringen dev zurück auf `41fa9ba`-Verhalten (Bild + Ton + Eingaben + Headless ✓, 60 Hz). Volle Post-Mortem in §9.20. Nächste Schritte (Phase 2 Cleanup-Hardening + Phase 3 60-Hz-Fix v3) sind in §12.A skizziert — keine v3-Code-Pushes ohne Cleanup-Hardening, damit ein weiteres Misslingen Logs hinterlässt.
 
 ---
 
@@ -851,7 +851,9 @@ Damit sind der Output-Management-v2-Patch `723537a`, der STATUS-HEAD `ec832c8` u
 
 **Weitere Korrektur (2026-05-13 23:10)**: Der neue Log wurde mit Binary `0.0.0.4d47b5e` erzeugt, also nicht mit dem danach gepushten `74c63cf`/`c451725`. Trotzdem ist der eigentliche Defekt noch im aktuellen Laufzeitcode: der KWin-Direct-Pfad gibt bei fehlendem `zkde_screencast_unstable_v1` `-1` zurück und verhindert damit den Portal-Fallback. `41fa9ba` entfernt diesen fatalen Abbruch, ohne erneut Output-Management, HDR oder Frame-Pacing anzufassen.
 
-### 9.18 60-Hz-Bug — Endgültige Diagnose + echte Lösung (Stand 2026-05-14 spät)
+### 9.18 60-Hz-Bug — Diagnose + erster (zurückgerollter) Lösungsversuch (Stand 2026-05-14 spät)
+
+> **HINWEIS (Stand 2026-05-14 Nacht)**: Der hier beschriebene v2-Implementierungspfad (`2996b4e` + `806a7ca`) ist auf CachyOS Plasma 6.6.4 fehlgeschlagen und in `d7afb8b` + `ea201f5` **zurückgerollt**. Vollständige Post-Mortem-Analyse + v3-Strategie in **§9.20**. Der untenstehende Text bleibt als historische Diagnose erhalten.
 
 **Symptom**: SteamDeck-OLED (oder beliebiger 90/120 Hz Client) bleibt im Stream bei 60 Hz, obwohl der Stream sonst sauber läuft (Bild + Ton + Eingaben + Headless funktionieren).
 
@@ -984,6 +986,41 @@ Vorteile: rock-solid, distroübergreifend, funktioniert ohne KDE-spezifische API
 
 **Status**: Komfort-/UX-Fix nach Source-Auswahl. Erst Zielquelle stabilisieren, dann Restore-Token persistent in `~/.local/state/sonnenschein/` ablegen und beim nächsten `SelectSources` verwenden.
 
+### 9.20 60-Hz-Fix v2 (`806a7ca`) — Regression-Post-Mortem (Stand 2026-05-14 Nacht)
+
+**Symptom auf CachyOS Plasma 6.6.4 + RTX 3070**: Drei gleichzeitige Issues nach `806a7ca`-Test:
+1. KDE Portal-Auswahldialog erscheint („welcher Bildschirm soll geteilt werden") — `kwin_session_t::start()` gibt `false` zurück, Sonnenschein fällt auf Portal-Pfad.
+2. SteamDeck-Client zeigt Stream-Fehler / kein Bild — auch Portal-Pfad failt oder läuft im inkonsistenten State.
+3. Physische Monitore bleiben nach Disconnect oder Process-Ende aus → Maintainer muss Force-Shutdown machen → **keine Logs verfügbar**.
+
+#### Was bei der Diagnose ausgeschlossen wurde (gegen `/root/snsbuild/generated-src/`)
+
+- **Listener-Struct-Field-Mismatch (NULL-pointer-crash durch fehlende Felder)**: alle vier Listener-Structs verifiziert: `kde_output_device_v2_listener` **40/40** ✓, `kde_output_device_mode_v2_listener` **5/5** ✓, `kde_output_configuration_v2_listener` **3/3** ✓, `kde_output_device_registry_v2_listener` **2/2** ✓. **Kein Mismatch.**
+- **Vector-Reallocation-Hazard im `on_kde_output_mode`**: Safe wegen `unique_ptr`-Mechanik — der Heap-`kde_mode_t` bleibt stabil bei Vector-Realloc, nur der `unique_ptr`-Handle wandert. Listener-Pointer (`raw`) zeigt auf das heap-allokierte Objekt, nicht auf den Vector-Slot.
+
+#### Wahrscheinliche Versagensmodi (jeder kann das Symptom-Tripel erklären)
+
+- **A) Mode-List / Configuration Destroy-Reihenfolge**: In `apply_kde_configuration` wird `kde_output_configuration_v2_destroy(configuration)` aufgerufen, BEVOR `kde_mode_list_v2_destroy(mode_list)` (das passiert erst danach im Caller). Laut Wayland-XML sind beide Siblings (kein Parent/Child), aber KWin könnte sich auf eine bestimmte Reihenfolge verlassen für Server-State-Konsistenz. **Fix-Strategy v3-3a**: mode_list destroy ZUERST, dann configuration.
+
+- **B) KWin schließt den Stream bei Output-Mode-Change**: `zkde-screencast-unstable-v1.xml` definiert **kein** Verhalten bei Output-Reconfiguration. Wenn KWin den screencast-Stream beim `kde_output_configuration_v2_mode + apply` schließt, feuert `stream.closed` → `on_stream_closed` setzt `failed=true`. Mein `start()` prüft `failed` NICHT nach `apply_output_management_settings()` — der capture-loop läuft auf einem toten Stream weiter. **Fix-Strategy v3-3b**: nach `apply_output_management_settings` `if (failed) return false;` → sauberer Portal-Fallback.
+
+- **C) Init-Roundtrip-Race**: Zwei `wl_display_roundtrip` in `init()` reichen evtl. nicht für die `kde_output_device_v2`-Properties — `start()` arbeitet auf unvollständigem State. **Fix-Strategy v3-3e**: dritter Roundtrip.
+
+#### Konfirmierte Schwächen (orthogonal zum 60-Hz-Bug)
+
+- **`KwinWaylandBackend` hat keinen Destruktor** (`src/platform/linux/virtual_display/backends/kwin_wayland.cpp` Z 178-237). `destroy_all()` (Z 211-223) wird nur explicit aus `proc::proc_t::terminate()` aufgerufen.
+- **Keine SIGSEGV/SIGABRT-Handler** in `src/main.cpp` Z 39-50, 300-329. Nur SIGINT + SIGTERM rufen `proc::proc.terminate()`. Bei Crash → kein Cleanup → Monitore bleiben aus. **Diese Schwäche existiert auch ohne meinen 60-Hz-Fix, wurde aber durch v2 sichtbar.**
+
+#### Diagnostic-Pfad: warum keine Logs
+
+`BOOST_LOG` schreibt asynchron in einen log-sink. Bei Force-Shutdown (`pkill -9` oder Reboot) wird der log-buffer NICHT geflusht → letzte Sekunden verloren. `journalctl --user -u sonnenschein.service` zeigt nur was schon zu syslog kam.
+
+**Lösung**: Phase-2-Cleanup-Hardening (SIGSEGV/SIGABRT-handler ruft `logging::log_flush()` + `proc.terminate()` + `_Exit()`). Mit dem Hardening hinterlässt jeder Misserfolg Logs.
+
+#### Plan-Datei
+
+Vollständiger Recovery-Plan (Phase 1 Revert, Phase 2 Cleanup-Hardening, Phase 3 v3-Fix, Phase 4 Test-Sequenz, Verification): `~/.claude/plans/jetzt-haben-wir-ein-nested-candle.md`.
+
 ---
 
 ## 10. Letzte Commits chronologisch
@@ -991,8 +1028,12 @@ Vorteile: rock-solid, distroübergreifend, funktioniert ohne KDE-spezifische API
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
-806a7ca — fix(capture): add KDE output management v2 path for client-requested refresh rate — 2026-05-14 (60-Hz fix v2; CachyOS-Test pending)
-2996b4e — build(cmake): generate KDE output management v2 wayland protocol bindings — 2026-05-14
+<docs-status-p1-pending> — docs(status): record v2 rollback + v3 plan (Phase 1 of recovery) — 2026-05-14
+d7afb8b — revert build(cmake): generate KDE output management v2 wayland protocol bindings — 2026-05-14
+ea201f5 — revert fix(capture): add KDE output management v2 path for client-requested refresh rate — 2026-05-14
+c1c7bb4 — docs(status): record 60-Hz fix v2 commits and refine Codex bug diagnosis — 2026-05-14 (BESCHREIBT v2 das jetzt zurückgerollt ist — siehe §9.20)
+806a7ca — fix(capture): add KDE output management v2 path for client-requested refresh rate — 2026-05-14 (ZURÜCKGEROLLT in ea201f5)
+2996b4e — build(cmake): generate KDE output management v2 wayland protocol bindings — 2026-05-14 (ZURÜCKGEROLLT in d7afb8b)
 1248943 — docs(status): record d77a2be + 150dfd0 in commit chronology — 2026-05-14
 d77a2be — revert(vdisplay): roll back 29cd4b6 — kscreen-doctor add-virtual-output proven wirkungslos on CachyOS — 2026-05-14
 150dfd0 — docs(status): update STATUS.md for 60-Hz fix commit 29cd4b6 — 2026-05-14
@@ -1114,21 +1155,36 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 In Reihenfolge der Priorität.
 
-### A) 60-Hz-Fix v2 — CachyOS-Test (höchste Prio) ✅ implementiert, 🟡 Test offen
+### A) 60-Hz-Fix v3 — Cleanup-Hardening + gehärteter Retry (höchste Prio) 🔴 v2 zurückgerollt, v3 in Arbeit
 
-Implementiert in `2996b4e` (CMake-Generation für die zwei KDE-Wayland-Protokolle) und `806a7ca` (pwgrab.cpp: `kde_output_management_v2` + `kde_output_device_registry_v2`-Binding, `add_custom_kde_mode()` + `apply_mode_only()`, defensiver Capability-Check, **ein** Aufruf-Punkt nach `wait_for_stream()` mit Fallback auf den bestehenden `kscreen-doctor`-Pfad). WSL2-Build grün (13/13).
+v2 (Commits `2996b4e` + `806a7ca`) ist in `d7afb8b` + `ea201f5` zurückgerollt. CachyOS-Test zeigte das Symptom-Tripel aus §9.20: Portal-Dialog kommt, SteamDeck Stream-Fehler, physische Monitore bleiben aus → Force-Shutdown → keine Logs.
 
-Nächste Schritte:
-1. **CachyOS-Test in KDE-Konsole innerhalb der Plasma-Sitzung** (`WAYLAND_DISPLAY` muss gesetzt sein). Erwartete Log-Zeilen siehe §9.18. SteamDeck-OLED-Client mit 90 Hz starten.
-2. Auf das Log achten:
-   - `KWin output management: bound kde_output_management_v2 version 21` (oder N) → Binding funktioniert.
-   - `KWin output management: bound kde_output_device_registry_v2 version 21` (oder N).
-   - `KWin output management: resolved output 'Sonnenschein-XXXX' ... caps=0x...` → Capability-Hex-Wert prüfen: `0x2000` (CustomModes-Bit) muss gesetzt sein.
-   - `KWin output management: adding custom mode 1280x800@90 to 'Sonnenschein-XXXX'`
-   - `KWin output management: activated mode 1280x800@90 on 'Sonnenschein-XXXX'`
-   - Im Stream: 90 Hz statt 60 Hz.
-3. **Falls die `caps=` Maske `0x2000` nicht enthält** (Plasma 6.6.4 hat MR !8766 doch nicht in 6.6, sondern erst in 6.7): das Log zeigt `output does not advertise custom mode support`, der Fallback springt automatisch ein, der Stream läuft wieder mit 60 Hz wie zuvor. In dem Fall: §9.19 EDID-Firmware-Injection als Boot-Setup dokumentieren, Code-Fallback **nicht** implementieren bevor der Maintainer entscheidet.
-4. **Falls der Test grün ist**: STATUS.md TL;DR auf "60-Hz-Bug GELÖST" aktualisieren, §6 Phase 2 entsprechend (von 🟡 auf ✅).
+**Vor dem nächsten v3-Code-Push: Cleanup-Hardening (Phase 2 unten)**, damit Misserfolge Logs hinterlassen.
+
+#### Phase 2 — Cleanup-Hardening (orthogonal, sollte sowieso passieren)
+- **2a Signal-Handler in `src/main.cpp`** für SIGSEGV + SIGABRT, die `proc::proc.terminate()` + `logging::log_flush()` + `_Exit()` rufen.
+- **2b RAII-Destruktor** in `KwinWaylandBackend` (`src/platform/linux/virtual_display/backends/kwin_wayland.cpp`) der `destroy_all()` ruft.
+- **2c Boot-Time-Recovery** via Lockfile in `~/.local/state/sonnenschein/disabled-outputs.lock`: `create()` trackt disabled outputs, `destroy()` untrackt sie, `main()` ruft beim Start `recovery::recover_on_boot()` welches `kscreen-doctor output.X.enable` für jeden gelisteten output ausführt.
+
+#### Phase 3 — v3 60-Hz-Fix (gehärtet)
+- **CMake-Patch** wieder einspielen (identisch zu `2996b4e`).
+- **pwgrab.cpp v3**: Basis `806a7ca` + fünf Hardenings (Details siehe Plan-File `~/.claude/plans/jetzt-haben-wir-ein-nested-candle.md`):
+  1. Destroy-Reihenfolge in `apply_kde_configuration` — mode_list ZUERST, dann configuration.
+  2. Stream-State-Validation nach `apply_output_management_settings` — wenn `failed=true` (KWin closed stream), return false → Portal-Fallback statt hängender capture-loop.
+  3. Ausführliches Logging vor jedem KDE-call + `log_flush()` damit selbst bei Crash die LAST-action persistiert.
+  4. Timeout 1500ms → 800ms damit kein langes Hängen.
+  5. Dritter Roundtrip in `init()` damit kde_output_device_registry_v2-events durchgeschossen sind.
+
+#### CachyOS-Test (nach Phase 2 + 3 Push)
+1. **Pre-Test cleanup-Validation**: `pkill -9 sonnenschein` mid-stream simulieren → Monitore bleiben aus → Sonnenschein neu starten → Erwartung `recovery: re-enabling HDMI-A-1` + Monitore zurück.
+2. **Main test**: Logs streamen (`journalctl --user -fb -u sonnenschein.service` oder `sonnenschein 2>&1 | tee ~/sns-v3.log`), SteamDeck @ 90 Hz connecten. Erwartete Log-Zeilen pro Pfad in §9.20.
+3. **Fail-Pfad-Validation**: bei jedem fail-Pfad muss Sonnenschein clean enden (kein Force-Shutdown nötig), Logs müssen die LAST-action zeigen.
+
+#### Falls Test grün
+STATUS.md TL;DR auf „60-Hz-Bug GELÖST" aktualisieren, §6 Phase 2 von 🟡 auf ✅, §9.20 als „GELÖST in v3" markieren.
+
+#### Falls Test rot trotz Cleanup-Hardening
+Iteration auf feature/branch (nicht direkt dev), Logs analysieren, mögliche Pfade: EDID-Firmware-Injection (§9.19) als alternative Strategie, KWin-DBus statt Wayland-Protocol, oder reine Acceptance des 60-Hz-Limits + Dokumentation.
 
 ### B) Falls 60-Hz-Fix grün: weitere Stabilisierung
 
