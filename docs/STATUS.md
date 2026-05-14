@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-14 (spät) — **60-Hz-Bug verstanden: KWin Wayland ignoriert non-EDID-Modi. Echte Lösung = `kde_output_management_v2::set_custom_modes` (KWin MR !8766, in Plasma 6.6). Mein `29cd4b6`-Versuch (kscreen-doctor add-virtual-output Pre-Create) ist auf CachyOS getestet → ohne Wirkung, Output erscheint nicht im wl_output Registry. Rollback auf Stand `41fa9ba` + detaillierte Implementierungs-Anleitung für nächste Session.**
+**Stand:** 2026-05-14 (spät II) — **60-Hz-Fix v2 implementiert, WSL2-Build grün, CachyOS-Test ausstehend.** Commits `2996b4e` (CMake-Generation für `kde-output-management-v2.xml` + `kde-output-device-v2.xml`) und `806a7ca` (pwgrab.cpp: paralleles `kde_output_management_v2` + `kde_output_device_registry_v2`-Binding mit `set_custom_modes`-Pfad, Fallback auf bestehende `kscreen-doctor`-Logik wenn KWin `Capability::CustomModes` nicht meldet). Chirurgischer Cherry-Pick aus `723537a` — die drei `apply_output_management_settings()`-Aufrufe mit 2500 ms-Timeouts in `start()`, die Codex' SteamDeck-Initial-Ping-Timeout verursacht hatten, sind durch genau **einen** Aufruf NACH erfolgreichem `wait_for_stream()` ersetzt. `init()`, `find_target()`, `stream_output()`/`stream_virtual_output()`, `wait_for_stream()` byte-identisch zu `41fa9ba`.
 
 ---
 
@@ -909,12 +909,11 @@ kde_output_configuration_v2.apply()
 
 #### Was Codex in `723537a` versucht hat — und warum es kollabierte
 
-Codex hat in `723537a` genau diesen Pfad implementiert (+850 Zeilen in `pwgrab.cpp`). Sein Code-Architektur war **korrekt** (Wayland-Binding für `kde_output_management_v2` + `kde_output_device_registry_v2`, `add_custom_kde_mode()`, `apply_kde_configuration()` etc.). Aber im selben Commit hat er `zkde_screencast_unstable_v1` als Bedingung verworfen und stattdessen einen Output-Management-zentrierten Pfad gebaut — das Resultat war:
-- `kde_output_management_v2` wurde gebunden, OK.
-- `zkde_screencast_unstable_v1` wurde **nicht mehr** gebunden, weil die Setup-Reihenfolge geändert wurde.
-- Stream brach komplett ab (`Initial Ping Timeout` auf SteamDeck).
+Codex hat in `723537a` genau diesen Pfad implementiert (+850 Zeilen in `pwgrab.cpp`). Sein Code-Architektur war **korrekt** — Wayland-Binding für `kde_output_management_v2` + `kde_output_device_registry_v2`, `add_custom_kde_mode()`, `apply_kde_configuration()`, alle Helper-Methoden 1:1 nutzbar.
 
-Maintainer hat `723537a` deshalb in `501431a` + `74c63cf` zurückgerollt.
+**Der eigentliche Bug war die Setup-Reihenfolge in `start()`:** Codex rief `apply_output_management_settings()` **dreimal** auf — einmal mit 2500 ms Timeout **VOR** `stream_output()`/`stream_virtual_output()`, einmal mit 2500 ms Timeout direkt nach Stream-Open, und einmal mit 1000 ms Timeout nach `wait_for_stream()`. `wait_for_kde_output()` wartet intern via `dispatch_until` bis der neu erstellte virtual output via `kde_output_device_registry_v2` angekündigt wird. Auf dem CachyOS-Pfad (kein matching wl_output → `stream_virtual_output`-Branch) blockierten diese drei Aufrufe die Stream-Etablierung um **bis zu 5000 ms** — länger als der SteamDeck Initial-Ping-Timeout. Resultat: `Initial Ping Timeout` auf dem Client, `wait_for_stream()` lief in seinen 5 s Timeout, der ganze KWin-Pfad brach ab und der Stream sah aus als wäre `zkde_screencast_unstable_v1` "nicht mehr gebunden" (war es technisch schon, kam nur nicht rechtzeitig zum Zug). Die zwei späteren `apply_*`-Calls liefen dann zwar noch, aber zu spät — der Client hatte schon disconnected.
+
+Maintainer hat `723537a` deshalb in `501431a` + `74c63cf` zurückgerollt. Die korrekte Stelle für `apply_output_management_settings()` ist **NACH** erfolgreichem `wait_for_stream()`, mit nur **einem** Aufruf, an der Stelle wo bisher `apply_refresh_rate()` (das fruchtlose `kscreen-doctor mode-set`) stand. Genau so ist es in `806a7ca` umgesetzt.
 
 #### Schritt-für-Schritt-Anleitung für nächste Session (Phase 4.5 / 60-Hz-Fix v2)
 
@@ -992,6 +991,9 @@ Vorteile: rock-solid, distroübergreifend, funktioniert ohne KDE-spezifische API
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+806a7ca — fix(capture): add KDE output management v2 path for client-requested refresh rate — 2026-05-14 (60-Hz fix v2; CachyOS-Test pending)
+2996b4e — build(cmake): generate KDE output management v2 wayland protocol bindings — 2026-05-14
+1248943 — docs(status): record d77a2be + 150dfd0 in commit chronology — 2026-05-14
 d77a2be — revert(vdisplay): roll back 29cd4b6 — kscreen-doctor add-virtual-output proven wirkungslos on CachyOS — 2026-05-14
 150dfd0 — docs(status): update STATUS.md for 60-Hz fix commit 29cd4b6 — 2026-05-14
 29cd4b6 — fix(vdisplay): pre-create KWin virtual output via kscreen-doctor for correct refresh rate — 2026-05-14 (NICHT WIRKSAM — KDE-Cache-Eintrag, kein wl_output)
@@ -1112,16 +1114,21 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 In Reihenfolge der Priorität.
 
-### A) 60-Hz-Fix v2 — `kde_output_management_v2::set_custom_modes` Client implementieren (höchste Prio)
+### A) 60-Hz-Fix v2 — CachyOS-Test (höchste Prio) ✅ implementiert, 🟡 Test offen
 
-Detail-Anleitung in §9.18. Kurz:
+Implementiert in `2996b4e` (CMake-Generation für die zwei KDE-Wayland-Protokolle) und `806a7ca` (pwgrab.cpp: `kde_output_management_v2` + `kde_output_device_registry_v2`-Binding, `add_custom_kde_mode()` + `apply_mode_only()`, defensiver Capability-Check, **ein** Aufruf-Punkt nach `wait_for_stream()` mit Fallback auf den bestehenden `kscreen-doctor`-Pfad). WSL2-Build grün (13/13).
 
-1. **Setup**: CMake-Generation für `kde-output-management-v2.xml` + `kde-output-device-v2.xml` aktivieren (cherry-pick aus `723537a`-`cmake/compile_definitions/linux.cmake`-Diff).
-2. **Code**: In `pwgrab.cpp` parallel zum bestehenden `zkde_screencast`-Pfad ein zweites Wayland-Binding-Set für `kde_output_management_v2` + `kde_output_device_registry_v2`. **Beide koexistieren — keiner ersetzt den anderen.**
-3. **Logik**: Nach `stream_virtual_output` Aufruf den neu erstellten Output via `kde_output_device_registry_v2` finden, `set_custom_modes` mit `(W, H, refresh_mhz, reduced_blanking=1)` + `apply()`, dann `set_mode(neue_mode_id)` + `apply()`.
-4. **Code-Vorlage**: `git show 723537a -- src/platform/linux/pwgrab.cpp` zeigt die volle (funktionierende) Architektur. **Nur den Output-Management-Pfad cherry-picken — NICHT die zkde_screencast-Änderungen.** Das war Codex' Bug.
-5. **Test auf CachyOS** mit erwarteten Log-Zeilen aus §9.18.
-6. **Falls Plasma 6.6.4 die MR !8766 noch nicht hat**: Fallback auf §9.19 EDID-Firmware-Injection.
+Nächste Schritte:
+1. **CachyOS-Test in KDE-Konsole innerhalb der Plasma-Sitzung** (`WAYLAND_DISPLAY` muss gesetzt sein). Erwartete Log-Zeilen siehe §9.18. SteamDeck-OLED-Client mit 90 Hz starten.
+2. Auf das Log achten:
+   - `KWin output management: bound kde_output_management_v2 version 21` (oder N) → Binding funktioniert.
+   - `KWin output management: bound kde_output_device_registry_v2 version 21` (oder N).
+   - `KWin output management: resolved output 'Sonnenschein-XXXX' ... caps=0x...` → Capability-Hex-Wert prüfen: `0x2000` (CustomModes-Bit) muss gesetzt sein.
+   - `KWin output management: adding custom mode 1280x800@90 to 'Sonnenschein-XXXX'`
+   - `KWin output management: activated mode 1280x800@90 on 'Sonnenschein-XXXX'`
+   - Im Stream: 90 Hz statt 60 Hz.
+3. **Falls die `caps=` Maske `0x2000` nicht enthält** (Plasma 6.6.4 hat MR !8766 doch nicht in 6.6, sondern erst in 6.7): das Log zeigt `output does not advertise custom mode support`, der Fallback springt automatisch ein, der Stream läuft wieder mit 60 Hz wie zuvor. In dem Fall: §9.19 EDID-Firmware-Injection als Boot-Setup dokumentieren, Code-Fallback **nicht** implementieren bevor der Maintainer entscheidet.
+4. **Falls der Test grün ist**: STATUS.md TL;DR auf "60-Hz-Bug GELÖST" aktualisieren, §6 Phase 2 entsprechend (von 🟡 auf ✅).
 
 ### B) Falls 60-Hz-Fix grün: weitere Stabilisierung
 
