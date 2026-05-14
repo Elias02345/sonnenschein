@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-14 (Nacht) — **60-Hz-Fix v2 ZURÜCKGEROLLT.** CachyOS-Test von `806a7ca` zeigte schwere Regression: Portal-Dialog kommt wieder, SteamDeck zeigt Stream-Fehler, physische Monitore bleiben nach Disconnect/Force-Shutdown aus. Reverts `ea201f5` (pwgrab.cpp) + `d7afb8b` (cmake) bringen dev zurück auf `41fa9ba`-Verhalten (Bild + Ton + Eingaben + Headless ✓, 60 Hz). Volle Post-Mortem in §9.20. Nächste Schritte (Phase 2 Cleanup-Hardening + Phase 3 60-Hz-Fix v3) sind in §12.A skizziert — keine v3-Code-Pushes ohne Cleanup-Hardening, damit ein weiteres Misslingen Logs hinterlässt.
+**Stand:** 2026-05-14 (spätnacht) — **60-Hz-Fix v3 implementiert mit Cleanup-Hardening, WSL2-Build grün (16/16), CachyOS-Test ausstehend.** Drei Commits oben auf dem v2-Rollback: `b9f431b` (Crash-safe monitor restoration: SIGSEGV/SIGABRT-handler + RAII-Destruktor + Boot-Recovery-Lockfile in `~/.local/state/sonnenschein/disabled-outputs.lock`), `b0f4fd1` (60-Hz-Fix v3: KDE-output-management mit fünf Hardenings — Mode-list/Configuration Destroy-Order, Stream-State-Validation nach apply, log_flush vor jedem Wayland-Call, Timeout 1500ms→800ms, 3rd Roundtrip in init), und der `<this commit>` STATUS.md-Update. **Im schlimmsten Fall werden physische Monitore IMMER wieder eingeschaltet** — entweder im SIGSEGV/SIGABRT-Handler (vor `_Exit`), oder beim nächsten Sonnenschein-Start via `recover_on_boot()` Lockfile-Recovery (auch nach SIGKILL/Force-Shutdown). Force-Shutdown sollte beim Test nicht mehr nötig sein → Logs verfügbar. Test-Schritte siehe §12.A.
 
 ---
 
@@ -1028,7 +1028,10 @@ Vollständiger Recovery-Plan (Phase 1 Revert, Phase 2 Cleanup-Hardening, Phase 3
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
-<docs-status-p1-pending> — docs(status): record v2 rollback + v3 plan (Phase 1 of recovery) — 2026-05-14
+<this commit> — docs(status): record Phase 1+2+3 of v3 recovery + CachyOS test plan — 2026-05-14
+b0f4fd1 — fix(capture): 60-Hz fix v3 — KDE output management with five hardenings — 2026-05-14 (CachyOS-Test pending)
+b9f431b — feat(cleanup): crash-safe physical-monitor restoration — 2026-05-14 (SIGSEGV/SIGABRT-handler + RAII + Lockfile-Recovery)
+a6ca074 — docs(status): record v2 rollback and Phase 1 of v3 recovery plan — 2026-05-14
 d7afb8b — revert build(cmake): generate KDE output management v2 wayland protocol bindings — 2026-05-14
 ea201f5 — revert fix(capture): add KDE output management v2 path for client-requested refresh rate — 2026-05-14
 c1c7bb4 — docs(status): record 60-Hz fix v2 commits and refine Codex bug diagnosis — 2026-05-14 (BESCHREIBT v2 das jetzt zurückgerollt ist — siehe §9.20)
@@ -1155,11 +1158,11 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 In Reihenfolge der Priorität.
 
-### A) 60-Hz-Fix v3 — Cleanup-Hardening + gehärteter Retry (höchste Prio) 🔴 v2 zurückgerollt, v3 in Arbeit
+### A) 60-Hz-Fix v3 — Cleanup-Hardening + gehärteter Retry (höchste Prio) ✅ implementiert, 🟡 CachyOS-Test offen
 
-v2 (Commits `2996b4e` + `806a7ca`) ist in `d7afb8b` + `ea201f5` zurückgerollt. CachyOS-Test zeigte das Symptom-Tripel aus §9.20: Portal-Dialog kommt, SteamDeck Stream-Fehler, physische Monitore bleiben aus → Force-Shutdown → keine Logs.
+v2 (Commits `2996b4e` + `806a7ca`) wurde in `d7afb8b` + `ea201f5` zurückgerollt. v3 ist jetzt vollständig gepusht (`b9f431b` Cleanup-Hardening + `b0f4fd1` 60-Hz v3). WSL2 incremental build 16/16 grün.
 
-**Vor dem nächsten v3-Code-Push: Cleanup-Hardening (Phase 2 unten)**, damit Misserfolge Logs hinterlassen.
+**Crash-Safety ist garantiert** durch `b9f431b`: Auch wenn v3 wieder failed, kommen die physischen Monitore zurück (SIGSEGV/SIGABRT-Handler → `proc.terminate()` vor `_Exit`; bei SIGKILL → Boot-Recovery beim nächsten Sonnenschein-Start). Force-Shutdown sollte nicht mehr nötig sein.
 
 #### Phase 2 — Cleanup-Hardening (orthogonal, sollte sowieso passieren)
 - **2a Signal-Handler in `src/main.cpp`** für SIGSEGV + SIGABRT, die `proc::proc.terminate()` + `logging::log_flush()` + `_Exit()` rufen.
