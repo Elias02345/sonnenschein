@@ -43,6 +43,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../recovery.h"
+
 namespace sonnenschein::vdisplay::backends {
   namespace {
 
@@ -87,6 +89,19 @@ namespace sonnenschein::vdisplay::backends {
 
     class KwinWaylandBackend : public IBackend {
     public:
+      // Sonnenschein: RAII safety-net. If we get destroyed without an
+      // explicit destroy_all() — e.g. during stack-unwinding from an
+      // exception or process-shutdown after a fatal error — make sure the
+      // physical monitors come back. destroy_all() is idempotent: if all
+      // virtual outputs were already torn down properly, this is a no-op.
+      ~KwinWaylandBackend() override {
+        try {
+          destroy_all();
+        } catch (...) {
+          // Best effort. Destructors must not throw.
+        }
+      }
+
       std::string name() const override {
         return "kwin_wayland";
       }
@@ -127,6 +142,9 @@ namespace sonnenschein::vdisplay::backends {
                     BOOST_LOG(info) << "Sonnenschein vdisplay (kwin): disabling physical output " << out_name;
                     (void)run_args({"kscreen-doctor", "output." + out_name + ".disable"}, "kscreen-doctor disable");
                     disabled_outputs.push_back(out_name);
+                    // Persist the disabled-output to the recovery lockfile so a
+                    // crash/SIGKILL can be healed on the next Sonnenschein start.
+                    recovery::track_disabled_output(out_name);
                   }
                 }
               }
@@ -205,6 +223,8 @@ namespace sonnenschein::vdisplay::backends {
         for (const auto& out : outputs_to_restore) {
           BOOST_LOG(info) << "Sonnenschein vdisplay (kwin): restoring physical output " << out;
           (void)run_args({"kscreen-doctor", "output." + out + ".enable"}, "kscreen-doctor enable");
+          // Clear the recovery lockfile entry for this output.
+          recovery::untrack_disabled_output(out);
         }
       }
 

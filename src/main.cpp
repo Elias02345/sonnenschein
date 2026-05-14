@@ -5,6 +5,7 @@
 // standard includes
 #include <codecvt>
 #include <csignal>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 
@@ -18,6 +19,9 @@
 #include "main.h"
 #include "nvhttp.h"
 #include "process.h"
+#ifdef __linux__
+#include "platform/linux/virtual_display/recovery.h"
+#endif
 #include "system_tray.h"
 #include "upnp.h"
 #include "uuid.h"
@@ -173,6 +177,15 @@ int main(int argc, char *argv[]) {
   // the version should be printed to the log before anything else
   BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VERSION << " commit: " << PROJECT_VERSION_COMMIT;
 
+#ifdef __linux__
+  // Sonnenschein: heal physical-monitor state if the previous session died
+  // abnormally (SIGKILL, OOM-killer, power loss). recover_on_boot() reads
+  // ~/.local/state/sonnenschein/disabled-outputs.lock and runs
+  // `kscreen-doctor output.X.enable` for every entry, then clears the file.
+  // No-op when the lockfile does not exist (last shutdown was clean).
+  sonnenschein::vdisplay::recovery::recover_on_boot();
+#endif
+
   // Log publisher metadata
   log_publisher_data();
 
@@ -326,6 +339,27 @@ int main(int argc, char *argv[]) {
 
     shutdown_event->raise(true);
     display_device_deinit_guard = nullptr;
+  });
+
+  // Sonnenschein: emergency cleanup handlers for abnormal exits — ensure
+  // physical monitors are re-enabled even when the process dies via crash.
+  // proc::proc.terminate() ultimately calls _vdisplay_backend->destroy_all()
+  // which runs `kscreen-doctor output.X.enable` for every disabled output
+  // (subprocess fork/exec, safe even if the heap is corrupt). _Exit() skips
+  // C++ destructors which is what we want here — the goal is just to release
+  // the monitors and persist the last log line, then bail.
+  on_signal(SIGSEGV, []() {
+    BOOST_LOG(fatal) << "SIGSEGV — emergency cleanup before _Exit"sv;
+    logging::log_flush();
+    try { proc::proc.terminate(); } catch (...) {}
+    std::_Exit(128 + SIGSEGV);
+  });
+
+  on_signal(SIGABRT, []() {
+    BOOST_LOG(fatal) << "SIGABRT — emergency cleanup before _Exit"sv;
+    logging::log_flush();
+    try { proc::proc.terminate(); } catch (...) {}
+    std::_Exit(128 + SIGABRT);
   });
 
 #ifdef _WIN32
