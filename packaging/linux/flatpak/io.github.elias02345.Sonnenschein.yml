@@ -5,11 +5,11 @@ runtime-version: "23.08"  # requires CUDA >= 12.2
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.node20
-command: sunshine
+command: sonnenschein
 separate-locales: false
 finish-args:
   - --device=all  # access all devices
-  - --env=PULSE_PROP_media.category=Manager  # allow sunshine to manage audio sinks
+  - --env=PULSE_PROP_media.category=Manager  # allow sonnenschein to manage audio sinks
   - --env=SUNSHINE_MIGRATE_CONFIG=1  # migrate config files to the new location
   - --filesystem=home  # need to save files in user's home directory
   - --share=ipc  # required for X11 shared memory extension
@@ -47,7 +47,7 @@ modules:
   # Caching is configured until here, not including CUDA, since it is too large for GitHub cache
   - "modules/cuda.json"
 
-  - name: sunshine
+  - name: sonnenschein
     builddir: true
     build-options:
       append-path: /usr/lib/sdk/node20/bin
@@ -55,8 +55,8 @@ modules:
         BUILD_VERSION: "@BUILD_VERSION@"
         BRANCH: "@GITHUB_BRANCH@"
         COMMIT: "@GITHUB_COMMIT@"
-        XDG_CACHE_HOME: /run/build/sunshine/flatpak-node/cache
-        npm_config_cache: /run/build/sunshine/flatpak-node/npm-cache
+        XDG_CACHE_HOME: /run/build/sonnenschein/flatpak-node/cache
+        npm_config_cache: /run/build/sonnenschein/flatpak-node/npm-cache
         npm_config_nodedir: /usr/lib/sdk/node20
         npm_config_offline: 'true'
         NPM_CONFIG_LOGLEVEL: info
@@ -67,20 +67,20 @@ modules:
       - -DBUILD_WERROR=ON
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_CUDA_COMPILER=/app/cuda/bin/nvcc
-      - -DSUNSHINE_ASSETS_DIR=share/sunshine
+      - -DSUNSHINE_ASSETS_DIR=share/sonnenschein
       - -DSUNSHINE_BUILD_FLATPAK=ON
-      - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine
+      - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sonnenschein
       - -DSUNSHINE_ENABLE_WAYLAND=ON
       - -DSUNSHINE_ENABLE_X11=ON
       - -DSUNSHINE_ENABLE_DRM=ON
       - -DSUNSHINE_ENABLE_CUDA=ON
-      - -DSUNSHINE_PUBLISHER_NAME='LizardByte'
-      - -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev'
-      - -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
+      - -DSUNSHINE_PUBLISHER_NAME='Elias Kanakidis'
+      - -DSUNSHINE_PUBLISHER_WEBSITE='https://github.com/Elias02345/sonnenschein'
+      - -DSUNSHINE_PUBLISHER_ISSUE_URL='https://github.com/Elias02345/sonnenschein/issues'
     no-make-install: false
     post-install:
       - install -D $FLATPAK_BUILDER_BUILDDIR/packaging/linux/flatpak/scripts/* /app/bin
-      - install -D $FLATPAK_BUILDER_BUILDDIR/packaging/linux/flatpak/apps.json /app/share/sunshine/apps.json
+      - install -D $FLATPAK_BUILDER_BUILDDIR/packaging/linux/flatpak/apps.json /app/share/sonnenschein/apps.json
     run-tests: true
     test-rule: ""  # empty to disable
     test-commands:

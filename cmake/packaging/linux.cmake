@@ -12,24 +12,24 @@ file(CREATE_LINK "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/shaders"
         "${CMAKE_BINARY_DIR}/assets/shaders" COPY_ON_ERROR SYMBOLIC)
 
 if(${SUNSHINE_BUILD_APPIMAGE} OR ${SUNSHINE_BUILD_FLATPAK})
-    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.rules"
+    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sonnenschein.rules"
             DESTINATION "${SUNSHINE_ASSETS_DIR}/udev/rules.d")
-    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.conf"
+    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sonnenschein.conf"
             DESTINATION "${SUNSHINE_ASSETS_DIR}/modules-load.d")
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service"
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sonnenschein.service"
             DESTINATION "${SUNSHINE_ASSETS_DIR}/systemd/user")
 else()
     find_package(Systemd)
     find_package(Udev)
 
     if(UDEV_FOUND)
-        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.rules"
+        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sonnenschein.rules"
                 DESTINATION "${UDEV_RULES_INSTALL_DIR}")
     endif()
     if(SYSTEMD_FOUND)
-        install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service"
+        install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sonnenschein.service"
                 DESTINATION "${SYSTEMD_USER_UNIT_INSTALL_DIR}")
-        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.conf"
+        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sonnenschein.conf"
                 DESTINATION "${SYSTEMD_MODULES_LOAD_DIR}")
     endif()
 endif()
@@ -98,10 +98,10 @@ set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
 
 # application icon
 if(NOT ${SUNSHINE_BUILD_FLATPAK})
-    install(FILES "${CMAKE_SOURCE_DIR}/apollo.svg"
+    install(FILES "${CMAKE_SOURCE_DIR}/sonnenschein.svg"
             DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps")
 else()
-    install(FILES "${CMAKE_SOURCE_DIR}/apollo.svg"
+    install(FILES "${CMAKE_SOURCE_DIR}/sonnenschein.svg"
             DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps"
             RENAME "${PROJECT_FQDN}.svg")
 endif()
@@ -109,7 +109,7 @@ endif()
 # tray icon
 if(${SUNSHINE_TRAY} STREQUAL 1)
     if(NOT ${SUNSHINE_BUILD_FLATPAK})
-        install(FILES "${CMAKE_SOURCE_DIR}/apollo.svg"
+        install(FILES "${CMAKE_SOURCE_DIR}/sonnenschein.svg"
                 DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status"
                 RENAME "apollo-tray.svg")
         install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/public/images/apollo-playing.svg"
@@ -120,7 +120,7 @@ if(${SUNSHINE_TRAY} STREQUAL 1)
                 DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status")
     else()
         # flatpak icons must be prefixed with the app id or they will not be included in the flatpak
-        install(FILES "${CMAKE_SOURCE_DIR}/apollo.svg"
+        install(FILES "${CMAKE_SOURCE_DIR}/sonnenschein.svg"
                 DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status"
                 RENAME "${PROJECT_FQDN}-tray.svg")
         install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/public/images/apollo-playing.svg"

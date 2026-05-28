@@ -451,7 +451,7 @@ namespace nvhttp {
       launch_session->fps = 60000; // 60fps * 1000 denominator
     }
 
-    launch_session->device_name = named_cert_p->name.empty() ? "ApolloDisplay"s : named_cert_p->name;
+    launch_session->device_name = named_cert_p->name.empty() ? "SonnenscheinDisplay"s : named_cert_p->name;
     launch_session->unique_id = named_cert_p->uuid;
     launch_session->perm = named_cert_p->perm;
     launch_session->enable_sops = util::from_view(get_arg(args, "sops", "0"));

@@ -13,3 +13,11 @@ if(NOT CMAKE_INSTALL_PREFIX)
 endif()
 
 install(TARGETS sunshine RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
+# Backwards-compatibility symlink: the binary ships as `sonnenschein`, but older
+# scripts, services and muscle memory still invoke `sunshine`.
+install(CODE "
+    set(_bindir \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\")
+    execute_process(COMMAND \"${CMAKE_COMMAND}\" -E create_symlink
+            sonnenschein \"\${_bindir}/sunshine\")
+")

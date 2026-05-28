@@ -1,7 +1,7 @@
 [Desktop Entry]
 Categories=RemoteAccess;Network;
 Comment=@PROJECT_DESCRIPTION@
-Exec=sunshine.sh
+Exec=sonnenschein.sh
 Icon=@SUNSHINE_DESKTOP_ICON@
 Keywords=gamestream;stream;moonlight;remote play;
 Name=@PROJECT_NAME@

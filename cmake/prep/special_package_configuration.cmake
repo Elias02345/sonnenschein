@@ -10,7 +10,7 @@ if(APPLE)
     endif()
 elseif(UNIX)
     # configure the .desktop file
-    set(SUNSHINE_DESKTOP_ICON "apollo.svg")
+    set(SUNSHINE_DESKTOP_ICON "sonnenschein.svg")
     if(${SUNSHINE_BUILD_APPIMAGE})
         configure_file(packaging/linux/AppImage/${PROJECT_FQDN}.desktop ${PROJECT_FQDN}.desktop @ONLY)
     elseif(${SUNSHINE_BUILD_FLATPAK})
@@ -25,12 +25,12 @@ elseif(UNIX)
     configure_file(packaging/linux/${PROJECT_FQDN}.metainfo.xml ${PROJECT_FQDN}.metainfo.xml @ONLY)
 
     # configure service
-    configure_file(packaging/linux/sunshine.service.in sunshine.service @ONLY)
+    configure_file(packaging/linux/sonnenschein.service.in sonnenschein.service @ONLY)
 
     # configure the arch linux pkgbuild
     if(${SUNSHINE_CONFIGURE_PKGBUILD})
         configure_file(packaging/linux/Arch/PKGBUILD PKGBUILD @ONLY)
-        configure_file(packaging/linux/Arch/sunshine.install sunshine.install @ONLY)
+        configure_file(packaging/linux/Arch/sonnenschein.install sonnenschein.install @ONLY)
     endif()
 
     # configure the flatpak manifest

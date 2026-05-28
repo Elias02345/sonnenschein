@@ -27,7 +27,10 @@ endif()
 
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
+# The CMake target keeps its historical name `sunshine` (referenced across many
+# cmake modules), but Sonnenschein ships the binary as `sonnenschein`.
 set_target_properties(sunshine PROPERTIES CXX_STANDARD 23
+        OUTPUT_NAME sonnenschein
         VERSION ${PROJECT_VERSION}
         SOVERSION ${PROJECT_VERSION_MAJOR})
 
