@@ -1,0 +1,44 @@
+# Debian 12+ / Ubuntu 22.04+ build + runtime dependencies.
+# Comments and blank lines are ignored.
+
+# Build toolchain
+build-essential
+cmake
+ninja-build
+git
+nodejs
+npm
+pkg-config
+
+# Core dev libraries
+libcap-dev
+libcurl4-openssl-dev
+libdrm-dev
+libevdev-dev
+libgbm-dev
+libminiupnpc-dev
+libnotify-dev
+libnuma-dev
+libopus-dev
+libpulse-dev
+libssl-dev
+libx11-dev
+libxcb1-dev
+libxcb-shm0-dev
+libxcb-xfixes0-dev
+libxfixes-dev
+libxrandr-dev
+libxtst-dev
+libva-dev
+libvulkan-dev
+udev
+
+# Wayland / capture
+libwayland-dev
+wayland-protocols
+libdisplay-info-dev
+libpipewire-0.3-dev
+libxkbcommon-dev
+
+# Tray
+libappindicator3-dev

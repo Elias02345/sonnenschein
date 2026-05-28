@@ -1,0 +1,42 @@
+# Arch / CachyOS / EndeavourOS / Manjaro build + runtime dependencies.
+# Comments and blank lines are ignored.
+
+# Build toolchain
+cmake
+ninja
+gcc
+git
+nodejs
+npm
+pkgconf
+
+# Core runtime / dev
+avahi
+curl
+libcap
+libdrm
+libevdev
+libnotify
+libpulse
+libva
+libx11
+libxcb
+libxfixes
+libxrandr
+libxtst
+miniupnpc
+numactl
+openssl
+opus
+udev
+which
+
+# Wayland / capture
+wayland
+wayland-protocols
+libdisplay-info
+pipewire
+libxkbcommon
+
+# Tray
+libayatana-appindicator

@@ -1,0 +1,43 @@
+# openSUSE Tumbleweed build + runtime dependencies.
+# Comments and blank lines are ignored.
+
+# Build toolchain
+cmake
+ninja
+gcc13
+gcc13-c++
+git
+nodejs
+npm
+pkg-config
+
+# Core dev libraries
+libcap-devel
+libcurl-devel
+libdrm-devel
+libevdev-devel
+libgbm-devel
+miniupnpc-devel
+libnotify-tools
+libnuma-devel
+libopus-devel
+libpulse-devel
+libopenssl-devel
+libX11-devel
+libxcb-devel
+libXfixes-devel
+libXrandr-devel
+libXtst-devel
+libva-devel
+vulkan-devel
+udev
+
+# Wayland / capture
+wayland-devel
+wayland-protocols-devel
+libdisplay-info-devel
+pipewire-devel
+libxkbcommon-devel
+
+# Tray
+libayatana-appindicator3-devel

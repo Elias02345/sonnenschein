@@ -1,0 +1,44 @@
+# Fedora 40+ / Nobara build + runtime dependencies.
+# RPMFusion is required separately for ffmpeg-full.
+# Comments and blank lines are ignored.
+
+# Build toolchain
+cmake
+ninja-build
+gcc
+gcc-c++
+git
+nodejs
+npm
+pkgconf-pkg-config
+
+# Core dev libraries
+libcap-devel
+libcurl-devel
+libdrm-devel
+libevdev-devel
+mesa-libgbm-devel
+miniupnpc-devel
+libnotify-devel
+numactl-devel
+opus-devel
+pulseaudio-libs-devel
+openssl-devel
+libX11-devel
+libxcb-devel
+libXfixes-devel
+libXrandr-devel
+libXtst-devel
+libva-devel
+vulkan-loader-devel
+systemd-udev
+
+# Wayland / capture
+wayland-devel
+wayland-protocols-devel
+libdisplay-info-devel
+pipewire-devel
+libxkbcommon-devel
+
+# Tray
+libappindicator-gtk3-devel
