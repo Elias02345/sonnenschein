@@ -20,6 +20,9 @@
   "type": "module",
   "dependencies": {
     "@lizardbyte/shared-web": "2025.922.181114",
+    "@primevue/themes": "4.2.5",
+    "primeicons": "7.0.0",
+    "primevue": "4.2.5",
     "vue": "3.5.22",
     "vue-i18n": "11.1.12"
   },

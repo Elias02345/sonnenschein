@@ -56,7 +56,7 @@ export default defineConfig({
         // The Codecov vite plugin should be after all other plugins
         codecovVitePlugin({
             enableBundleAnalysis: process.env.CODECOV_TOKEN !== undefined,
-            bundleName: "sunshine",
+            bundleName: "sonnenschein",
             uploadToken: process.env.CODECOV_TOKEN,
         }),
     ],
@@ -68,6 +68,7 @@ export default defineConfig({
             input: {
                 apps: resolve(assetsSrcPath, 'apps.html'),
                 config: resolve(assetsSrcPath, 'config.html'),
+                diagnostics: resolve(assetsSrcPath, 'diagnostics.html'),
                 index: resolve(assetsSrcPath, 'index.html'),
                 password: resolve(assetsSrcPath, 'password.html'),
                 pin: resolve(assetsSrcPath, 'pin.html'),

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sonnenschein — Diagnostics</title>
+  <link rel="icon" type="image/x-icon" href="./images/apollo.ico">
+</head>
+
+<body id="app" v-cloak>
+  <Diagnostics></Diagnostics>
+</body>
+
+<script type="module">
+  import { createApp } from 'vue'
+  import 'primeicons/primeicons.css'
+  import { initPrimeApp } from './primevue_init'
+  import Diagnostics from './Diagnostics.vue'
+
+  const app = createApp({
+    components: { Diagnostics }
+  })
+
+  initPrimeApp(app)
+</script>
+
+</html>
