@@ -341,13 +341,16 @@ int main(int argc, char *argv[]) {
     display_device_deinit_guard = nullptr;
   });
 
-  // Sonnenschein: emergency cleanup handlers for abnormal exits — ensure
-  // physical monitors are re-enabled even when the process dies via crash.
-  // proc::proc.terminate() ultimately calls _vdisplay_backend->destroy_all()
-  // which runs `kscreen-doctor output.X.enable` for every disabled output
-  // (subprocess fork/exec, safe even if the heap is corrupt). _Exit() skips
-  // C++ destructors which is what we want here — the goal is just to release
-  // the monitors and persist the last log line, then bail.
+  // Sonnenschein: emergency cleanup handlers for abnormal exits — try to
+  // re-enable physical monitors before dying. proc::proc.terminate() tears the
+  // virtual display down via the active backend's destroy() (subprocess
+  // fork/exec of `kscreen-doctor output.X.enable`). NOTE: this path takes a
+  // mutex and allocates, so it is NOT strictly async-signal-safe; if the crash
+  // occurred while that mutex was held it can hang. recovery::recover_on_boot()
+  // is the authoritative safety net on next launch. _Exit() then skips C++
+  // destructors, releasing monitors and persisting the last log line.
+  // TODO(cachyos-test): verify this does not hang on a real SIGSEGV; if it can,
+  // reduce these handlers to a bare _Exit and rely on boot recovery.
   on_signal(SIGSEGV, []() {
     BOOST_LOG(fatal) << "SIGSEGV — emergency cleanup before _Exit"sv;
     logging::log_flush();

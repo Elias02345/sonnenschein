@@ -47,6 +47,9 @@ namespace sonnenschein::vdisplay {
     if (!cfg.preferred_backend.empty() && cfg.preferred_backend != "auto") {
       for (auto fn : kFactories) {
         auto candidate = fn();
+        if (!candidate) {
+          continue;
+        }
         if (candidate->name() == cfg.preferred_backend) {
           if (!candidate->available(env)) {
             BOOST_LOG(warning)
@@ -73,6 +76,9 @@ namespace sonnenschein::vdisplay {
     // Auto path — first available wins.
     for (auto fn : kFactories) {
       auto candidate = fn();
+      if (!candidate) {
+        continue;
+      }
       if (candidate->available(env)) {
         BOOST_LOG(info)
             << "Sonnenschein: auto-selected virtual-display backend '"
