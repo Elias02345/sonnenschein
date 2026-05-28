@@ -5,7 +5,9 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-14 (spätnacht) — **60-Hz-Fix v3 implementiert mit Cleanup-Hardening, WSL2-Build grün (16/16), CachyOS-Test ausstehend.** Drei Commits oben auf dem v2-Rollback: `b9f431b` (Crash-safe monitor restoration: SIGSEGV/SIGABRT-handler + RAII-Destruktor + Boot-Recovery-Lockfile in `~/.local/state/sonnenschein/disabled-outputs.lock`), `b0f4fd1` (60-Hz-Fix v3: KDE-output-management mit fünf Hardenings — Mode-list/Configuration Destroy-Order, Stream-State-Validation nach apply, log_flush vor jedem Wayland-Call, Timeout 1500ms→800ms, 3rd Roundtrip in init), und der `<this commit>` STATUS.md-Update. **Im schlimmsten Fall werden physische Monitore IMMER wieder eingeschaltet** — entweder im SIGSEGV/SIGABRT-Handler (vor `_Exit`), oder beim nächsten Sonnenschein-Start via `recover_on_boot()` Lockfile-Recovery (auch nach SIGKILL/Force-Shutdown). Force-Shutdown sollte beim Test nicht mehr nötig sein → Logs verfügbar. Test-Schritte siehe §12.A.
+**Stand:** 2026-05-28 — **Overhaul-Session: Phase 1.6 Rebrand komplett, Phase-3-Installer-Gerüst + Phase-5-PrimeVue-Fundament gebaut, Code-Review der Laufzeit-Fixes erledigt, erste Vorab-Version nach `main` gepusht.** Siehe „Session 2026-05-28" direkt unter dem TL;DR. Die 60-Hz/HDR/Cursor-Laufzeit-Fixes bleiben unverändert und weiterhin **CachyOS-Test ausstehend** (kein GPU/Compositor in der Cloud-Umgebung verifizierbar).
+
+**Vorherige Stand-Zeile (2026-05-14 spätnacht):** **60-Hz-Fix v3 implementiert mit Cleanup-Hardening, WSL2-Build grün (16/16), CachyOS-Test ausstehend.** Drei Commits oben auf dem v2-Rollback: `b9f431b` (Crash-safe monitor restoration: SIGSEGV/SIGABRT-handler + RAII-Destruktor + Boot-Recovery-Lockfile in `~/.local/state/sonnenschein/disabled-outputs.lock`), `b0f4fd1` (60-Hz-Fix v3: KDE-output-management mit fünf Hardenings — Mode-list/Configuration Destroy-Order, Stream-State-Validation nach apply, log_flush vor jedem Wayland-Call, Timeout 1500ms→800ms, 3rd Roundtrip in init), und der `<this commit>` STATUS.md-Update. **Im schlimmsten Fall werden physische Monitore IMMER wieder eingeschaltet** — entweder im SIGSEGV/SIGABRT-Handler (vor `_Exit`), oder beim nächsten Sonnenschein-Start via `recover_on_boot()` Lockfile-Recovery (auch nach SIGKILL/Force-Shutdown). Force-Shutdown sollte beim Test nicht mehr nötig sein → Logs verfügbar. Test-Schritte siehe §12.A.
 
 ---
 
@@ -56,6 +58,46 @@ Codex hat das Pattern abgelehnt (vermutlich weil es `e453afa`/`d84072e` widerspr
 ### Hauptanwendungsfall (Maintainer)
 
 Physische Monitore am CachyOS-PC. Beim Streaming → alle physischen Outputs aus → Virtual Display als einziger aktiver Output → PipeWire/KWin captured ihn → Moonlight zeigt das Bild auf dem Client (z.B. SteamDeck oder TV via Moonlight für Android). Beim Disconnect → physische Outputs wieder an.
+
+---
+
+## Session 2026-05-28 — Overhaul + erste Vorab-Version auf `main`
+
+> Ausgeführt in einer **Headless-Cloud-Umgebung ohne GPU/Wayland/Compositor/Moonlight-Client**.
+> Alles Build-/Lint-/Config-/Rebrand-Verifizierbare ist hier geprüft; alle
+> **Laufzeit-Fixes (60 Hz, HDR, Cursor, Stream)** bleiben **CachyOS-Test offen**.
+
+### Was erledigt + verifiziert wurde
+
+**Phase 1.6 — Rebrand Apollo/Sunshine → Sonnenschein ✅**
+- Binary heißt jetzt `sonnenschein` (`OUTPUT_NAME`), mit **`sunshine`-Kompat-Symlink** beim Install (`cmake/packaging/unix.cmake`). CMake-Target-Name bleibt intern `sunshine` (quer durch viele Module referenziert) — bewusst, minimiert Bruch.
+- FQDN `io.github.elias02345.Sonnenschein`. Alle Packaging-Artefakte umbenannt: `.desktop`/`.terminal.desktop`/`.metainfo.xml` (linux, flatpak, AppImage), `sonnenschein.service.in`, `60-sonnenschein.{rules,conf}`, Arch `PKGBUILD` + `sonnenschein.install`, Logos `sonnenschein.{svg,png,ico,icns}`.
+- Alle Build-Skript-/Test-Referenzen auf die umbenannten Dateien gefixt (`tests/CMakeLists.txt`, `tests/integration/test_external_commands.cpp`, `scripts/linux_build.sh`, `special_package_configuration.cmake`).
+- Flatpak-Helfer-Skripte (`additional-install.sh`, `remove-additional-install.sh`, `sonnenschein.sh`), `postinst` setcap-Pfad, Publisher-Strings auf Sonnenschein/Elias umgestellt; `SUNSHINE_ASSETS_DIR` flatpak/arch → `share/sonnenschein`.
+- C++ user-facing Strings: mDNS-Instance-Fallback (`network.cpp`), Default-Device-Name (`nvhttp.cpp` → `SonnenscheinDisplay`), Tray-Labels (`system_tray.cpp`). **Alle 18 WebUI-Locale-Dateien** (`en.json` … `zh.json`) per Sammel-Replace „Apollo" → „Sonnenschein" (JSON validiert, Locale-Keys unverändert).
+- **Bewusst NICHT geändert** (Bruchrisiko vs. Nutzen): On-Disk-Pfade `~/.config/sunshine`, `sunshine.conf`, `sunshine.log`, `sunshine_state.json` (Maintainer hat funktionierendes Pairing); interne `SUNSHINE_*` CMake-Vars und C++-Namespaces; Windows-Service-Namen (`ApolloService`, `SERVICE_NAME`); Web-Image-Dateinamen (`apollo-*.svg`, `logo-apollo-45.png`, `apollo.css`, `apollo_version.js`) + zugehörige `confighttp.cpp`-Route — Platzhalter bis neues Logo (TBD).
+- **Verifiziert**: `npm run build` grün; CMake-Configure erreicht `PROJECT_NAME: Sonnenschein` und parst alle `configure_file`-Sektionen; Grep-Audit zeigt keine user-facing „dev.lizardbyte.app.Sunshine"/`60-sunshine`-Referenzen mehr außerhalb Attribution/third-party.
+
+**Phase 3 — Installer-Gerüst ✅ (Gerüst; reale Distro-Runs = Maintainer-Test)**
+- `installer/` neu: `install.sh` (curl|bash-Bootstrap via git-clone + re-exec, Distro-/GPU-/Compositor-Detect, From-Source-Build, Service-Install), Libs `lib/{common,distro,gpu,compositor,packages,service,permissions,ui}.sh`, Paketlisten `packages/{arch,debian,fedora,opensuse}.list`, plus `update.sh`/`uninstall.sh`/`post-install.sh`.
+- Default **systemd `--user`-Service** (DBus/WAYLAND_DISPLAY, §9.7). `set -euo pipefail` + ERR-Trap + Logfile, idempotent.
+- **Verifiziert**: `shellcheck -x -S warning` über alle Skripte sauber (exit 0); `bash -n` ok; Detection-/Paketlisten-Logik per Smoke-Test geprüft.
+
+**Phase 5 — WebUI PrimeVue-4-Fundament ✅ (Fundament; Browser-Test = Maintainer)**
+- PrimeVue 4 + `@primevue/themes` (Aura-Preset, amber-gebrandet) + `primeicons` zu `package.json`. Neuer Bootstrap `primevue_init.js` (Dark-Default + System-Folger) **isoliert** von den Bestands-Bootstrap-Seiten → schrittweise Migration ohne Regression.
+- Repräsentative `Diagnostics.vue` (Platform/Compositor/GPU/Version-Karten) als eigener Vite-Entry `diagnostics.html`. Bestehende Seiten unangetastet.
+- **Verifiziert**: `npm run build` grün inkl. neuer Diagnostics-Bundle.
+
+**Code-Review der Laufzeit-Fixes ✅ (Review; Fixes selbst CachyOS-Test offen)**
+- Punch-List siehe **§9.21** (neu). Zwei triviale Härtungen eingebaut (Null-Guard in `factory.cpp`, korrigierter Crash-Handler-Kommentar in `main.cpp`). Verhaltensändernde/HW-abhängige Funde sind dort als „CachyOS-Test/Maintainer-Entscheidung" markiert — **kein** Patch am Capture-Pfad (Lehre aus §9.20 Codex-Rollback).
+
+### Push
+- Branch `claude/app-overhaul-rebranding-swIMz` (auf `origin/dev` basiert, thematische Commits) → **`main`** (erste Vorab-Version, vom Maintainer explizit autorisiert) → `dev` synchron.
+
+### Was weiterhin offen ist (Maintainer-Test auf echter Hardware)
+- 60-Hz-Fix v3, HDR-Aktivierung, Cursor — realer Stream auf CachyOS Plasma 6.6.4 + RTX 3070 / SteamDeck.
+- Installer-Runs auf echten Distros (Arch/CachyOS, Fedora, Ubuntu, openSUSE).
+- WebUI-Bedienung im Browser (Bestands-Bootstrap-Seiten + neue PrimeVue-Diagnostics).
 
 ---
 
@@ -377,9 +419,11 @@ Apollo's `process.cpp` hatte einen `#ifdef _WIN32`-Block für Virtual Display (S
 
 **Konsequenz**: Für den Virtual-Display-Capture-Use-Case muss ein **PipeWire-Capture-Backend** implementiert werden (Phase 4). Das ist der einzige Weg auf KDE Wayland.
 
-### Phase 3 — Installer & Service ⏸
+### Phase 3 — Installer & Service 🟡 (Gerüst gebaut 2026-05-28, Distro-Runs offen)
 
 **Ziel**: Ein Bash-Skript, distroübergreifend, robust, klare Fehlermeldungen. Auf vier frischen VMs (Arch, Ubuntu, Fedora, openSUSE) macht `curl ... | bash` jeweils eine funktionierende Sonnenschein-Instanz.
+
+**Stand 2026-05-28**: `installer/`-Gerüst steht (siehe Session 2026-05-28 oben) — shellcheck-sauber, Detection/Paketlisten smoke-getestet. **Reale Distro-Runs auf echten VMs sind Maintainer-Test.**
 
 **Geplante Struktur** (aus Original-Plan):
 ```
@@ -431,7 +475,7 @@ installer/
 - Driver-Versionsprüfung im Installer + Warnung bei NVIDIA <580.
 - AV1-Preference-Schalter in WebUI.
 
-### Phase 5 — WebUI v1 (PrimeVue 4) ⏸
+### Phase 5 — WebUI v1 (PrimeVue 4) 🟡 (Fundament gebaut 2026-05-28, Migration + Browser-Test offen)
 
 **Ziel**: Modernes, gamer-taugliches Frontend. Ein Nutzer ohne Vorwissen kann nach Installer-Run die WebUI öffnen, in <5 min ein erstes Pairing durchführen, ein Spiel streamen — ohne Terminal anzufassen.
 
@@ -688,7 +732,7 @@ apt-get install -y nodejs
 
 **Symptom**: Logs sagen "Apollo", Binary heißt `sunshine`, nicht `sonnenschein`. Verwirrend.
 
-**Status**: Phase 1.6 (CMake-Rebrand) wurde bewusst aufgeschoben bis nach Phase 2. Berührt viele Pfade, Configs, Service-Files — Risiko, den Build zu brechen. Wird nach Phase-2-Done und vor Phase 3 gemacht.
+**Status**: ✅ **ERLEDIGT (Session 2026-05-28)**. Voller user-facing Rebrand inkl. `sonnenschein`-Binary + `sunshine`-Kompat-Symlink — Details siehe „Session 2026-05-28" unter dem TL;DR. On-Disk-Pfade (`~/.config/sunshine`, Logs) bewusst unverändert für Backward-Compat.
 
 ### 9.10 Binary braucht `cap_sys_admin` für KMS-Capture
 
@@ -1020,6 +1064,24 @@ Vorteile: rock-solid, distroübergreifend, funktioniert ohne KDE-spezifische API
 #### Plan-Datei
 
 Vollständiger Recovery-Plan (Phase 1 Revert, Phase 2 Cleanup-Hardening, Phase 3 v3-Fix, Phase 4 Test-Sequenz, Verification): `~/.claude/plans/jetzt-haben-wir-ein-nested-candle.md`.
+
+---
+
+### 9.21 Code-Review der Laufzeit-Fixes (Session 2026-05-28) — Punch-List
+
+Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recovery, Backend-Lifecycle). **Keine** Hardware verfügbar → reine Code-Analyse. Zwei triviale Härtungen wurden eingebaut, der Rest ist als Test/Entscheidung markiert.
+
+**(a) Eingebaut (eindeutig korrekt, nicht am Capture-Pfad):**
+- ✅ **Null-Guard in `select_backend`** (`virtual_display/factory.cpp`): Manual-Override- und Auto-Pfad prüfen jetzt `if (!candidate) continue;` bevor `->name()`/`->available()` dereferenziert wird. Latent (Factories liefern aktuell immer non-null), aber sauber.
+- ✅ **Crash-Handler-Kommentar korrigiert** (`main.cpp:344`): Kommentar behauptete fälschlich `destroy_all()` + „safe even if heap is corrupt". Tatsächlich läuft `terminate()` → Backend-`destroy()` (Mutex + fork/exec + alloc) → **nicht** async-signal-safe. Kommentar stellt das jetzt richtig und nennt `recover_on_boot()` als verbindliches Sicherheitsnetz.
+
+**(b) Offen — CachyOS-Test / Maintainer-Entscheidung (NICHT geändert):**
+- 🔴 **HIGH — SIGSEGV/SIGABRT-Handler nicht async-signal-safe** (`main.cpp:351-363`): Der Forwarder ruft `std::map::at` + `std::function` aus dem Signal-Kontext; die Lambdas rufen `proc::proc.terminate()` → `kwin_wayland::destroy()` (nimmt `std::mutex`, fork/`fdopen`/`malloc`/`waitpid`) + `recovery::untrack_disabled_output()` (Mutex + `ofstream`/`rename`). **Wenn der Crash auftrat, während dieser Mutex gehalten wurde → Deadlock im Handler → Prozess hängt statt zu sterben → Monitore bleiben aus UND Boot-Recovery triggert nie.** Empfehlung des Reviews: SIGSEGV/SIGABRT auf bloßes `_Exit(128+sig)` (+ ggf. `write(2)` fixer String) reduzieren und sich voll auf `recover_on_boot()` verlassen. **Verhaltensänderung am bewusst gebauten Crash-Recovery (`b9f431b`) → Maintainer-Entscheidung + CachyOS-Verifikation, ob der Handler real hängen kann.** `TODO(cachyos-test)` ist im Code hinterlegt.
+- 🟡 **MED (verify) — Mid-Stream-Reconfig `failed`-Race** (`pwgrab.cpp` ~308-339): Nach erfolgreichem `wait_for_stream()` kann ein `kscreen`/`apply_output_management`-Mode-Switch KWin den Stream schließen lassen (`on_stream_closed` → `failed=true`); der Guard bei ~334 fällt dann auf Portal zurück. Korrekt **nur wenn** das `closed`-Event vom `wl_display_roundtrip` in `apply_kde_configuration` (~779) dispatcht wird. Bei verzögertem Close wird `failed` stale gelesen → Weiterarbeit mit totem `node_id`. Auf RTX-3070-Target prüfen; ggf. ein `wl_display_dispatch_pending` vor dem Check.
+- 🟡 **MED (verify) — `add_custom_kde_mode` 800ms/1500ms-Budgets** (`pwgrab.cpp` ~818/874): Apply mit 800ms, dann bis 1500ms auf Mode-Erscheinen warten. Auf busy Compositor kann „applied" vor dem Mode-Event zurückkommen → stiller Fallback auf kscreen-doctor. Budgets auf Target verifizieren.
+- 🟢 **LOW — `kde_modes`-Map wird bei Output/Mode-Removal nicht gepruned** (`pwgrab.cpp` ~1166/1236): `on_kde_*_removed` setzt nur `removed=true`, erased aber nicht aus `kde_modes`. Innerhalb einer kurzen Capture-Session benign (Destruktor räumt auf); bei Hot-Remove eines virtuellen Outputs mid-session bleibt ein dangling Key. Fix wäre einzeiliges `erase` — **bewusst nicht gepatcht** (Capture-Pfad, §9.20-Lehre); dokumentiert für späteres gezieltes Fix.
+
+**Bestätigt unkritisch:** `recovery.cpp` selbst ist sauber (atomar temp+rename, mutex-guarded, idempotent, Lockfile auch bei Teil-Enable geleert) und wird **nicht** aus einem Signal-Handler gerufen. `subprocess.cpp` child-side `strerror`/`std::string` nach fork ist technisch nicht async-signal-safe, aber nur im Child vor `_exit` → low risk, belassen.
 
 ---
 

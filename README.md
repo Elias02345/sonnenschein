@@ -116,12 +116,13 @@ Der Installer fragt dich durch ein Text-UI nach Distro-Bestätigung, GPU-Wahl, S
 
 | Phase | Status | Beschreibung |
 |---|---|---|
-| 0. Vorbereitung | aktiv | Repo, Branding, Lizenz, CI-Skelett |
-| 1. Linux-Build | offen | Apollo-Codebasis baut auf Linux |
-| 2. Virtual Display | offen | Multi-Backend-Abstraktion |
-| 3. Installer | offen | Distro-Detection, systemd, Uninstall |
+| 0. Vorbereitung | ✅ fertig | Repo, Branding, Lizenz, CI-Skelett |
+| 1. Linux-Build | ✅ fertig | Apollo-Codebasis baut auf Linux (270/270 Tests) |
+| 1.6 Rebrand | ✅ fertig | Apollo/Sunshine → Sonnenschein (Binary + Kompat-Symlink) |
+| 2. Virtual Display | 🟡 in Arbeit | Multi-Backend-Abstraktion (KWin); 60-Hz/HDR CachyOS-Test offen |
+| 3. Installer | 🟡 Gerüst | Distro-Detection, systemd, Uninstall (Distro-Runs offen) |
 | 4. HDR & AV1 | offen | Codec-Caps + Compositor-HDR |
-| 5. WebUI v1 | offen | PrimeVue 4 + Wizard |
+| 5. WebUI v1 | 🟡 Fundament | PrimeVue 4 + Diagnostics (Migration offen) |
 | 6. Updates | offen | CLI + WebUI |
 | 7. Tests & Doku | offen | |
 | 8. Release 1.0 | offen | AUR, COPR, Flatpak |

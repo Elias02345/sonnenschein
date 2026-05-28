@@ -2,6 +2,9 @@
 
 Lebendes Dokument. Entscheidungen, die in Issues und PRs getroffen werden, fließen hier zurück.
 
+> **Quelle der Wahrheit für den tagesaktuellen Stand ist [`STATUS.md`](STATUS.md).** Diese
+> Roadmap zeichnet die langfristige Phasen-Struktur, die Checkboxen hinken bewusst etwas hinterher.
+
 ## Vision
 
 Sonnenschein soll der **Standard-Weg** sein, einen Linux-PC oder -Server in einen vollwertigen, headless Game-Streaming-Host zu verwandeln, der jeden Moonlight-Client mit perfekter Auflösung, Bildwiederholrate und (optional) HDR bedient. Setup darf keine Minute Troubleshooting kosten — Installer-Skript, automatische Konfiguration, automatische Updates.
@@ -16,7 +19,7 @@ Sonnenschein soll der **Standard-Weg** sein, einen Linux-PC oder -Server in eine
 
 ## Phasen
 
-### Phase 0 — Vorbereitung *(aktiv)*
+### Phase 0 — Vorbereitung *(abgeschlossen)*
 
 **Ziel**: Repo strukturiert, brandgesetzt, CI-Skelett, Community-Files. Apollo-Codebasis als Ausgangspunkt importiert.
 
@@ -34,18 +37,18 @@ Sonnenschein soll der **Standard-Weg** sein, einen Linux-PC oder -Server in eine
 - [ ] package.json: `name` → `sonnenschein`
 - [ ] Erstes Tag: `v0.0.0-phase0`
 
-### Phase 1 — Linux-Build *(als nächstes)*
+### Phase 1 — Linux-Build *(abgeschlossen — 270/270 Tests)*
 
 **Ziel**: Apollo-Codebasis baut auf Linux ohne Apollo-spezifische Windows-Pfade. Sunshine-Patches der letzten Monate werden gemerged.
 
 **Erfolgskriterium**: `sonnenschein` startet auf Arch + Ubuntu + Fedora, WebUI auf 47990 erreichbar, Pairing mit Moonlight-Client funktioniert auf einem laufenden Desktop-Display (noch ohne Virtual-Display-Magie).
 
-- [ ] CMakeLists `project(Sonnenschein)` — sukzessive Rename
-- [ ] `cmake/prep/constants.cmake` — Pfade an Sonnenschein anpassen
+- [x] CMakeLists `project(Sonnenschein)` — sukzessive Rename
+- [x] `cmake/prep/constants.cmake` — Pfade an Sonnenschein anpassen
 - [ ] Sunshine-Upstream-Sync-Script (cherry-pick automatisch)
-- [ ] systemd-Service-File: `sonnenschein-server.service`
-- [ ] WebUI build (Vite) im CMake-Target
-- [ ] Erster grüner CI-Run mit Build-Artefakten
+- [x] systemd-Service-File: `sonnenschein-server.service`
+- [x] WebUI build (Vite) im CMake-Target
+- [x] Erster grüner CI-Run mit Build-Artefakten
 
 ### Phase 2 — Virtual-Display-Abstraktion *(Kern-Innovation)*
 
@@ -53,17 +56,17 @@ Sonnenschein soll der **Standard-Weg** sein, einen Linux-PC oder -Server in eine
 
 **Erfolgskriterium**: Auf KDE Plasma 6 Wayland + AMD oder NVIDIA → Pairing erstellt ein neues Output, Spiel rendert dort, Stream zeigt es korrekt. Idem für GNOME Mutter Headless.
 
-- [ ] `src/platform/linux/virtual_display/interface.h` — die Abstraktions-Schicht
+- [x] `src/platform/linux/virtual_display/interface.h` — die Abstraktions-Schicht
 - [ ] Backend: AMDGPU `virtual_display=` Kernel-Param (Boot-Setup im Installer)
 - [ ] Backend: Mutter `--headless --virtual-monitor` via D-Bus
-- [ ] Backend: KWin Virtual Output (kscreen-doctor + KWin-D-Bus, ggf. KWin-Plugin)
+- [x] Backend: KWin Virtual Output (kscreen-doctor + KWin-D-Bus, ggf. KWin-Plugin) — 🟡 CachyOS-Test offen
 - [ ] Backend: wlroots Headless (Sway / Hyprland)
 - [ ] Backend: Xorg dummy + xrandr CVT-reduced
 - [ ] Backend: Xorg NVIDIA EDID-Spoof
 - [ ] Backend: EVDI als Last Resort
-- [ ] Auswahl-Heuristik (Compositor-Detection + GPU-Detection)
-- [ ] Per-Client GUID-Mapping (aus Apollo `process.cpp:285-330` adaptiert)
-- [ ] Multi-Display-Cleanup beim Disconnect
+- [x] Auswahl-Heuristik (Compositor-Detection + GPU-Detection)
+- [x] Per-Client GUID-Mapping (aus Apollo `process.cpp:285-330` adaptiert)
+- [x] Multi-Display-Cleanup beim Disconnect — 🟡 CachyOS-Test offen (60-Hz/HDR/Cursor)
 
 ### Phase 3 — Installer & Service
 
@@ -71,18 +74,18 @@ Sonnenschein soll der **Standard-Weg** sein, einen Linux-PC oder -Server in eine
 
 **Erfolgskriterium**: Auf vier frisch installierten VMs (Arch, Ubuntu 24.04, Fedora 41, openSUSE Tumbleweed) macht `curl ... | bash` jeweils eine funktionierende Sonnenschein-Instanz.
 
-- [ ] `installer/install.sh` — Entry, Distro-/GPU-/Compositor-Detection
-- [ ] `installer/lib/distro.sh` — `detect_distro()`
-- [ ] `installer/lib/gpu.sh` — `detect_gpu()` (lspci/nvidia-smi-basiert)
-- [ ] `installer/lib/compositor.sh` — Wayland/X11 + KWin/Mutter/Sway
-- [ ] `installer/lib/packages.sh` — distrospezifische Paket-Listen
-- [ ] `installer/lib/service.sh` — systemd-Unit-Setup
-- [ ] `installer/lib/permissions.sh` — udev-Rules, Group-Memberships, capabilities
-- [ ] `installer/lib/ui.sh` — whiptail-/dialog-basiertes Text-UI
-- [ ] systemd-Units: `sonnenschein-server.service`, optional `sonnenschein-display.service`
-- [ ] `installer/uninstall.sh` — sauberes Entfernen aller Komponenten
-- [ ] `installer/post-install.sh` — Pairing-PIN, WebUI-URL ausgeben
-- [ ] Idempotenz-Tests (Installer 2× hintereinander = nichts kaputt)
+- [x] `installer/install.sh` — Entry, Distro-/GPU-/Compositor-Detection
+- [x] `installer/lib/distro.sh` — `detect_distro()`
+- [x] `installer/lib/gpu.sh` — `detect_gpu()` (lspci/nvidia-smi-basiert)
+- [x] `installer/lib/compositor.sh` — Wayland/X11 + KWin/Mutter/Sway
+- [x] `installer/lib/packages.sh` — distrospezifische Paket-Listen
+- [x] `installer/lib/service.sh` — systemd-Unit-Setup (`--user`-Default)
+- [x] `installer/lib/permissions.sh` — udev-Rules, Group-Memberships, capabilities
+- [x] `installer/lib/ui.sh` — Text-UI-Helfer
+- [x] systemd-Units: `sonnenschein-server.service`, optional `sonnenschein-display.service`
+- [x] `installer/uninstall.sh` — sauberes Entfernen aller Komponenten
+- [x] `installer/post-install.sh` — Pairing-PIN, WebUI-URL ausgeben
+- [ ] Idempotenz-Tests auf echten Distro-VMs (🟡 Maintainer-Test offen)
 
 ### Phase 4 — HDR & AV1
 
@@ -104,13 +107,13 @@ Sonnenschein soll der **Standard-Weg** sein, einen Linux-PC oder -Server in eine
 
 **Erfolgskriterium**: Ein Nutzer ohne Vorwissen kann nach Installer-Run die WebUI öffnen, in <5 Minuten ein erstes Pairing durchführen und ein Spiel streamen — ohne Terminal anzufassen.
 
-- [ ] Vue 3 + PrimeVue 4 + vue-i18n Setup
+- [x] Vue 3 + PrimeVue 4 + vue-i18n Setup (Fundament: `primevue_init.js`, Aura-Preset, Dark-Default)
 - [ ] Login-Screen (mit Browser-Passwort-Save)
 - [ ] Setup-Wizard: Pairing-PIN-Generator, GPU-Bestätigung, Compositor-Test, erstes Spiel hinzufügen
 - [ ] Dashboard: Live-GPU-Auslastung, aktuelle Streams, Display-Zustand
 - [ ] Apps-Verwaltung (wie Sunshine + Per-App-Gamescope-Toggle + Per-App-HDR-Override)
 - [ ] Geräte-Verwaltung (gepairte Clients, Permissions)
-- [ ] Diagnose-Tab: Compositor, GPU, Treiber, Kernel, Mesa-Version, HDR-Capability
+- [x] Diagnose-Tab: Compositor, GPU, Treiber, Kernel, Mesa-Version, HDR-Capability (🟡 Browser-Test offen)
 - [ ] Live-Log-Tab (journald-Stream)
 - [ ] Update-Manager (siehe Phase 6)
 - [ ] Crash-Reporter (siehe unten)
