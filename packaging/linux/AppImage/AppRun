@@ -46,8 +46,8 @@ echo "
 function install() {
   # user input rules
   # shellcheck disable=SC2002
-  cat "$SUNSHINE_SHARE_HERE/udev/rules.d/60-sunshine.rules" | sudo tee /etc/udev/rules.d/60-sunshine.rules
-  cat "$SUNSHINE_SHARE_HERE/modules-load.d/60-sunshine.conf" | sudo tee /etc/modules-load.d/60-sunshine.conf
+  cat "$SUNSHINE_SHARE_HERE/udev/rules.d/60-sonnenschein.rules" | sudo tee /etc/udev/rules.d/60-sonnenschein.rules
+  cat "$SUNSHINE_SHARE_HERE/modules-load.d/60-sonnenschein.conf" | sudo tee /etc/modules-load.d/60-sonnenschein.conf
   sudo modprobe uhid
   sudo udevadm control --reload-rules
   sudo udevadm trigger --property-match=DEVNAME=/dev/uinput
@@ -57,7 +57,7 @@ function install() {
   mkdir -p ~/.config/systemd/user
   cp -r "$SUNSHINE_SHARE_HERE/systemd/user/" ~/.config/systemd/
   # patch service executable path
-  sed -i -e "s#$SUNSHINE_PATH#$(readlink -f $ARGV0)#g" ~/.config/systemd/user/sunshine.service
+  sed -i -e "s#$SUNSHINE_PATH#$(readlink -f $ARGV0)#g" ~/.config/systemd/user/sonnenschein.service
 
   # setcap
   sudo setcap cap_sys_admin+p "$(readlink -f "$SUNSHINE_BIN_HERE")"
@@ -65,13 +65,13 @@ function install() {
 
 function remove() {
   # remove input rules
-  sudo rm -f /etc/udev/rules.d/60-sunshine.rules
+  sudo rm -f /etc/udev/rules.d/60-sonnenschein.rules
 
   # remove uhid module loading config
-  sudo rm -f /etc/modules-load.d/60-sunshine.conf
+  sudo rm -f /etc/modules-load.d/60-sonnenschein.conf
 
   # remove service
-  sudo rm -f ~/.config/systemd/user/sunshine.service
+  sudo rm -f ~/.config/systemd/user/sonnenschein.service
 }
 
 # process arguments
