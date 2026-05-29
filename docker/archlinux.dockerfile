@@ -95,7 +95,7 @@ _MAKE
 WORKDIR /build/sunshine/pkg
 RUN <<_PACKAGE
 mv /build/sunshine/build/PKGBUILD .
-mv /build/sunshine/build/sunshine.install .
+mv /build/sunshine/build/sonnenschein.install .
 makepkg --printsrcinfo > .SRCINFO
 _PACKAGE
 
