@@ -5,7 +5,9 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-05-28 — **Overhaul-Session: Phase 1.6 Rebrand komplett, Phase-3-Installer-Gerüst + Phase-5-PrimeVue-Fundament gebaut, Code-Review der Laufzeit-Fixes erledigt, erste Vorab-Version nach `main` gepusht.** Siehe „Session 2026-05-28" direkt unter dem TL;DR. Die 60-Hz/HDR/Cursor-Laufzeit-Fixes bleiben unverändert und weiterhin **CachyOS-Test ausstehend** (kein GPU/Compositor in der Cloud-Umgebung verifizierbar).
+**Stand:** 2026-07-11 — **Produktionsreife-Session: Installer komplett umgebaut (/opt-Prefix, restlose Deinstallation via CMake-Manifest, doctor.sh mit --repair, KEIN setcap mehr per Default — das brach PipeWire-Capture, §9.22!), Portrait-Rotation-Fix für Steam Deck (§9.23), Portal-Restore-Token-Persistenz (§9.15 gelöst), package-lock.json committed (§9.24).** Siehe „Session 2026-07-11" direkt unter dem TL;DR. Laufzeit-Verhalten (60 Hz v3, HDR, Rotation, Dialog-frei) weiterhin **CachyOS-Test ausstehend**.
+
+**Vorherige Stand-Zeile (2026-05-28):** Overhaul-Session: Phase 1.6 Rebrand komplett, Phase-3-Installer-Gerüst + Phase-5-PrimeVue-Fundament gebaut, Code-Review der Laufzeit-Fixes erledigt, erste Vorab-Version nach `main` gepusht.
 
 **Vorherige Stand-Zeile (2026-05-14 spätnacht):** **60-Hz-Fix v3 implementiert mit Cleanup-Hardening, WSL2-Build grün (16/16), CachyOS-Test ausstehend.** Drei Commits oben auf dem v2-Rollback: `b9f431b` (Crash-safe monitor restoration: SIGSEGV/SIGABRT-handler + RAII-Destruktor + Boot-Recovery-Lockfile in `~/.local/state/sonnenschein/disabled-outputs.lock`), `b0f4fd1` (60-Hz-Fix v3: KDE-output-management mit fünf Hardenings — Mode-list/Configuration Destroy-Order, Stream-State-Validation nach apply, log_flush vor jedem Wayland-Call, Timeout 1500ms→800ms, 3rd Roundtrip in init), und der `<this commit>` STATUS.md-Update. **Im schlimmsten Fall werden physische Monitore IMMER wieder eingeschaltet** — entweder im SIGSEGV/SIGABRT-Handler (vor `_Exit`), oder beim nächsten Sonnenschein-Start via `recover_on_boot()` Lockfile-Recovery (auch nach SIGKILL/Force-Shutdown). Force-Shutdown sollte beim Test nicht mehr nötig sein → Logs verfügbar. Test-Schritte siehe §12.A.
 
@@ -58,6 +60,88 @@ Codex hat das Pattern abgelehnt (vermutlich weil es `e453afa`/`d84072e` widerspr
 ### Hauptanwendungsfall (Maintainer)
 
 Physische Monitore am CachyOS-PC. Beim Streaming → alle physischen Outputs aus → Virtual Display als einziger aktiver Output → PipeWire/KWin captured ihn → Moonlight zeigt das Bild auf dem Client (z.B. SteamDeck oder TV via Moonlight für Android). Beim Disconnect → physische Outputs wieder an.
+
+---
+
+## Session 2026-07-11 — Produktionsreife: Installer-Umbau + Steam-Deck-Fixes
+
+> Ausgeführt auf der Windows-Dev-Maschine (WSL2-Build-Verifikation, kein
+> GPU/Compositor). Maintainer-Feedback zu Sessionbeginn: „es gibt noch keinen
+> richtigen Installer und ich bekomme nur Fehler, virtuelle Displays mit
+> falscher Auflösung und falschen Eigenschaften, System mit Paketen
+> zugemüllt, Bild im Stream ist gedreht." Maintainer-Entscheidungen:
+> **kein Container** (nativer Build, aber restlos entfernbar), **direkt auf
+> main pushen** sobald WSL2-Build + Installer-Checks grün.
+
+### Root-Cause-Analyse „nichts funktioniert"
+
+1. **Installer setzte `cap_sys_admin` aufs Binary** → xdg-desktop-portal
+   verweigert privilegierte Caller → PipeWire-Capture (der EINZIGE Weg,
+   Virtual Displays zu capturen, §9.13) tot. Der Installer hat also genau
+   das Kern-Feature deaktiviert. → §9.22
+2. **Installer installierte komplette Build-Toolchain systemweit** nach
+   `/usr/local` ohne Aufzeichnung → „System zugemüllt", Uninstaller
+   entfernte nur einen Bruchteil.
+3. **Steam Deck OLED Panel ist nativ 800x1280 Portrait** → Client kann
+   Portrait-Mode anfordern → Virtual Display wird hochkant angelegt →
+   Bild im Stream 90° gedreht. → §9.23
+4. **Portal-Restore-Token nur im RAM** → bei jedem Start Auswahldialog →
+   Fehlauswahl „Virtueller Bildschirm" (XDG-VIRTUAL) erzwingt 1920x1080
+   (§9.13) → „falsche Auflösung und Eigenschaften".
+
+### Was gebaut + verifiziert wurde
+
+**Installer-Komplettumbau ✅ (shellcheck grün)**
+- Default-Prefix **`/opt/sonnenschein`** — alles in einem Verzeichnis.
+  PATH-Symlinks `/usr/local/bin/{sonnenschein,sunshine}`.
+- **CMake-`install_manifest.txt` wird nach `${PREFIX}/install_manifest.txt`
+  kopiert** → `uninstall.sh` entfernt exakt jede installierte Datei.
+- **Paket-Snapshot vor/nach Installation** (`pacman -Qq`/`dpkg-query`/`rpm -qa`
+  diff) → `${PREFIX}/installed-packages.txt` → Uninstaller bietet an, genau
+  die Pakete zu entfernen, die der Installer neu installiert hat.
+- **Kein `setcap` mehr per Default** (§9.22). Opt-in via `--kms` nur für
+  reines Physisch-Monitor-Mirroring; Installer/Updater entfernen stale
+  Capabilities aktiv.
+- **`doctor.sh` neu**: 9 Check-Gruppen ([OK]/[FAIL]): Binary, File-Caps
+  (Konflikt-Detektor!), Wayland-Session, kscreen-doctor, Plasma ≥ 6.6,
+  PipeWire, Portal, /dev/uinput, NVIDIA ≥ 580, Service, WebUI-Health.
+  `--repair` entfernt Caps, lädt uinput, reinstalliert udev-Rule,
+  restarted Service.
+- `install-state.env` (PREFIX, SRC_DIR, LINGER_ENABLED, KMS_CAP, User,
+  Datum) + Installer-Kopie unter `${PREFIX}/installer/` → Uninstall/Update/
+  Doctor funktionieren auch ohne Source-Checkout.
+- Bootstrap (`curl | bash`) klont jetzt **persistent** nach
+  `~/.local/share/sonnenschein/src` (statt mktemp) → Updates möglich.
+  Kein Root-Run erlaubt (Guard), non-TTY → automatisch `--yes`.
+- Linger wird nur enabled wenn vorher aus, und beim Uninstall nur dann
+  revertiert (Tracking via LINGER_ENABLED).
+
+**Portrait-Rotation-Fix ✅ (Steam Deck „Bild gedreht")**
+- `nvhttp.cpp::make_launch_session`: Nach Mode-Parsing — wenn
+  `height > width` → swap + Log „normalizing to landscape". → §9.23
+- `rtsp.cpp`: gleiche Normalisierung für `config.monitor` (RTSP-Viewport).
+- Bewusst OHNE Config-Toggle (Game-Streaming ist immer Landscape;
+  Portrait-Request kommt nur von Handheld-Panels).
+
+**Portal-Restore-Token-Persistenz ✅ (§9.15 gelöst)**
+- `pwgrab.cpp`: Token wird nach `Start` atomar (write+rename) nach
+  `~/.local/state/sonnenschein/portal-restore-token` geschrieben, in
+  `portal_session_t::init()` geladen, bei SelectSources-Fehler mit Token
+  einmal ohne Token retried + Datei gelöscht.
+- Effekt: Der KDE-Auswahldialog erscheint nur noch EINMAL (erste Portal-
+  Nutzung); danach dialog-frei → keine Fehlauswahl-Gefahr mehr.
+
+**package-lock.json committed ✅ (§9.24)**
+- War in `.gitignore` (!) — `npm ci` unmöglich, Flatpak-Manifest
+  referenzierte es ins Leere. Jetzt erzeugt + committed, .gitignore-Zeile
+  entfernt. `npm run build` grün (inkl. Diagnostics-Bundle).
+
+### Was weiterhin offen ist (Maintainer-Test auf CachyOS)
+- Kompletter Installer-Run auf CachyOS: `curl -fsSL .../main/installer/install.sh | bash`
+- `doctor.sh` auf CachyOS laufen lassen — erwartet: alle Checks grün
+- Stream-Test Steam Deck: Auflösung 1280x800 Landscape, kein Dialog ab
+  zweitem Start, 90 Hz (60-Hz-Fix v3 aus Session 2026-05-14), HDR
+- Uninstall-Test: `bash /opt/sonnenschein/installer/uninstall.sh` → System sauber
 
 ---
 
@@ -419,11 +503,11 @@ Apollo's `process.cpp` hatte einen `#ifdef _WIN32`-Block für Virtual Display (S
 
 **Konsequenz**: Für den Virtual-Display-Capture-Use-Case muss ein **PipeWire-Capture-Backend** implementiert werden (Phase 4). Das ist der einzige Weg auf KDE Wayland.
 
-### Phase 3 — Installer & Service 🟡 (Gerüst gebaut 2026-05-28, Distro-Runs offen)
+### Phase 3 — Installer & Service 🟡 (Komplett-Umbau 2026-07-11, CachyOS-Run offen)
 
 **Ziel**: Ein Bash-Skript, distroübergreifend, robust, klare Fehlermeldungen. Auf vier frischen VMs (Arch, Ubuntu, Fedora, openSUSE) macht `curl ... | bash` jeweils eine funktionierende Sonnenschein-Instanz.
 
-**Stand 2026-05-28**: `installer/`-Gerüst steht (siehe Session 2026-05-28 oben) — shellcheck-sauber, Detection/Paketlisten smoke-getestet. **Reale Distro-Runs auf echten VMs sind Maintainer-Test.**
+**Stand 2026-07-11**: Komplett-Umbau (siehe Session 2026-07-11 oben): `/opt/sonnenschein`-Prefix, manifest-basierte restlose Deinstallation, Paket-Tracking, `doctor.sh` mit `--repair`, kein Default-setcap mehr (§9.22), persistenter Source-Checkout für Updates. shellcheck-sauber. **Realer Run auf CachyOS = Maintainer-Test.**
 
 **Geplante Struktur** (aus Original-Plan):
 ```
@@ -1028,7 +1112,7 @@ Vorteile: rock-solid, distroübergreifend, funktioniert ohne KDE-spezifische API
 
 **Ursache**: `pwgrab.cpp` setzt zwar `persist_mode=2`, speichert den vom Portal nach `Start` gelieferten `restore_token` aber nur im RAM der aktuellen `portal_session_t`. Beim nächsten Sonnenschein-Start ist der Token weg, deshalb fragt KDE erneut.
 
-**Status**: Komfort-/UX-Fix nach Source-Auswahl. Erst Zielquelle stabilisieren, dann Restore-Token persistent in `~/.local/state/sonnenschein/` ablegen und beim nächsten `SelectSources` verwenden.
+**Status**: ✅ **GELÖST (Session 2026-07-11, Commit `9be3ba4`)**. Restore-Token wird atomar nach `~/.local/state/sonnenschein/portal-restore-token` persistiert, beim Start geladen und bei stale-Token-Fehler einmal ohne Token retried (Datei wird dann gelöscht). Dialog erscheint nur noch bei der allerersten Portal-Nutzung. CachyOS-Verifikation offen.
 
 ### 9.20 60-Hz-Fix v2 (`806a7ca`) — Regression-Post-Mortem (Stand 2026-05-14 Nacht)
 
@@ -1085,12 +1169,50 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 
 ---
 
+### 9.22 Installer-setcap brach PipeWire-Capture (GELÖST 2026-07-11)
+
+**Symptom**: Nach Installer-Lauf startet kein Virtual-Display-Stream mehr; Portal-Fehler / alle Encoder scheitern.
+
+**Ursache**: `installer/lib/permissions.sh` setzte bedingungslos `cap_sys_admin+p` aufs Binary. Laut §9.10 verweigert xdg-desktop-portal aber Binaries mit File-Capabilities (`Unable to open /proc/PID/root`) — und PipeWire/Portal ist der einzige Capture-Weg für Virtual Displays (§9.13-Architektur-Tabelle). Der Installer hat also das Kern-Feature deaktiviert.
+
+**Fix (Session 2026-07-11)**: Kein setcap per Default. Opt-in `install.sh --kms` (mit dickem Warning) nur für User, die ausschließlich physische Monitore via KMS mirrorn. `install.sh`, `update.sh` und `doctor.sh --repair` ENTFERNEN stale Capabilities aktiv (`setcap -r`). `doctor.sh` meldet vorhandene Caps als [FAIL] mit Erklärung.
+
+### 9.23 Steam Deck: gedrehtes Bild / Portrait-Auflösung (Fix eingebaut, Test offen)
+
+**Symptom**: Bild im Stream auf dem Steam Deck erscheint 90° gedreht bzw. Virtual Display wird hochkant (800x1280) angelegt.
+
+**Ursache**: Das Steam-Deck-OLED-Panel ist nativ ein **Portrait-Panel (800x1280)**, das SteamOS um 90° gedreht darstellt. Je nach Moonlight-Client/Modus wird die native Portrait-Auflösung angefordert. Sonnenschein legte das Virtual Display dann 1:1 hochkant an.
+
+**Fix (Session 2026-07-11)**: Landscape-Normalisierung an beiden Eingangspunkten: `nvhttp.cpp::make_launch_session` (nach Mode-Parsing) und `rtsp.cpp` (`config.monitor` Viewport-Parsing). Wenn `height > width` → swap + Info-Log. Kein Config-Toggle — Game-Streaming ist immer Landscape.
+
+### 9.24 package-lock.json fehlte im Repo (GELÖST 2026-07-11)
+
+**Symptom**: `npm ci` schlägt fehl („can only install with an existing package-lock.json"), keine reproduzierbaren WebUI-Builds, Flatpak-Manifest kopiert eine nicht existente Datei.
+
+**Ursache**: `package-lock.json` stand in `.gitignore` (Apollo-Erbe).
+
+**Fix**: Zeile aus `.gitignore` entfernt, Lockfile erzeugt und committed. CI/Installer können jetzt `npm ci` nutzen (der Build-Weg über CMake ruft weiterhin `npm install`, funktioniert unverändert).
+
+---
+
 ## 10. Letzte Commits chronologisch
 
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
-<this commit> — docs(status): record Phase 1+2+3 of v3 recovery + CachyOS test plan — 2026-05-14
+<this commit> — docs: record production-readiness session (installer overhaul, Steam Deck fixes) — 2026-07-11
+e0ba34a — build(webui): commit package-lock.json for reproducible installs — 2026-07-11
+9be3ba4 — fix(capture): persist portal restore token across restarts — 2026-07-11
+e079f66 — fix(stream): normalize portrait client resolutions to landscape — 2026-07-11
+a613967 — fix(installer): /opt prefix, manifest-based uninstall, doctor.sh, no default setcap — 2026-07-11
+7fc076b — fix(packaging): rename PKGBUILD install artifact in arch dockerfile — 2026-05-28
+964b0b0 — fix(packaging): repair stale sunshine refs after rebrand — 2026-05-28
+0a6c227 — docs: record overhaul progress — Phase 1.6 rebrand, installer + WebUI foundations — 2026-05-28
+19bf915 — review(virtual-display): null-guard backend factory, correct crash-handler note — 2026-05-28
+4408e1a — feat(webui): PrimeVue 4 foundation with isolated diagnostics page (Phase 5) — 2026-05-28
+efd295a — feat(installer): distro-aware from-source installer scaffold (Phase 3) — 2026-05-28
+822682a — rebrand(phase1.6): Apollo/Sunshine → Sonnenschein across user-facing surfaces — 2026-05-28
+2452682 — docs(status): record Phase 2+3 of v3 recovery, CachyOS test ready — 2026-05-14
 b0f4fd1 — fix(capture): 60-Hz fix v3 — KDE output management with five hardenings — 2026-05-14 (CachyOS-Test pending)
 b9f431b — feat(cleanup): crash-safe physical-monitor restoration — 2026-05-14 (SIGSEGV/SIGABRT-handler + RAII + Lockfile-Recovery)
 a6ca074 — docs(status): record v2 rollback and Phase 1 of v3 recovery plan — 2026-05-14
@@ -1210,6 +1332,24 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 ### C++ — PipeWire Capture (Phase 4)
 - `src/platform/linux/pwgrab.cpp` (NEU/PATCH) — xdg-desktop-portal ScreenCast + PipeWire-Stream; `447dc8b` loggt Portal-Source-Properties und fordert Embedded Cursor an; `4c63d36` nutzt KWin Direct ScreenCast für benannte `Sonnenschein-...`-Outputs und blockiert den KDE-XDG-`VIRTUAL`-Fallback; `d84072e` migriert den KWin-Pfad auf `stream_virtual_output`; `bf7d939` versucht den erzeugten KScreen-Output nach Stream-Start auf die Client-Refresh-Rate zu setzen; `6504268` pollt `kscreen-doctor -o`, setzt den Mode auf dem tatsächlich registrierten Output und verifiziert das Ergebnis; `501431a` setzte zunächst zurück auf `67a93e3`; `74c63cf` setzt weiter zurück auf `bf7d939`, weil `6504268` laut Maintainer schon defekt war; `41fa9ba` entfernt den fatalen Abbruch, wenn KWin Direct nicht verfügbar ist.
 
+### Installer (Session 2026-07-11 Komplett-Umbau)
+- `installer/install.sh` (REWRITE) — /opt-Prefix, persistenter Source-Checkout, Manifest-Kopie, Paket-Snapshot, Root-Guard, non-TTY-Autoconfirm, `--kms`-Opt-in
+- `installer/uninstall.sh` (REWRITE) — manifest-basiert, Paket-Entfernung, Linger-Revert, main()-gekapselt (löscht das eigene Verzeichnis sicher)
+- `installer/doctor.sh` (NEU) — 9 Check-Gruppen + `--repair`
+- `installer/update.sh` (PATCH) — /opt-Prefix, SRC_DIR-Auflösung aus install-state.env, stale-Caps-Entfernung, Installer-Kopie-Sync
+- `installer/post-install.sh` (PATCH) — /opt-Prefix, KMS-Cap-Parameter
+- `installer/lib/permissions.sh` (REWRITE) — setcap nur bei `--kms`, aktive Cap-Entfernung sonst
+- `installer/lib/packages.sh` (PATCH) — `packages_snapshot_before` / `packages_record_new`
+- `installer/lib/service.sh` (PATCH) — LINGER_ENABLED-Tracking
+- `installer/lib/ui.sh` (PATCH) — `ui_final_summary`
+
+### C++ — Steam-Deck-Fixes (Session 2026-07-11)
+- `src/nvhttp.cpp` + `src/rtsp.cpp` (PATCH) — Portrait→Landscape-Normalisierung (§9.23)
+- `src/platform/linux/pwgrab.cpp` (PATCH) — Portal-Restore-Token-Persistenz (§9.15): `restore_token_path/load/save/drop`, Retry ohne Token bei SelectSources-Fehler
+
+### Build-Reproduzierbarkeit
+- `package-lock.json` (NEU committed, war gitignored) + `.gitignore`-Zeile entfernt (§9.24)
+
 ### Submodule-Pin
 - `third-party/tray/` — gepinnt auf `7936cb35` (vor `.gitmodules`-Datei; gitlink im Tree)
 - `third-party/plasma-wayland-protocols/` — neu gepinnt auf `13b3c2f`, liefert `zkde-screencast-unstable-v1.xml` für KWin Direct ScreenCast.
@@ -1219,6 +1359,19 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 ## 12. Was als nächstes — konkrete Schritte
 
 In Reihenfolge der Priorität.
+
+### 0) CachyOS-Gesamttest der Session 2026-07-11 (höchste Prio, Maintainer)
+
+1. **Installer**: `curl -fsSL https://raw.githubusercontent.com/Elias02345/sonnenschein/main/installer/install.sh | bash`
+   — erwartet: Build läuft durch, alles landet in `/opt/sonnenschein`, Abschluss-Summary mit WebUI-URL.
+2. **Doctor**: `bash /opt/sonnenschein/installer/doctor.sh` — erwartet: alle Checks [OK], insbesondere „No file capabilities" (§9.22).
+3. **Stream** (Steam Deck OLED): Pairing → Stream. Erwartet:
+   - Auflösung 1280x800 **Landscape** (auch wenn der Client Portrait anfordert — Log-Zeile „normalizing to landscape", §9.23)
+   - Beim ALLERERSTEN Portal-Fallback ggf. einmal Dialog; ab dann nie wieder (Restore-Token, §9.15)
+   - 90 Hz statt 60 Hz (60-Hz-Fix v3 aus 2026-05-14, §9.20)
+   - Physische Monitore aus während Stream, wieder an nach Disconnect
+4. **Uninstall-Probe** (optional): `bash /opt/sonnenschein/installer/uninstall.sh` — erwartet: System wie vorher.
+5. Bei Fehlern: `journalctl --user -eu sonnenschein` + `/tmp/sonnenschein-install.log` posten.
 
 ### A) 60-Hz-Fix v3 — Cleanup-Hardening + gehärteter Retry (höchste Prio) ✅ implementiert, 🟡 CachyOS-Test offen
 

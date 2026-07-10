@@ -43,14 +43,29 @@ Sonnenschein ist ein **Linux-natives, headless Moonlight-Streaming-Backend**. Es
 
 ### Schnellinstallation
 
-> Pre-Alpha — noch nicht für Nicht-Entwickler. Erste lauffähige Version folgt.
+> Alpha — Kernfunktionen laufen, aber erwarte noch Ecken und Kanten.
 
 ```bash
-# Erscheint mit dem ersten Release:
 curl -fsSL https://raw.githubusercontent.com/Elias02345/sonnenschein/main/installer/install.sh | bash
 ```
 
-Der Installer fragt dich durch ein Text-UI nach Distro-Bestätigung, GPU-Wahl, Service-Modus (System/User), Auto-Start (ja/nein) und WebUI-Passwort. Nach 1–3 Minuten ist die WebUI auf `http://<dein-rechner>:47990` erreichbar.
+Der Installer baut aus dem Quellcode und installiert **alles nach `/opt/sonnenschein`** — das restliche System bleibt sauber. Jede installierte Datei wird in einem Manifest protokolliert, jedes neu installierte Paket aufgezeichnet. Danach ist die WebUI auf `https://localhost:47990` erreichbar.
+
+**Deinstallation (restlos):**
+```bash
+bash /opt/sonnenschein/installer/uninstall.sh
+```
+
+**Gesundheitscheck + Selbstreparatur:**
+```bash
+bash /opt/sonnenschein/installer/doctor.sh --repair
+```
+
+**Update:**
+```bash
+bash /opt/sonnenschein/installer/update.sh          # main (stabil)
+bash /opt/sonnenschein/installer/update.sh dev      # dev (aktuell)
+```
 
 ### Unterstützte Distros
 
@@ -165,18 +180,33 @@ Sonnenschein is a **Linux-native, headless Moonlight streaming backend**. It tur
 
 ### Quick install
 
-> Pre-alpha — not yet ready for non-developers. First runnable version coming soon.
+> Alpha — the core works, but expect rough edges.
 
 ```bash
-# Will be available with the first release:
 curl -fsSL https://raw.githubusercontent.com/Elias02345/sonnenschein/main/installer/install.sh | bash
 ```
 
-The installer walks you through a text UI: distro confirmation, GPU choice, service mode (system/user), autostart (yes/no), and WebUI password. After 1–3 minutes the WebUI is reachable at `http://<your-host>:47990`.
+The installer builds from source and puts **everything into `/opt/sonnenschein`** — the rest of your system stays clean. Every installed file is recorded in a manifest, every newly installed package is logged. Afterwards the WebUI is reachable at `https://localhost:47990`.
+
+**Uninstall (no leftovers):**
+```bash
+bash /opt/sonnenschein/installer/uninstall.sh
+```
+
+**Health check + self-repair:**
+```bash
+bash /opt/sonnenschein/installer/doctor.sh --repair
+```
+
+**Update:**
+```bash
+bash /opt/sonnenschein/installer/update.sh          # main (stable)
+bash /opt/sonnenschein/installer/update.sh dev      # dev (bleeding edge)
+```
 
 ### Project status
 
-Pre-alpha. See [docs/ROADMAP.md](docs/ROADMAP.md) for the detailed phase plan.
+Alpha. See [docs/ROADMAP.md](docs/ROADMAP.md) for the detailed phase plan.
 
 ### Contributing
 
