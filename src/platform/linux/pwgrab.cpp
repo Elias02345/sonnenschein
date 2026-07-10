@@ -91,6 +91,69 @@ namespace pw {
     return "/org/freedesktop/portal/desktop/request/" + sender + "/" + token;
   }
 
+  // --- Portal restore-token persistence -----------------------------------
+  // The portal's restore_token lets us skip the KDE source-picker dialog on
+  // every start after the first (STATUS.md §9.15). It only lived in RAM
+  // before; persist it under the XDG state dir so restarts stay dialog-free.
+
+  static std::filesystem::path restore_token_path() {
+    const char *xdg = std::getenv("XDG_STATE_HOME");
+    std::filesystem::path base;
+    if (xdg && *xdg) {
+      base = xdg;
+    } else if (const char *home = std::getenv("HOME"); home && *home) {
+      base = std::filesystem::path(home) / ".local" / "state";
+    } else {
+      return {};
+    }
+    return base / "sonnenschein" / "portal-restore-token";
+  }
+
+  static std::string load_restore_token() {
+    auto path = restore_token_path();
+    if (path.empty()) {
+      return {};
+    }
+    std::ifstream f(path);
+    std::string token;
+    if (f && std::getline(f, token) && !token.empty()) {
+      BOOST_LOG(info) << "Portal: loaded persisted restore token"sv;
+    }
+    return token;
+  }
+
+  static void save_restore_token(const std::string &token) {
+    auto path = restore_token_path();
+    if (path.empty() || token.empty()) {
+      return;
+    }
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(), ec);
+    // Write-then-rename so a crash mid-write can't corrupt the token.
+    auto tmp = path;
+    tmp += ".tmp";
+    {
+      std::ofstream f(tmp, std::ios::trunc);
+      if (!f) {
+        BOOST_LOG(warning) << "Portal: cannot persist restore token to "sv << path.string();
+        return;
+      }
+      f << token << '\n';
+    }
+    std::filesystem::rename(tmp, path, ec);
+    if (ec) {
+      BOOST_LOG(warning) << "Portal: failed to store restore token: "sv << ec.message();
+    }
+  }
+
+  static void drop_restore_token() {
+    auto path = restore_token_path();
+    if (!path.empty()) {
+      std::error_code ec;
+      std::filesystem::remove(path, ec);
+    }
+  }
+
 #ifdef SUNSHINE_BUILD_KWIN
   /**
    * Direct KWin ScreenCast session.
@@ -1358,6 +1421,7 @@ namespace pw {
       available_cursor_modes = get_uint_property("AvailableCursorModes");
       BOOST_LOG(info) << "Portal: available source types="sv << available_source_types
                       << " cursor modes="sv << available_cursor_modes;
+      restore_token = load_restore_token();
       return true;
     }
 
@@ -1428,6 +1492,21 @@ namespace pw {
     }
 
     bool select_sources() {
+      if (!select_sources_once()) {
+        if (!restore_token.empty()) {
+          // A stale persisted token can make the portal choke — drop it and
+          // fall back to the interactive picker once.
+          BOOST_LOG(warning) << "Portal: SelectSources failed with persisted restore token; retrying without it"sv;
+          restore_token.clear();
+          drop_restore_token();
+          return select_sources_once();
+        }
+        return false;
+      }
+      return true;
+    }
+
+    bool select_sources_once() {
       auto token = make_token();
       auto req_path = make_request_path(conn, token);
       auto sig = subscribe_response(req_path);
@@ -1498,6 +1577,8 @@ namespace pw {
         if (token) {
           restore_token = g_variant_get_string(token, nullptr);
           g_variant_unref(token);
+          // Persist so the next Sonnenschein start skips the picker dialog.
+          save_restore_token(restore_token);
         }
 
         GVariant *streams = g_variant_lookup_value(response_results, "streams", nullptr);
