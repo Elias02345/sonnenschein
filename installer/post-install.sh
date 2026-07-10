@@ -4,9 +4,11 @@
 # service without rebuilding. Useful after a manual `cmake --install` or to
 # switch the service mode.
 #
+# Usage: bash post-install.sh [user|system] [1|0]
+#
 set -euo pipefail
 
-PREFIX="${PREFIX:-/usr/local}"
+PREFIX="${PREFIX:-/opt/sonnenschein}"
 SERVICE_MODE="${1:-user}"
 AUTOSTART="${2:-1}"
 
@@ -24,7 +26,8 @@ install_error_trap
 apply_permissions \
   "${PREFIX}/bin/sonnenschein" \
   "${REPO_ROOT}/src_assets/linux/misc/60-sonnenschein.rules" \
-  "${REPO_ROOT}/src_assets/linux/misc/60-sonnenschein.conf"
+  "${REPO_ROOT}/src_assets/linux/misc/60-sonnenschein.conf" \
+  0
 
 # Prefer the configured unit from the build dir, fall back to the template.
 UNIT="${REPO_ROOT}/build/sonnenschein.service"

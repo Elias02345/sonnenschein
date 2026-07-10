@@ -22,13 +22,18 @@ install_service() {
     mkdir -p "$dest"
     install -m644 "$unit_file" "${dest}/sonnenschein.service"
     systemctl --user daemon-reload || true
+    LINGER_ENABLED=0
     if [ "$autostart" = "1" ]; then
       systemctl --user enable sonnenschein.service || warn "Could not enable user service."
-      # Allow the service to run without an active login session.
-      if have loginctl; then
-        loginctl enable-linger "$(id -un)" 2>/dev/null || true
+      # Allow the service to run without an active login session. Record
+      # whether WE enabled it so uninstall.sh only reverts our change.
+      if have loginctl && ! loginctl show-user "$(id -un)" 2>/dev/null | grep -q '^Linger=yes'; then
+        if loginctl enable-linger "$(id -un)" 2>/dev/null; then
+          LINGER_ENABLED=1
+        fi
       fi
     fi
+    export LINGER_ENABLED
     success "User service installed. Start with: systemctl --user start sonnenschein"
   else
     require_sudo

@@ -43,9 +43,30 @@ ui_choose_autostart() {
   export AUTOSTART
 }
 
-# The WebUI sets its own password on first launch via the browser; we only
-# point the user at it here. Kept as a hook for a future headless flow.
-ui_password_notice() {
-  info "On first launch, open the WebUI to set your admin password:"
+# Final summary: what got installed where, and what to do next.
+ui_final_summary() {
+  # ui_final_summary PREFIX SERVICE_MODE
+  local prefix="$1"
+  local mode="$2"
+
+  printf '\n'
+  success "Sonnenschein installed. Enjoy your sunshine. 🌇"
+  printf '\n'
+  info "Installed to:        ${C_BOLD}${prefix}${C_RESET} (plus PATH symlink /usr/local/bin/sonnenschein)"
+  info "File manifest:       ${prefix}/install_manifest.txt"
+  info "New packages log:    ${prefix}/installed-packages.txt"
+  info "Uninstall anytime:   ${C_BOLD}bash ${prefix}/installer/uninstall.sh${C_RESET}"
+  info "Health check:        ${C_BOLD}bash ${prefix}/installer/doctor.sh${C_RESET}"
+  printf '\n'
+  if [ "$mode" = "user" ]; then
+    info "Start now:           ${C_BOLD}systemctl --user start sonnenschein${C_RESET}"
+    info "Follow logs:         journalctl --user -fu sonnenschein"
+  else
+    info "Start now:           ${C_BOLD}sudo systemctl start sonnenschein${C_RESET}"
+    info "Follow logs:         journalctl -fu sonnenschein"
+  fi
+  printf '\n'
+  info "Then open the WebUI to set your admin password and pair Moonlight:"
   printf '      %shttps://localhost:47990%s\n' "$C_BOLD" "$C_RESET"
+  info "On your Steam Deck: install Moonlight, it will discover this host on the LAN."
 }
