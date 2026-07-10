@@ -451,6 +451,16 @@ namespace nvhttp {
       launch_session->fps = 60000; // 60fps * 1000 denominator
     }
 
+    // Handheld clients (Steam Deck OLED: native 800x1280 portrait panel)
+    // sometimes request their panel's raw portrait mode. Game streaming is
+    // always landscape — a portrait virtual display would deliver a
+    // 90°-rotated image, so normalize here at the entry point.
+    if (launch_session->height > launch_session->width) {
+      BOOST_LOG(info) << "Client requested portrait mode "sv << launch_session->width << 'x' << launch_session->height
+                      << "; normalizing to landscape "sv << launch_session->height << 'x' << launch_session->width;
+      std::swap(launch_session->width, launch_session->height);
+    }
+
     launch_session->device_name = named_cert_p->name.empty() ? "SonnenscheinDisplay"s : named_cert_p->name;
     launch_session->unique_id = named_cert_p->uuid;
     launch_session->perm = named_cert_p->perm;

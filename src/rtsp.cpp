@@ -1013,6 +1013,14 @@ namespace rtsp_stream {
 
       config.monitor.height = util::from_view(args.at("x-nv-video[0].clientViewportHt"sv));
       config.monitor.width = util::from_view(args.at("x-nv-video[0].clientViewportWd"sv));
+
+      // Same portrait normalization as make_launch_session(): handhelds with
+      // portrait-native panels (Steam Deck) must stream landscape.
+      if (config.monitor.height > config.monitor.width) {
+        BOOST_LOG(info) << "RTSP viewport is portrait "sv << config.monitor.width << 'x' << config.monitor.height
+                        << "; normalizing to landscape"sv;
+        std::swap(config.monitor.width, config.monitor.height);
+      }
       config.monitor.framerate = util::from_view(args.at("x-nv-video[0].maxFPS"sv));
       config.monitor.bitrate = util::from_view(args.at("x-nv-vqos[0].bw.maximumBitrateKbps"sv));
       config.monitor.slicesPerFrame = util::from_view(args.at("x-nv-video[0].videoEncoderSlicesPerFrame"sv));
