@@ -299,6 +299,35 @@ Validierung interaktiv getestet, DE-Rendering bestätigt):
 **Bewusst auf nächste Runde verschoben**: `index.html`-Dashboard + Navbar-
 Shell-Migration (Blind-Rewrite von ClientCard/ResourceCard/Versions-Logik
 ohne Live-Backend-Test wäre gegen die Projektregeln). Task #17 im Tracker.
+→ **In Runde 7 doch erledigt** — Live-Backend-Test wurde möglich, siehe unten.
+
+### Nachtrag Runde 7 (2026-07-11): Dashboard live-getestet, WoL, CI hart, Ubuntu-E2E
+
+**Durchbruch fürs WebUI-Testen**: Das sonnenschein-Binary läuft in WSL2
+(Software-x264-Encoder, kein Display nötig) und serviert die echte WebUI
+auf 47990. Test-Setup: Web-Bundle nach `/usr/local/assets/web` stagen +
+lokaler HTTP→HTTPS-Proxy (Scratchpad) mit Session-Cookie-Injection für
+den Browser-Pane. Damit sind ab jetzt ALLE WebUI-Seiten live testbar.
+
+1. **Dashboard (`index.html` → `Dashboard.vue`) ✅ LIVE-GETESTET**:
+   PrimeVue-Topbar (Links zu allen Seiten + Dark-Toggle), Fatal-Banner
+   (echte Fatals aus /api/logs gerendert), Versions-/Update-Karte
+   (GitHub-Check), Live-„Gekoppelte Geräte"-Karte (/api/clients/list),
+   Moonlight-Client-Links. Wizard-E2E gegen echtes Backend: Passwort
+   real gesetzt → Session-Login → Dashboard rendert alle Datenquellen,
+   /pin defaultet live auf PIN-Tab. Null Console-Errors.
+2. **Wake-on-LAN (Boot-to-Ready Stufe 2) ✅**: `installer/lib/wol.sh` —
+   Default-Route-NIC-Detection (nur wired), `ethtool -s <nic> wol g`,
+   Persistenz via oneshot-Unit `sonnenschein-wol.service`, MAC in der
+   Summary, Tracking in install-state.env (WOL_CONFIGURED), Uninstall
+   entfernt die Unit (lässt NIC-Setting bewusst in Ruhe). doctor prüft
+   „Wake-on: g" + repariert. `ethtool` in allen vier Paketlisten.
+3. **CI hart geschaltet (Phase 7) ✅**: Alle drei Matrix-Jobs (Arch,
+   Ubuntu 24.04, Fedora 41) sind real grün (per gh API verifiziert,
+   null failed Steps) → `continue-on-error` entfernt.
+4. **Ubuntu-24.04-E2E-Test** läuft via Subagent in WSL (frischer Klon
+   von main, kompletter Installer-Durchlauf inkl. doctor + uninstall).
+   Bekannte Erwartung: libva-2.20-Problem (§9.1) — Ergebnis folgt.
 
 ### Was weiterhin offen ist (Maintainer-Test auf CachyOS)
 - **Nach Runde-2-Update**: `bash /opt/sonnenschein/installer/update.sh` →
