@@ -172,6 +172,41 @@ intuitiveres Pairing-UI (PrimeVue-Migration der Bestands-Seiten). Die
 funktionalen Pairing-Blocker (Discovery, Firewall, Fatal-Banner) sind mit
 Runde 2 adressiert.
 
+### Nachtrag Runde 3 (2026-07-11): Stream-Feintuning nach Maintainer-Report
+
+**Maintainer-Report vom laufenden Stream**: „1280x800 71fps [schwankt
+zwischen 13 und 71] (Codec: HEVC 10-bit SDR)" — FPS schwankt je nach
+Bildinhalt/Mausbewegung.
+
+1. **FPS-Schwankung 13–71 → Frame-Pacing-Fix (§9.25)**: KWins Screencast
+   ist damage-getrieben (Frames nur bei Bildänderung). Der Capture-Loop in
+   `pwgrab.cpp` wartete bei ausbleibendem Frame bis zu **500 ms** und
+   pushte dann ein Leer-Frame → Encoder-FPS bricht bei statischem Bild ein.
+   Fix: Wartefenster = 1 Frame-Intervall; bei Timeout wird der letzte
+   SHM-Frame erneut encodet (`have_prev_frame`-Pfad). Erwartung: konstante
+   ~90 fps, unabhängig vom Bildinhalt. Dass Moonlight max. 71 statt 90
+   zeigte, war dieselbe Ursache (Damage-Rate des Desktops).
+2. **HDR-Analyse**: „HEVC **10-bit** SDR" beweist: serverinfo bewirbt
+   Main10 korrekt, Encoder-Pfad ist 10-bit-fähig. Das Deck fordert aber
+   `dynamicRangeMode=0` an → Client-seitig HDR nicht aktiv. Nötig auf dem
+   Deck: (a) SteamOS Gaming Mode → Anzeige → HDR AN, (b) Moonlight →
+   Einstellungen → Grundlagen → „HDR (experimentell)" AN (Moonlight-Flatpak
+   kann HDR im Gaming Mode seit v5). DANN fordert der Client HDR an — aber
+   host-seitig fehlt noch der echte HDR-Pfad (Phase 4): KWin-Virtual-Output
+   auf HDR schalten + 10-bit-PipeWire-Negotiation (aktuell BGRx 8-bit) +
+   PQ/BT.2020-Signalisierung. Ohne das wäre HDR nur „getunnelt", Farben
+   falsch. **Phase 4 ist damit der nächste Laufzeit-Meilenstein.**
+3. **Steam-Controller/Deck-Eingaben (Touchpads, Gyro, Rücktasten)**:
+   Host-seitig bereits vollständig — `gamepad = auto` (Default) emuliert
+   via inputtino ein **DualSense (DS5)** sobald der Client Motion/Touch
+   meldet (`motion_as_ds4`/`touchpad_as_ds4` Default true, uhid via
+   installer geladen). Client-seitig: Moonlight-Einstellungen auf dem Deck
+   → Eingabe → Motion-Sensoren/Touch aktivieren; Rücktasten (L4/L5/R4/R5)
+   sind Steam-Input-Sache und werden im Deck-Layout frei gemappt. Kein
+   Code nötig, nur Doku (→ Phase 5/7 Doku-Task).
+
+### 9.25 (Referenz) FPS-Schwankung im Virtual-Display-Stream — GELÖST siehe Nachtrag Runde 3
+
 ### Was weiterhin offen ist (Maintainer-Test auf CachyOS)
 - **Nach Runde-2-Update**: `bash /opt/sonnenschein/installer/update.sh` →
   läuft Build + doctor --repair automatisch. Erwartung: alle Checks grün,
