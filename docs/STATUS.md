@@ -392,6 +392,8 @@ Vom Maintainer in der initialen Session bestätigt. **Nicht hinterfragen** — w
 ### Zusatz vom Maintainer (nicht durchnummeriert)
 - **Uninstaller**: ja, sauberes Entfernen aller Komponenten.
 - **GPU-Auswahl**: automatisch per Detection, manueller Override in WebUI (Multi-GPU-Systeme).
+- **NEU 2026-07-11 — Eigener Client (revidiert das frühere Kein-Ziel!)**: Sonnenschein bekommt einen eigenen Client für Linux/Steam Deck (zuerst), Android und Windows. Automatische Geräte-Konfiguration (Auflösung/Refresh/HDR/Decoder je Gerät), zwei Profile: **Gaming** und **Remote Desktop**. Killer-Feature: **native Steam-Deck-Integration** — Host-Bibliothek erscheint im Steam Game Mode des Decks (shortcuts.vdf-Sync + Decky-Plugin), Spiele die auf beiden installiert sind wählbar „Lokal/Stream", Host-only-Spiele streamen direkt — alles über Sonnenschein, NICHT Steam Remote Play. Fokus: Gaming vor Remote Desktop, Deck vor Android/Windows. Ausgearbeitet in `docs/ROADMAP.md` → „Client-Track" (C1–C4).
+- **NEU 2026-07-11 — Boot-to-Ready-Host**: Host startet leise als Service beim Boot, idlet lightweight, unterstützt Wake-on-LAN (Installer konfiguriert `ethtool wol g`, Client bekommt Aufweck-Knopf, Internet-WoL via VPN-Empfehlung), optional login-freies Streamen via SDDM-Autologin (opt-in mit Sicherheitshinweis), später evtl. dedizierte Headless-Session. Ausgearbeitet in ROADMAP → „Host-Bereitschaft: Boot-to-Ready".
 
 ---
 
