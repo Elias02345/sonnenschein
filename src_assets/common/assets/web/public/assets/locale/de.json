@@ -380,6 +380,10 @@
     "wan_encryption_mode_2": "Benötigt für alle Kunden",
     "wan_encryption_mode_desc": "Dies legt fest, wann Verschlüsselung beim Streaming über das Internet verwendet wird. Verschlüsselung kann die Streaming-Leistung senken, insbesondere auf weniger leistungsfähigen Hosts und Clients."
   },
+  "login": {
+    "bad_credentials": "Bitte Benutzername und Passwort prüfen.",
+    "save_password": "Passwort merken"
+  },
   "index": {
     "description": "Sonnenschein ist ein selbst gehosteter Game-Stream-Host für Moonlight.",
     "download": "Download",

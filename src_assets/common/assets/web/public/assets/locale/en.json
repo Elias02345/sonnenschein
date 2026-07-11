@@ -477,6 +477,7 @@
     "wan_encryption_mode_desc": "This determines when encryption will be used when streaming over the Internet. Encryption can reduce streaming performance, particularly on less powerful hosts and clients."
   },
   "login": {
+    "bad_credentials": "Please check your username and password.",
     "save_password": "Remember Password"
   },
   "index": {
