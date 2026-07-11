@@ -276,6 +276,29 @@ ohne dass wir etwas ändern müssen.
   ohne HDR-Output gibt es keinen HDR-Content zu capturen.
 
 **HDR ist damit sauber geparkt. Nächster Fokus laut Plan: Phase 5 (WebUI).**
+(Maintainer hat den KDE-Feature-Request eingereicht ✅.)
+
+### Nachtrag Runde 6 (2026-07-11): Phase 5 WebUI — Setup-Wizard + PIN-first Pairing
+
+**Umgesetzt + im Browser gegen das gebaute Bundle verifiziert** (Formular-
+Validierung interaktiv getestet, DE-Rendering bestätigt):
+1. **`welcome.html` → PrimeVue-Setup-Wizard** (neue `SetupWizard.vue`):
+   Zwei Schritte mit Step-Indikator — (1) Zugangsdaten (Default-User jetzt
+   `sonnenschein` statt `apollo`, Live-Passwort-Match-Validierung,
+   Password-Strength-Feedback), (2) Erfolg + Pairing-Anleitung in drei
+   Schritten mit „Pairing-Seite öffnen"-Button.
+2. **`pin.html`: PIN-Pairing ist jetzt Default-Tab** (war OTP — Moonlight-
+   Standardflow ist PIN!), große zentrierte numerische PIN-Eingabe
+   (inputmode=numeric, 2rem, letter-spacing), Inline-Erfolgsmeldung statt
+   blockierendem `alert()`. Permission-Editor unangetastet (funktioniert).
+3. **`locale.js`-Robustheit**: Wenn `/api/configLocale` fehlschlägt, blieb
+   die GESAMTE WebUI weiß (unhandled rejection vor `app.mount`). Jetzt
+   Fallback auf Browser-Sprache. (Beim Static-Preview-Test gefunden.)
+4. Neue `welcome.*`-i18n-Keys in DE + EN (Rest fällt auf EN zurück).
+
+**Bewusst auf nächste Runde verschoben**: `index.html`-Dashboard + Navbar-
+Shell-Migration (Blind-Rewrite von ClientCard/ResourceCard/Versions-Logik
+ohne Live-Backend-Test wäre gegen die Projektregeln). Task #17 im Tracker.
 
 ### Was weiterhin offen ist (Maintainer-Test auf CachyOS)
 - **Nach Runde-2-Update**: `bash /opt/sonnenschein/installer/update.sh` →
