@@ -42,3 +42,6 @@ libxkbcommon-devel
 
 # Tray
 libappindicator-gtk3-devel
+
+# Discovery (runtime, dlopen'd)
+avahi

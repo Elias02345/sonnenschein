@@ -41,3 +41,6 @@ libxkbcommon-devel
 
 # Tray
 libayatana-appindicator3-devel
+
+# Discovery (runtime, dlopen'd)
+avahi

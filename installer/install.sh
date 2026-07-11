@@ -101,6 +101,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 . "${SCRIPT_DIR}/lib/service.sh"
 # shellcheck source=lib/permissions.sh
 . "${SCRIPT_DIR}/lib/permissions.sh"
+# shellcheck source=lib/firewall.sh
+. "${SCRIPT_DIR}/lib/firewall.sh"
 # shellcheck source=lib/ui.sh
 . "${SCRIPT_DIR}/lib/ui.sh"
 
@@ -163,6 +165,9 @@ write_install_state() {
     echo "INSTALL_USER=$(id -un)"
     echo "LINGER_ENABLED=${LINGER_ENABLED:-0}"
     echo "KMS_CAP=${KMS_CAP}"
+    echo "FIREWALL_CONFIGURED=${FIREWALL_CONFIGURED:-none}"
+    echo "FIREWALL_MDNS_ADDED=${FIREWALL_MDNS_ADDED:-0}"
+    echo "AVAHI_ENABLED=${AVAHI_ENABLED:-0}"
     echo "INSTALL_DATE=$(date -Is)"
   } | $SUDO tee "${PREFIX}/install-state.env" >/dev/null
 
@@ -202,8 +207,24 @@ main() {
     "${REPO_ROOT}/src_assets/linux/misc/60-sonnenschein.conf" \
     "$KMS_CAP"
 
+  configure_firewall
+  ensure_avahi
+
   install_service "$SERVICE_MODE" "${REPO_ROOT}/build/sonnenschein.service" "$AUTOSTART"
   write_install_state
+
+  # Start (or restart onto the fresh binary) right away — no manual step.
+  if [ "$SERVICE_MODE" = "user" ]; then
+    if systemctl --user restart sonnenschein.service 2>/dev/null; then
+      success "Sonnenschein service started."
+    else
+      warn "Could not start the user service — start manually: systemctl --user start sonnenschein"
+    fi
+  else
+    $SUDO systemctl restart sonnenschein.service 2>/dev/null \
+      && success "Sonnenschein service started." \
+      || warn "Could not start the system service."
+  fi
 
   ui_final_summary "$PREFIX" "$SERVICE_MODE"
 }

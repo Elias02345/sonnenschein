@@ -42,3 +42,6 @@ libxkbcommon-dev
 
 # Tray
 libappindicator3-dev
+
+# Discovery (runtime, dlopen'd)
+avahi-daemon

@@ -59,14 +59,15 @@ ui_final_summary() {
   info "Health check:        ${C_BOLD}bash ${prefix}/installer/doctor.sh${C_RESET}"
   printf '\n'
   if [ "$mode" = "user" ]; then
-    info "Start now:           ${C_BOLD}systemctl --user start sonnenschein${C_RESET}"
+    info "Service status:      systemctl --user status sonnenschein"
     info "Follow logs:         journalctl --user -fu sonnenschein"
   else
-    info "Start now:           ${C_BOLD}sudo systemctl start sonnenschein${C_RESET}"
+    info "Service status:      sudo systemctl status sonnenschein"
     info "Follow logs:         journalctl -fu sonnenschein"
   fi
   printf '\n'
-  info "Then open the WebUI to set your admin password and pair Moonlight:"
+  info "The service is already running. Open the WebUI to set your admin password:"
   printf '      %shttps://localhost:47990%s\n' "$C_BOLD" "$C_RESET"
-  info "On your Steam Deck: install Moonlight, it will discover this host on the LAN."
+  info "On your Steam Deck: open Moonlight — this host appears automatically (mDNS)."
+  info "Pair it there, enter the PIN in the WebUI, done."
 }

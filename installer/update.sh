@@ -78,3 +78,12 @@ elif systemctl is-active --quiet sonnenschein 2>/dev/null; then
 fi
 
 success "Update complete ($(git -C "$REPO_ROOT" rev-parse --short HEAD) on ${BRANCH})."
+
+# Post-update self-check: verify the whole streaming path and repair what
+# broke (stale caps, stopped avahi, missing firewall rules, dead service).
+info "Running post-update health check..."
+if bash "${SCRIPT_DIR}/doctor.sh" --repair; then
+  success "All health checks passed."
+else
+  warn "Some health checks failed — see output above. The update itself is applied."
+fi

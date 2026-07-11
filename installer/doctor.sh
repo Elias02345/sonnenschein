@@ -16,6 +16,8 @@ REPAIR=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 . "${SCRIPT_DIR}/lib/common.sh"
+# shellcheck source=lib/firewall.sh
+. "${SCRIPT_DIR}/lib/firewall.sh"
 
 PASS=0
 FAIL=0
@@ -147,6 +149,47 @@ else
   note "No NVIDIA GPU detected — skipping driver check (AMD/Intel use VAAPI)."
 fi
 
+# --- 7b. Moonlight discovery: avahi + firewall ---------------------------------
+if systemctl is-active --quiet avahi-daemon 2>/dev/null; then
+  ok_check "avahi-daemon running (Moonlight clients can discover this host)."
+else
+  fail_check "avahi-daemon not running — Moonlight will NOT find this host automatically."
+  if [ "$REPAIR" = "1" ]; then
+    require_sudo
+    if $SUDO systemctl enable --now avahi-daemon 2>/dev/null; then
+      ok_check "Repaired: avahi-daemon enabled and started."
+    fi
+  else
+    note "Fix: sudo systemctl enable --now avahi-daemon"
+  fi
+fi
+
+if command -v ufw >/dev/null 2>&1 && sudo -n ufw status 2>/dev/null | grep -q "Status: active"; then
+  if sudo -n ufw status 2>/dev/null | grep -q "47989"; then
+    ok_check "ufw active with Sonnenschein ports open."
+  else
+    fail_check "ufw is active but the Moonlight ports are NOT open."
+    if [ "$REPAIR" = "1" ]; then
+      configure_firewall && ok_check "Repaired: firewall rules added."
+    else
+      note "Fix: re-run the installer or doctor.sh --repair"
+    fi
+  fi
+elif command -v firewall-cmd >/dev/null 2>&1 && sudo -n firewall-cmd --state >/dev/null 2>&1; then
+  if sudo -n firewall-cmd --list-ports 2>/dev/null | grep -q "47989"; then
+    ok_check "firewalld active with Sonnenschein ports open."
+  else
+    fail_check "firewalld is running but the Moonlight ports are NOT open."
+    if [ "$REPAIR" = "1" ]; then
+      configure_firewall && ok_check "Repaired: firewall rules added."
+    else
+      note "Fix: re-run the installer or doctor.sh --repair"
+    fi
+  fi
+else
+  note "No active firewall detected (or sudo needed) — skipping port check."
+fi
+
 # --- 8. Service state ---------------------------------------------------------
 if systemctl --user list-unit-files 2>/dev/null | grep -q '^sonnenschein\.service'; then
   if systemctl --user is-active --quiet sonnenschein.service; then
@@ -165,11 +208,22 @@ else
 fi
 
 # --- 9. WebUI health -----------------------------------------------------------
+# The service unit sleeps 5s before starting (desktop-init grace period), so
+# poll for up to ~15s instead of failing on the first probe.
 if command -v curl >/dev/null 2>&1; then
-  if curl -kfsS -o /dev/null --max-time 5 https://localhost:47990 2>/dev/null; then
+  WEBUI_OK=0
+  for _ in 1 2 3 4 5 6; do
+    if curl -kfsS -o /dev/null --max-time 3 https://localhost:47990 2>/dev/null; then
+      WEBUI_OK=1
+      break
+    fi
+    sleep 2
+  done
+  if [ "$WEBUI_OK" = "1" ]; then
     ok_check "WebUI responds at https://localhost:47990"
   else
     fail_check "WebUI not reachable at https://localhost:47990 (is the service running?)"
+    note "Logs: journalctl --user -eu sonnenschein"
   fi
 fi
 
