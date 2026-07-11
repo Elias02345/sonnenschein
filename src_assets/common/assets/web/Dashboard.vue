@@ -35,9 +35,14 @@
         <ul class="dash-fatal-list">
           <li v-for="(line, i) in fatalLogs" :key="i">{{ line }}</li>
         </ul>
-        <a href="./troubleshooting#logs">
-          <Button :label="$t('dashboard.view_logs')" severity="danger" size="small" />
-        </a>
+        <div class="dash-fatal-actions">
+          <a href="./troubleshooting#logs">
+            <Button :label="$t('dashboard.view_logs')" severity="danger" size="small" />
+          </a>
+          <a :href="crashReportUrl" target="_blank">
+            <Button :label="$t('dashboard.report_issue')" icon="pi pi-github" severity="secondary" size="small" />
+          </a>
+        </div>
       </Message>
 
       <div class="dash-grid">
@@ -155,6 +160,16 @@ export default {
         if (line.split(':')[0] === 'Fatal') fatal.push(line)
       }
       return fatal
+    },
+    // Crash reporter v1: pre-filled GitHub issue (crash.yml template).
+    // Only what the user can see on this page is sent — no telemetry.
+    crashReportUrl() {
+      const params = new URLSearchParams({
+        template: 'crash.yml',
+        version: this.version?.version || 'unknown',
+        stack: this.fatalLogs.join('\n')
+      })
+      return `https://github.com/Elias02345/sonnenschein/issues/new?${params.toString()}`
     }
   },
   async created() {
@@ -264,6 +279,16 @@ export default {
 .dash-fatal-list {
   margin: 0.5rem 0;
   padding-left: 1.25rem;
+}
+
+.dash-fatal-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.dash-fatal-actions a {
+  text-decoration: none;
 }
 
 .dash-grid {

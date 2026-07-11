@@ -105,6 +105,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 . "${SCRIPT_DIR}/lib/firewall.sh"
 # shellcheck source=lib/wol.sh
 . "${SCRIPT_DIR}/lib/wol.sh"
+# shellcheck source=lib/libva.sh
+. "${SCRIPT_DIR}/lib/libva.sh"
 # shellcheck source=lib/ui.sh
 . "${SCRIPT_DIR}/lib/ui.sh"
 
@@ -196,6 +198,7 @@ main() {
 
   packages_snapshot_before
   install_packages "${SCRIPT_DIR}/packages"
+  ensure_libva
 
   build_from_source
   link_into_path
