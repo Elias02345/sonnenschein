@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-07-11 (Runde 2 bestätigt) — **🎉 MAINTAINER-BESTÄTIGUNG: „ES FUNKTIONIERT PERFEKT!"** Nach Runde 2 (Service-Autostart, kein Fatal-Banner mehr, avahi + Firewall automatisch, selbstheilende Updates) läuft der komplette Pfad auf CachyOS + Steam Deck OLED: Install per One-Liner → Discovery → Pairing → Stream. Noch nicht einzeln abgefragt/bestätigt: 90-Hz-Anzeige, HDR-Aktivierung, Landscape-Normalisierung im Log — siehe §12.0. Nächster Fokus: Phase 5 (WebUI-Vereinfachung + intuitiveres Pairing, vom Maintainer explizit gewünscht), dann Phase 4 (HDR/AV1-Feinschliff), Distro-Matrix, Phase 6-8.
+**Stand:** 2026-07-11 (Runde 4) — **End-to-End läuft: Install → Discovery → Pairing → Stream ✅, 90 Hz BESTÄTIGT ✅ (§9.20 endgültig zu), konstantes Frame-Pacing ✅.** Runde 4 implementiert **HDR Stufe 1** (KWin-Output-HDR via output-management, `is_hdr()`-Override, HDR10-Metadaten) — CachyOS-Test offen, Diagnose-Zeilen siehe Nachtrag Runde 4. Roadmap um Client-Track (nativer Steam-Deck-Client, C1–C4) + Boot-to-Ready erweitert. Danach: Phase 5 WebUI, Distro-Matrix, Phase 6–8.
 
 **Vorherige Stand-Zeile (2026-05-28):** Overhaul-Session: Phase 1.6 Rebrand komplett, Phase-3-Installer-Gerüst + Phase-5-PrimeVue-Fundament gebaut, Code-Review der Laufzeit-Fixes erledigt, erste Vorab-Version nach `main` gepusht.
 
@@ -206,6 +206,40 @@ Bildinhalt/Mausbewegung.
    Code nötig, nur Doku (→ Phase 5/7 Doku-Task).
 
 ### 9.25 (Referenz) FPS-Schwankung im Virtual-Display-Stream — GELÖST siehe Nachtrag Runde 3
+
+### Nachtrag Runde 4 (2026-07-11): 90 Hz BESTÄTIGT ✅ + HDR Stufe 1 implementiert
+
+**Maintainer**: „der 90hz fix ist komplett funktional laut moonlight. immernoch kein hdr."
+
+**HDR-Root-Cause gefunden**: `video.cpp` wählt den HDR-Farbraum (BT.2020/PQ)
+nur wenn `config.dynamicRange > 0` **UND** `display->is_hdr()` — und
+`pw_display_t` hatte keinen `is_hdr()`-Override → immer `false` → „HEVC
+10-bit **SDR**" exakt wie beobachtet, selbst wenn der Client HDR anfordert.
+
+**HDR Stufe 1 (implementiert, CachyOS-Test offen)**:
+1. `kwin_session_t::apply_hdr_settings()`: schaltet den virtuellen Output
+   via `kde_output_configuration_v2::set_high_dynamic_range` (+ WCG wenn
+   Capability 0x10, + `set_sdr_brightness(203)` BT.2408-Referenz) in den
+   HDR-Modus. Capability-guarded (0x8), non-fatal, Protokoll v4+ (haben v19+).
+2. `start(..., want_hdr)` ← `config.dynamicRange > 0`; nach Mode-Apply wird
+   HDR angewendet, Ergebnis in `hdr_active`. Der bestehende v3-3b
+   failed-Check danach fängt einen evtl. Stream-Close durch den HDR-Switch.
+3. `pw_display_t::is_hdr()` → `kwin_direct->hdr_active`;
+   `get_hdr_metadata()` liefert synthetisierte HDR10-Defaults (BT.2020-
+   Primaries, D65, 1000 nits Peak) — virtuelle Outputs haben kein EDID.
+
+**Diagnose-Zeilen für den Test** (`journalctl --user -u sonnenschein`):
+- `Client dynamicRange: 1, Display is HDR: true` → volle Kette aktiv
+- `Client dynamicRange: 0, ...` → Deck fordert kein HDR an (Moonlight-
+  HDR-Toggle + SteamOS-HDR prüfen)
+- `output ... does not advertise HDR capability (caps=0x...)` → KWins
+  virtueller Output kann (noch) kein HDR → Stufe-2-Entscheidung nötig
+
+**Bekannte offene Frage (Stufe 2)**: Capture negotiated aktuell 8-bit BGRx.
+Wenn KWin den HDR-Output für 8-bit-Streams nach sRGB tone-mapped, sind die
+Farben im HDR-Stream ggf. flau → dann 10-bit-PipeWire-Negotiation
+(SPA ABGR_210LE) + `sws`-Source-Format-Plumbing (video.cpp:243 hat BGR0
+hartkodiert) als nächster Schritt. Maintainer-Sichttest entscheidet.
 
 ### Was weiterhin offen ist (Maintainer-Test auf CachyOS)
 - **Nach Runde-2-Update**: `bash /opt/sonnenschein/installer/update.sh` →
@@ -1189,6 +1223,8 @@ Vorteile: rock-solid, distroübergreifend, funktioniert ohne KDE-spezifische API
 **Status**: ✅ **GELÖST (Session 2026-07-11, Commit `9be3ba4`)**. Restore-Token wird atomar nach `~/.local/state/sonnenschein/portal-restore-token` persistiert, beim Start geladen und bei stale-Token-Fehler einmal ohne Token retried (Datei wird dann gelöscht). Dialog erscheint nur noch bei der allerersten Portal-Nutzung. CachyOS-Verifikation offen.
 
 ### 9.20 60-Hz-Fix v2 (`806a7ca`) — Regression-Post-Mortem (Stand 2026-05-14 Nacht)
+
+> **✅ ENDGÜLTIG GELÖST (2026-07-11)**: Maintainer bestätigt nach v3 + Frame-Pacing-Fix: „der 90hz fix ist komplett funktional laut moonlight". Der Rest dieser Sektion ist historische Diagnose.
 
 **Symptom auf CachyOS Plasma 6.6.4 + RTX 3070**: Drei gleichzeitige Issues nach `806a7ca`-Test:
 1. KDE Portal-Auswahldialog erscheint („welcher Bildschirm soll geteilt werden") — `kwin_session_t::start()` gibt `false` zurück, Sonnenschein fällt auf Portal-Pfad.
