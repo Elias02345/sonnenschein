@@ -131,6 +131,17 @@
     "clients_desc": "Clients that are specifically tuned to work the best with Sonnenschein",
     "generic_moonlight_clients_desc": "Generic Moonlight clients are still usable with Sonnenschein."
   },
+  "dashboard": {
+    "connected": "Connected",
+    "diagnostics": "Diagnostics",
+    "manage_devices": "Manage",
+    "no_devices": "No devices paired yet.",
+    "pair_new": "Pair new device",
+    "paired": "Paired",
+    "paired_devices": "Paired devices",
+    "toggle_theme": "Toggle dark mode",
+    "view_logs": "View logs"
+  },
   "config": {
     "adapter_name": "Adapter Name",
     "adapter_name_desc_linux_1": "Manually specify a GPU to use for capture.",

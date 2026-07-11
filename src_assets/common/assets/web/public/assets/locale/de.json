@@ -81,6 +81,17 @@
     "working_dir": "Arbeitsverzeichnis",
     "working_dir_desc": "Das Arbeitsverzeichnis, das an den Prozess übergeben werden soll. Zum Beispiel verwenden einige Anwendungen das Arbeitsverzeichnis, um nach Konfigurationsdateien zu suchen. Falls nicht gesetzt, wird Sonnenschein standardmäßig das übergeordnete Verzeichnis des Befehls verwenden"
   },
+  "dashboard": {
+    "connected": "Verbunden",
+    "diagnostics": "Diagnose",
+    "manage_devices": "Verwalten",
+    "no_devices": "Noch keine Geräte gekoppelt.",
+    "pair_new": "Neues Gerät koppeln",
+    "paired": "Gekoppelt",
+    "paired_devices": "Gekoppelte Geräte",
+    "toggle_theme": "Dunkelmodus umschalten",
+    "view_logs": "Logs ansehen"
+  },
   "config": {
     "adapter_name": "Adaptername",
     "adapter_name_desc_linux_1": "Geben Sie eine GPU für die Aufnahme manuell an.",
