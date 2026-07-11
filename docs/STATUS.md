@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-07-11 — **Produktionsreife-Session: Installer komplett umgebaut (/opt-Prefix, restlose Deinstallation via CMake-Manifest, doctor.sh mit --repair, KEIN setcap mehr per Default — das brach PipeWire-Capture, §9.22!), Portrait-Rotation-Fix für Steam Deck (§9.23), Portal-Restore-Token-Persistenz (§9.15 gelöst), package-lock.json committed (§9.24).** Siehe „Session 2026-07-11" direkt unter dem TL;DR. Laufzeit-Verhalten (60 Hz v3, HDR, Rotation, Dialog-frei) weiterhin **CachyOS-Test ausstehend**.
+**Stand:** 2026-07-11 (Runde 2) — **Installer auf CachyOS erfolgreich getestet (12/14 doctor-Checks grün)!** Runde 2 behebt die Rest-Funde: Service-Autostart nach Install, falscher setcap-Fatal-Banner in der WebUI (kmsgrab), Steam-Deck-Discovery (avahi-daemon + ufw/firewalld-Ports automatisch), selbstheilende Updates (update.sh → doctor --repair). Siehe „Nachtrag: CachyOS-Test" in der Session-Sektion. Stream-Test (90 Hz, HDR, Rotation) weiterhin offen.
 
 **Vorherige Stand-Zeile (2026-05-28):** Overhaul-Session: Phase 1.6 Rebrand komplett, Phase-3-Installer-Gerüst + Phase-5-PrimeVue-Fundament gebaut, Code-Review der Laufzeit-Fixes erledigt, erste Vorab-Version nach `main` gepusht.
 
@@ -136,9 +136,46 @@ Physische Monitore am CachyOS-PC. Beim Streaming → alle physischen Outputs aus
   referenzierte es ins Leere. Jetzt erzeugt + committed, .gitignore-Zeile
   entfernt. `npm run build` grün (inkl. Diagnostics-Bundle).
 
+### Nachtrag: CachyOS-Test des Installers (2026-07-11, Maintainer) ✅ + Runde 2
+
+**Installer-Run erfolgreich**: `curl | bash` lief komplett durch (Klon →
+32 Pakete, davon nur 12 neu → Build → /opt-Install → Manifest → udev →
+User-Service). `doctor.sh --repair` : 12/14 grün auf Anhieb. Plasma 6.7,
+NVIDIA 610.43.03, keine File-Caps. Gefundene Rest-Probleme → Runde 2:
+
+1. **Service lief nach Install nicht** (Installer enabled nur, startete
+   nicht; doctor-Repair startete ihn). → Fix: `install.sh` startet den
+   Service jetzt direkt nach der Installation.
+2. **WebUI-Check falsch-negativ**: Service-Unit hat `ExecStartPre=sleep 5`,
+   doctor prüfte sofort. → Fix: Retry-Loop (bis ~15 s).
+3. **WebUI zeigt Fatal-Banner „sudo setcap cap_sys_admin+p …"**: Apollo-Erbe
+   in `kmsgrab.cpp` — auf Wayland wurde ein fehlgeschlagener KMS-Probe als
+   `fatal` geloggt, obwohl PipeWire unser Primärpfad ist und setcap ihn
+   sogar zerstören würde (§9.22). → Fix: nur noch fatal wenn
+   `capture = kms` explizit konfiguriert; Meldung erklärt jetzt den
+   PipeWire-Sachverhalt statt zur setcap-Falle zu raten.
+4. **Steam Deck findet den Host nicht (Discovery)**: mDNS-Publish braucht
+   laufenden avahi-daemon (wird per dlopen genutzt) + offene Ports.
+   → Fix: neue `installer/lib/firewall.sh` — öffnet bei aktivem **ufw**
+   oder **firewalld** die Moonlight-Ports (TCP 47984,47989,47990,48010;
+   UDP 47998-48000,5353/mDNS), enabled avahi-daemon (`ensure_avahi`).
+   Beides wird in `install-state.env` protokolliert (FIREWALL_CONFIGURED,
+   FIREWALL_MDNS_ADDED, AVAHI_ENABLED) und beim Uninstall exakt revertiert.
+   avahi-Runtime-Paket in alle vier Distro-Listen aufgenommen.
+5. **Updates selbstheilend**: `update.sh` läuft am Ende automatisch
+   `doctor.sh --repair` (Caps, avahi, Firewall, Service, WebUI).
+6. doctor prüft jetzt zusätzlich avahi-daemon + Firewall-Ports (mit
+   `--repair`-Pfad für beide).
+
+**Bewusst verschoben** (nächste Session / Phase 5): WebUI-Vereinfachung +
+intuitiveres Pairing-UI (PrimeVue-Migration der Bestands-Seiten). Die
+funktionalen Pairing-Blocker (Discovery, Firewall, Fatal-Banner) sind mit
+Runde 2 adressiert.
+
 ### Was weiterhin offen ist (Maintainer-Test auf CachyOS)
-- Kompletter Installer-Run auf CachyOS: `curl -fsSL .../main/installer/install.sh | bash`
-- `doctor.sh` auf CachyOS laufen lassen — erwartet: alle Checks grün
+- **Nach Runde-2-Update**: `bash /opt/sonnenschein/installer/update.sh` →
+  läuft Build + doctor --repair automatisch. Erwartung: alle Checks grün,
+  kein Fatal-Banner mehr in der WebUI, Steam Deck findet den Host.
 - Stream-Test Steam Deck: Auflösung 1280x800 Landscape, kein Dialog ab
   zweitem Start, 90 Hz (60-Hz-Fix v3 aus Session 2026-05-14), HDR
 - Uninstall-Test: `bash /opt/sonnenschein/installer/uninstall.sh` → System sauber
