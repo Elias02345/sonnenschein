@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-07-11 (Runde 2) — **Installer auf CachyOS erfolgreich getestet (12/14 doctor-Checks grün)!** Runde 2 behebt die Rest-Funde: Service-Autostart nach Install, falscher setcap-Fatal-Banner in der WebUI (kmsgrab), Steam-Deck-Discovery (avahi-daemon + ufw/firewalld-Ports automatisch), selbstheilende Updates (update.sh → doctor --repair). Siehe „Nachtrag: CachyOS-Test" in der Session-Sektion. Stream-Test (90 Hz, HDR, Rotation) weiterhin offen.
+**Stand:** 2026-07-11 (Runde 2 bestätigt) — **🎉 MAINTAINER-BESTÄTIGUNG: „ES FUNKTIONIERT PERFEKT!"** Nach Runde 2 (Service-Autostart, kein Fatal-Banner mehr, avahi + Firewall automatisch, selbstheilende Updates) läuft der komplette Pfad auf CachyOS + Steam Deck OLED: Install per One-Liner → Discovery → Pairing → Stream. Noch nicht einzeln abgefragt/bestätigt: 90-Hz-Anzeige, HDR-Aktivierung, Landscape-Normalisierung im Log — siehe §12.0. Nächster Fokus: Phase 5 (WebUI-Vereinfachung + intuitiveres Pairing, vom Maintainer explizit gewünscht), dann Phase 4 (HDR/AV1-Feinschliff), Distro-Matrix, Phase 6-8.
 
 **Vorherige Stand-Zeile (2026-05-28):** Overhaul-Session: Phase 1.6 Rebrand komplett, Phase-3-Installer-Gerüst + Phase-5-PrimeVue-Fundament gebaut, Code-Review der Laufzeit-Fixes erledigt, erste Vorab-Version nach `main` gepusht.
 
@@ -1397,7 +1397,15 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 In Reihenfolge der Priorität.
 
-### 0) CachyOS-Gesamttest der Session 2026-07-11 (höchste Prio, Maintainer)
+### 0) ✅ ERLEDIGT: CachyOS-Gesamttest — Maintainer bestätigt „funktioniert perfekt" (2026-07-11)
+
+Install + Discovery + Pairing + Stream laufen End-to-End. **Noch offen zur
+Detail-Bestätigung** (beim nächsten Stream kurz prüfen, keine Blocker):
+- Zeigt Moonlight 90 Hz (nicht 60)? → schließt §9.20 endgültig
+- HDR10-Indikator im Moonlight-Overlay? → Input für Phase 4
+- Log-Zeile „normalizing to landscape" wenn das Deck Portrait anfordert? → bestätigt §9.23
+
+### 0-alt) CachyOS-Gesamttest der Session 2026-07-11 (Referenz)
 
 1. **Installer**: `curl -fsSL https://raw.githubusercontent.com/Elias02345/sonnenschein/main/installer/install.sh | bash`
    — erwartet: Build läuft durch, alles landet in `/opt/sonnenschein`, Abschluss-Summary mit WebUI-URL.
