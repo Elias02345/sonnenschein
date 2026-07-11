@@ -103,6 +103,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 . "${SCRIPT_DIR}/lib/permissions.sh"
 # shellcheck source=lib/firewall.sh
 . "${SCRIPT_DIR}/lib/firewall.sh"
+# shellcheck source=lib/wol.sh
+. "${SCRIPT_DIR}/lib/wol.sh"
 # shellcheck source=lib/ui.sh
 . "${SCRIPT_DIR}/lib/ui.sh"
 
@@ -168,6 +170,7 @@ write_install_state() {
     echo "FIREWALL_CONFIGURED=${FIREWALL_CONFIGURED:-none}"
     echo "FIREWALL_MDNS_ADDED=${FIREWALL_MDNS_ADDED:-0}"
     echo "AVAHI_ENABLED=${AVAHI_ENABLED:-0}"
+    echo "WOL_CONFIGURED=${WOL_CONFIGURED:-}"
     echo "INSTALL_DATE=$(date -Is)"
   } | $SUDO tee "${PREFIX}/install-state.env" >/dev/null
 
@@ -209,6 +212,7 @@ main() {
 
   configure_firewall
   ensure_avahi
+  configure_wol
 
   install_service "$SERVICE_MODE" "${REPO_ROOT}/build/sonnenschein.service" "$AUTOSTART"
   write_install_state

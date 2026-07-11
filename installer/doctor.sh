@@ -190,6 +190,30 @@ else
   note "No active firewall detected (or sudo needed) — skipping port check."
 fi
 
+# --- 7c. Wake-on-LAN (Boot-to-Ready) -------------------------------------------
+if [ -r "${PREFIX}/install-state.env" ]; then
+  WOL_CONFIGURED=""
+  # shellcheck disable=SC1091
+  . "${PREFIX}/install-state.env"
+  if [ -n "${WOL_CONFIGURED:-}" ] && command -v ethtool >/dev/null 2>&1; then
+    WOL_NOW="$(sudo -n ethtool "$WOL_CONFIGURED" 2>/dev/null | sed -n 's/.*Wake-on: \([a-z]*\)$/\1/p' | tail -n1)"
+    if [ "$WOL_NOW" = "g" ]; then
+      MAC="$(cat "/sys/class/net/${WOL_CONFIGURED}/address" 2>/dev/null || true)"
+      ok_check "Wake-on-LAN armed on ${WOL_CONFIGURED}${MAC:+ (MAC ${MAC})}."
+    elif [ -n "$WOL_NOW" ]; then
+      fail_check "Wake-on-LAN on ${WOL_CONFIGURED} is '${WOL_NOW}', not 'g' (magic packet)."
+      if [ "$REPAIR" = "1" ]; then
+        require_sudo
+        $SUDO ethtool -s "$WOL_CONFIGURED" wol g && ok_check "Repaired: WoL re-armed."
+      else
+        note "Fix: sudo ethtool -s ${WOL_CONFIGURED} wol g   (or doctor.sh --repair)"
+      fi
+    else
+      note "Wake-on-LAN state unreadable without sudo — skipping check."
+    fi
+  fi
+fi
+
 # --- 8. Service state ---------------------------------------------------------
 if systemctl --user list-unit-files 2>/dev/null | grep -q '^sonnenschein\.service'; then
   if systemctl --user is-active --quiet sonnenschein.service; then

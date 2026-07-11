@@ -40,3 +40,6 @@ libxkbcommon
 
 # Tray
 libayatana-appindicator
+
+# Wake-on-LAN (Boot-to-Ready)
+ethtool

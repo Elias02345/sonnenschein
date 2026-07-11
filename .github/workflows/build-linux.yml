@@ -7,10 +7,9 @@ on:
     branches: [main, dev]
   workflow_dispatch:
 
-# Pre-Alpha: this workflow is intentionally permissive — many Apollo/Sunshine
-# CMake paths still need adapting before clean builds work everywhere. We mark
-# distros as `continue-on-error: true` while we stabilise (Phase 1 milestone).
-# Once a distro builds reliably, drop the flag for that matrix entry.
+# Hardened (Phase 7, 2026-07-11): Arch, Ubuntu 24.04 and Fedora 41 build
+# reliably, so build failures fail the workflow. New matrix entries may use
+# continue-on-error temporarily while they stabilise.
 
 jobs:
   build:
@@ -60,7 +59,8 @@ jobs:
     container:
       image: ${{ matrix.distro.image }}
       options: --user 0
-    continue-on-error: true   # remove once distro stabilises (see header comment)
+    # Phase 7 hardening (2026-07-11): all three matrix jobs are genuinely
+    # green — build failures now fail the workflow.
 
     steps:
       - name: Distro setup

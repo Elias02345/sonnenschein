@@ -16,6 +16,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${SCRIPT_DIR}/lib/common.sh"
 # shellcheck source=lib/firewall.sh
 . "${SCRIPT_DIR}/lib/firewall.sh"
+# shellcheck source=lib/wol.sh
+. "${SCRIPT_DIR}/lib/wol.sh"
 install_error_trap
 
 # The whole flow lives in main() so bash parses it completely before we
@@ -29,6 +31,7 @@ main() {
   FIREWALL_CONFIGURED=none
   FIREWALL_MDNS_ADDED=0
   AVAHI_ENABLED=0
+  WOL_CONFIGURED=""
   INSTALL_USER="$(id -un)"
   if [ -r "${PREFIX}/install-state.env" ]; then
     # shellcheck disable=SC1091
@@ -80,12 +83,13 @@ main() {
     fi
   done
 
-  # --- Firewall rules + avahi (only what WE changed) -----------------------
+  # --- Firewall rules + avahi + WoL (only what WE changed) -----------------
   remove_firewall_rules "$FIREWALL_CONFIGURED" "$FIREWALL_MDNS_ADDED"
   if [ "$AVAHI_ENABLED" = "1" ]; then
     info "Disabling avahi-daemon (installer enabled it)."
     $SUDO systemctl disable --now avahi-daemon 2>/dev/null || true
   fi
+  remove_wol "${WOL_CONFIGURED:-}"
 
   # --- udev / modules-load rules (both possible locations) ----------------
   $SUDO rm -f /etc/udev/rules.d/60-sonnenschein.rules

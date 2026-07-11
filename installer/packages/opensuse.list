@@ -44,3 +44,6 @@ libayatana-appindicator3-devel
 
 # Discovery (runtime, dlopen'd)
 avahi
+
+# Wake-on-LAN (Boot-to-Ready)
+ethtool

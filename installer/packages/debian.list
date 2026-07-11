@@ -45,3 +45,6 @@ libappindicator3-dev
 
 # Discovery (runtime, dlopen'd)
 avahi-daemon
+
+# Wake-on-LAN (Boot-to-Ready)
+ethtool
