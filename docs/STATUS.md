@@ -328,6 +328,23 @@ den Browser-Pane. Damit sind ab jetzt ALLE WebUI-Seiten live testbar.
 4. **Ubuntu-24.04-E2E-Test** läuft via Subagent in WSL (frischer Klon
    von main, kompletter Installer-Durchlauf inkl. doctor + uninstall).
    Bekannte Erwartung: libva-2.20-Problem (§9.1) — Ergebnis folgt.
+5. **libva-Backport automatisiert ✅**: Neue `installer/lib/libva.sh` —
+   Debian-Familie mit libva < 2.22 bekommt libva 2.22 automatisch from
+   source (meson, ~2 min), sonst Linker-Fehler gegen das prebuilt FFmpeg
+   (§9.1). Präventiv vor dem E2E-Ergebnis implementiert, shellcheck grün.
+6. **Crash-Reporter v1 ✅**: Fatal-Banner im Dashboard hat jetzt „Auf
+   GitHub melden" — öffnet pre-filled `crash.yml`-Issue mit Version +
+   sichtbaren Fatal-Zeilen. Keine Telemetrie, Nutzer sieht exakt was
+   gesendet wird (ROADMAP-Konzept, Frontend-only-v1).
+7. **Login-Seite auf PrimeVue ✅ LIVE-GETESTET**: `LoginCard.vue` im
+   Wizard-Look, Passwort-merken erhalten, i18n-Fehlermeldungen. Live
+   verifiziert: falsches Passwort → 401-Meldung, korrektes → Session-
+   Cookie → landet auf dem neuen Dashboard.
+
+**Phase-5-Reststand**: Noch Bootstrap: `apps.html`, `config.html`,
+`password.html`, `troubleshooting.html` (funktionieren unverändert;
+Migration mit dem etablierten Live-Test-Setup in nächster Runde).
+Live-Log-Tab + WebUI-Update-Knopf (Phase 6) ebenfalls offen.
 
 ### Was weiterhin offen ist (Maintainer-Test auf CachyOS)
 - **Nach Runde-2-Update**: `bash /opt/sonnenschein/installer/update.sh` →
