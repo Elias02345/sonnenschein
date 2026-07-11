@@ -213,6 +213,9 @@ namespace pw {
     int height = 0;
     bool ready = false;
     bool failed = false;
+    // True once KWin confirmed HDR mode on the captured virtual output.
+    // Drives platf::display_t::is_hdr() → encoder picks BT.2020/PQ.
+    bool hdr_active = false;
     std::string error;
 
     ~kwin_session_t() {
@@ -290,7 +293,7 @@ namespace pw {
       return true;
     }
 
-    bool start(const std::string &target_output_name, int requested_width, int requested_height, double requested_framerate) {
+    bool start(const std::string &target_output_name, int requested_width, int requested_height, double requested_framerate, bool want_hdr = false) {
       wl_output *target = nullptr;
       output_t *params = nullptr;
       
@@ -374,7 +377,7 @@ namespace pw {
         std::this_thread::sleep_for(500ms);
 
         const bool output_mgmt_ok = apply_output_management_settings(
-          target_output_name, width, height, requested_framerate, 1500ms);
+          target_output_name, width, height, requested_framerate, 1500ms, want_hdr);
 
         if (!output_mgmt_ok) {
           std::string hz_str = std::to_string(static_cast<int>(requested_framerate));
@@ -898,12 +901,50 @@ namespace pw {
         800ms);
     }
 
+    // Switch the virtual output into HDR mode (Plasma 6.2+, protocol v4+).
+    // Capability-guarded and non-fatal: on any failure the stream simply
+    // stays SDR, exactly as before this feature existed.
+    bool apply_hdr_settings(kde_output_t &output) {
+      if (output_management_version < KDE_OUTPUT_CONFIGURATION_V2_SET_HIGH_DYNAMIC_RANGE_SINCE_VERSION) {
+        BOOST_LOG(warning) << "KWin output management: HDR requested but protocol version "
+                           << output_management_version << " lacks set_high_dynamic_range";
+        return false;
+      }
+      if (!(output.capabilities & KDE_OUTPUT_DEVICE_V2_CAPABILITY_HIGH_DYNAMIC_RANGE)) {
+        BOOST_LOG(warning)
+          << "KWin output management: output '" << kde_output_label(output)
+          << "' does not advertise HDR capability (caps=0x" << std::hex << output.capabilities << std::dec
+          << ") — streaming SDR. Virtual-output HDR needs a recent Plasma.";
+        return false;
+      }
+
+      const bool wcg = output.capabilities & KDE_OUTPUT_DEVICE_V2_CAPABILITY_WIDE_COLOR_GAMUT;
+      const auto applied = apply_kde_configuration(
+        std::string("HDR mode for ") + kde_output_label(output),
+        [&](kde_output_configuration_v2 *configuration) {
+          kde_output_configuration_v2_set_high_dynamic_range(configuration, output.device, 1);
+          if (wcg) {
+            kde_output_configuration_v2_set_wide_color_gamut(configuration, output.device, 1);
+          }
+          // Reference SDR white level for HDR outputs (203 nits, ITU-R BT.2408).
+          kde_output_configuration_v2_set_sdr_brightness(configuration, output.device, 203);
+        },
+        800ms);
+
+      if (applied) {
+        BOOST_LOG(info) << "KWin output management: HDR" << (wcg ? "+WCG" : "")
+                        << " enabled on output '" << kde_output_label(output) << "'";
+      }
+      return applied;
+    }
+
     bool apply_output_management_settings(
       const std::string &target_output_name,
       int requested_width,
       int requested_height,
       double requested_framerate,
-      std::chrono::milliseconds timeout
+      std::chrono::milliseconds timeout,
+      bool want_hdr = false
     ) {
       const auto requested_mhz = refresh_millihz(requested_framerate);
       if (!output_management || !output_device_registry) {
@@ -986,6 +1027,13 @@ namespace pw {
           << "KWin output management: mode verification failed for output '" << kde_output_label(*output)
           << "', current mode " << describe_kde_mode(current)
           << ", requested " << format_mode(requested_width, requested_height, static_cast<double>(requested_mhz) / 1000.0);
+      }
+
+      // Phase 4: the client asked for HDR — flip the output to HDR mode.
+      // Independent of mode_ok: even at a fallback refresh rate an HDR
+      // stream is more valuable than silently staying SDR.
+      if (want_hdr && !failed) {
+        hdr_active = apply_hdr_settings(*output);
       }
 
       return mode_ok;
@@ -1942,7 +1990,7 @@ namespace pw {
       // the same output and has been observed to negotiate 1920x1080.
       if (!display_name.empty()) {
         kwin_direct = std::make_unique<kwin_session_t>();
-        if (kwin_direct->init() && kwin_direct->start(display_name, config.width, config.height, config.framerate)) {
+        if (kwin_direct->init() && kwin_direct->start(display_name, config.width, config.height, config.framerate, config.dynamicRange > 0)) {
           pipewire_fd = -1;
           pipewire_node_id = kwin_direct->node_id;
           BOOST_LOG(info) << "KWin direct capture: selected for output '"sv << display_name << "'"sv;
@@ -2098,6 +2146,34 @@ namespace pw {
     int dummy_img(platf::img_t *img) override {
       return 0;
     }
+
+#ifdef SUNSHINE_BUILD_KWIN
+    // Phase 4: report HDR only when KWin actually switched the captured
+    // virtual output into HDR mode — the encoder then signals BT.2020/PQ.
+    bool is_hdr() override {
+      return kwin_direct && kwin_direct->hdr_active;
+    }
+
+    bool get_hdr_metadata(SS_HDR_METADATA &metadata) override {
+      if (!is_hdr()) {
+        std::memset(&metadata, 0, sizeof(metadata));
+        return false;
+      }
+      // A virtual output has no EDID to read mastering data from, so we
+      // send standard HDR10 defaults: BT.2020 primaries, D65 white point,
+      // 1000-nit mastering peak. Clients (Deck OLED, TVs) tone-map anyway.
+      metadata.displayPrimaries[0] = {35400, 14600};  // R 0.708, 0.292
+      metadata.displayPrimaries[1] = {8500, 39850};   // G 0.170, 0.797
+      metadata.displayPrimaries[2] = {6550, 2300};    // B 0.131, 0.046
+      metadata.whitePoint = {15635, 16450};           // D65
+      metadata.maxDisplayLuminance = 1000;            // nits
+      metadata.minDisplayLuminance = 50;              // 0.005 nits (1/10000 units)
+      metadata.maxContentLightLevel = 1000;
+      metadata.maxFrameAverageLightLevel = 400;
+      metadata.maxFullFrameLuminance = 400;
+      return true;
+    }
+#endif
 
     std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) override {
 #ifdef SUNSHINE_BUILD_VAAPI
