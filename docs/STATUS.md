@@ -241,6 +241,42 @@ Farben im HDR-Stream ggf. flau → dann 10-bit-PipeWire-Negotiation
 (SPA ABGR_210LE) + `sws`-Source-Format-Plumbing (video.cpp:243 hat BGR0
 hartkodiert) als nächster Schritt. Maintainer-Sichttest entscheidet.
 
+### Nachtrag Runde 5 (2026-07-11): HDR-Test-Ergebnis — UPSTREAM-BLOCKER identifiziert
+
+**Maintainer-Logs zeigen die komplette Diagnose:**
+1. ✅ `Client dynamicRange: 1` — das Deck fordert HDR korrekt an (Toggles
+   richtig gesetzt), unsere Request-Kette funktioniert Ende-zu-Ende.
+2. 🔴 `output 'Virtual-pipewire-virtual' does not advertise HDR capability
+   (caps=0x2000)` — **0x2000 = ausschließlich `custom_modes`** (deshalb
+   funktionieren die 90 Hz!). Kein `high_dynamic_range` (0x8), kein
+   `wide_color_gamut` (0x10).
+
+**Bedeutung**: KWins per `stream_virtual_output` erzeugte virtuelle Outputs
+unterstützen in **Plasma 6.7 kein HDR** — Upstream-Limitierung, kein
+Sonnenschein-Bug. Genau wie Custom-Modes erst durch KWin MR !8766 kamen,
+braucht HDR-auf-Virtual-Outputs einen KWin-Patch (vermutlich
+`VirtualOutput::updateCapabilities` + Colorimetry im Screencast-Pfad).
+Interessanter Nebenfund: KWin registriert den Screencast-Virtual-Output
+in output-management als **`Virtual-pipewire-virtual`**.
+
+**Unser Code ist zukunftssicher**: Capability-guarded — sobald ein
+Plasma-Update das Bit 0x8 setzt, schaltet Sonnenschein HDR automatisch an,
+ohne dass wir etwas ändern müssen.
+
+**Nächste Schritte HDR**:
+- [ ] Maintainer: Feature-Request bei KDE einreichen (Text von Claude
+  vorbereitet, siehe Session-Chat 2026-07-11 — Kurzfassung: „Add
+  high_dynamic_range/wide_color_gamut capability to screencast virtual
+  outputs, analog zu custom_modes aus MR !8766")
+- [ ] Bei jedem Plasma-Update: Stream mit HDR-Request testen — Log-Zeile
+  „HDR+WCG enabled" erscheint automatisch sobald KWin es kann
+- [ ] Option für später evaluieren: eigener KWin-MR (C++/KWin-Kenntnisse
+  nötig, `src/backends/virtual/virtual_output.cpp` + Screencast-Colorimetry)
+- ⏸ Stufe 2 (10-bit-Capture) pausiert bis Output-HDR upstream existiert —
+  ohne HDR-Output gibt es keinen HDR-Content zu capturen.
+
+**HDR ist damit sauber geparkt. Nächster Fokus laut Plan: Phase 5 (WebUI).**
+
 ### Was weiterhin offen ist (Maintainer-Test auf CachyOS)
 - **Nach Runde-2-Update**: `bash /opt/sonnenschein/installer/update.sh` →
   läuft Build + doctor --repair automatisch. Erwartung: alle Checks grün,
