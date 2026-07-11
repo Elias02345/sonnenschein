@@ -1633,10 +1633,20 @@ namespace platf {
 
         if (!fb->handles[0]) {
           BOOST_LOG(error) << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Probably not permitted"sv;
-          BOOST_LOG((window_system != window_system_e::X11 || config::video.capture == "kms") ? fatal : error)
-            << "You must run [sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))] for KMS display capture to work!\n"sv
-            << "If you installed from AppImage or Flatpak, please refer to the official documentation:\n"sv
-            << "https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html#linux"sv;
+#ifdef SUNSHINE_BUILD_PIPEWIRE
+          // PipeWire portal capture needs NO capabilities and is the primary
+          // path on Wayland (CAP_SYS_ADMIN would actually break it — the
+          // portal refuses privileged callers). A failed KMS probe is only
+          // fatal when the user explicitly forces KMS capture.
+          const bool kms_required = config::video.capture == "kms";
+#else
+          const bool kms_required = window_system != window_system_e::X11 || config::video.capture == "kms";
+#endif
+          BOOST_LOG(kms_required ? fatal : error)
+            << "KMS capture unavailable without CAP_SYS_ADMIN (this is fine — PipeWire capture is used instead).\n"sv
+            << "Only if you explicitly need KMS mirroring of physical displays, run:\n"sv
+            << "  sudo bash /opt/sonnenschein/installer/post-install.sh   # or install.sh --kms\n"sv
+            << "Note: CAP_SYS_ADMIN disables PipeWire portal capture (virtual displays)."sv;
           break;
         }
 
