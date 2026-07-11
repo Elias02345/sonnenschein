@@ -2010,6 +2010,12 @@ namespace pw {
       auto next_frame = std::chrono::steady_clock::now();
       sleep_overshoot_logger.reset();
 
+      // KWin's screencast is damage-driven: a static desktop delivers only a
+      // trickle of frames. The encoder must still run at the client's cadence
+      // (Steam Deck: 90 fps), so when no fresh frame arrives within one frame
+      // interval we re-encode the previous one instead of stalling for 500 ms.
+      bool have_prev_frame = false;
+
       while (true) {
         auto now = std::chrono::steady_clock::now();
         if (next_frame > now) {
@@ -2020,29 +2026,32 @@ namespace pw {
         next_frame += delay;
         if (next_frame < now) next_frame = now + delay;
 
-        // Wait for new frame from PipeWire
+        // Wait for new frame from PipeWire — at most one frame interval.
+        bool fresh = false;
         {
           std::unique_lock lk(pw_cap->frame_mtx);
-          pw_cap->frame_cv.wait_for(lk, std::chrono::milliseconds(500),
+          pw_cap->frame_cv.wait_for(lk, delay,
             [this]{ return pw_cap->has_new_frame; });
 
-          if (!pw_cap->has_new_frame) {
-            // Timeout — push empty frame
-            std::shared_ptr<platf::img_t> img_out;
-            if (!push_captured_image_cb(std::move(img_out), false)) {
-              return platf::capture_e::ok;
-            }
-            continue;
-          }
-
+          fresh = pw_cap->has_new_frame;
           pw_cap->has_new_frame = false;
 
-          // Check for resolution change
-          if (pw_cap->width != (uint32_t)width || pw_cap->height != (uint32_t)height) {
+          // Check for resolution change (only meaningful on a fresh frame)
+          if (fresh && (pw_cap->width != (uint32_t)width || pw_cap->height != (uint32_t)height)) {
             width = pw_cap->width;
             height = pw_cap->height;
             return platf::capture_e::reinit;
           }
+        }
+
+        if (!fresh && (!have_prev_frame || pw_cap->is_dmabuf)) {
+          // Nothing to repeat yet (startup) or zero-copy path — signal
+          // "no new frame" like before.
+          std::shared_ptr<platf::img_t> img_out;
+          if (!push_captured_image_cb(std::move(img_out), false)) {
+            return platf::capture_e::ok;
+          }
+          continue;
         }
 
         std::shared_ptr<platf::img_t> img_out;
@@ -2052,7 +2061,8 @@ namespace pw {
 
         auto frame_ts = std::chrono::steady_clock::now();
 
-        // Copy SHM frame data to image
+        // Copy SHM frame data to image. frame_data always holds the most
+        // recent frame, so this also serves the frame-repeat path above.
         if (!pw_cap->is_dmabuf) {
           std::lock_guard lk(pw_cap->frame_mtx);
           auto row_bytes = std::min((int)pw_cap->stride, img_out->row_pitch);
@@ -2063,6 +2073,7 @@ namespace pw {
               pw_cap->frame_data.data() + y * pw_cap->stride,
               row_bytes);
           }
+          have_prev_frame = true;
         }
 
         img_out->frame_timestamp = frame_ts;
