@@ -307,7 +307,7 @@
     "install_steam_audio_drivers": "Install Steam Audio Drivers",
     "install_steam_audio_drivers_desc": "If Steam is installed, this will automatically install the Steam Streaming Speakers driver to support 5.1/7.1 surround sound and muting host audio.",
     "isolated_virtual_display_option": "Move the Virtual Display to the bottom right-most corner of the display layout",
-    "isolated_virtual_display_option_desc": "This makes the display isolated from all other display and contains mouse movements to the virtual screen. This reorganizes the displays such that the all other displays are to the left of the virtual display.",	
+    "isolated_virtual_display_option_desc": "This makes the display isolated from all other display and contains mouse movements to the virtual screen. This reorganizes the displays such that the all other displays are to the left of the virtual display.",
     "keep_sink_default": "Keep virtual sink as default",
     "keep_sink_default_desc": "Whether to force selected virtual sink as default (effective when host audio output is disabled).",
     "key_repeat_delay": "Key Repeat Delay",
@@ -589,11 +589,23 @@
   },
   "welcome": {
     "confirm_password": "Confirm password",
+    "continue": "Continue",
     "create_creds": "Before Getting Started, we need you to make a new username and password for accessing the Web UI.",
     "create_creds_alert": "The credentials below are needed to access Sonnenschein's Web UI. Keep them safe, since you will never see them again!",
+    "done_pairing_hint": "Pair your first device now:",
+    "done_relogin": "Your browser will ask for the new credentials on the next page.",
+    "done_step_moonlight": "Install and open Moonlight on your device (e.g. Steam Deck).",
+    "done_step_pin": "Moonlight shows a PIN. Enter it on the pairing page here.",
+    "done_step_select_host": "This PC appears automatically — select it.",
+    "done_title": "Credentials saved — Sonnenschein is ready.",
     "greeting": "Welcome to Sonnenschein!",
     "login": "Login",
-    "welcome_success": "This page will reload soon, your browser will ask you for the new credentials",
-    "login_success": "This page will reload soon."
+    "login_success": "This page will reload soon.",
+    "open_pairing": "Open pairing page",
+    "password_mismatch": "Passwords do not match.",
+    "step_credentials": "Credentials",
+    "step_pairing": "Pairing",
+    "tagline": "Linux game streaming that just works.",
+    "welcome_success": "This page will reload soon, your browser will ask you for the new credentials"
   }
 }

@@ -445,10 +445,22 @@
   },
   "welcome": {
     "confirm_password": "Passwort bestätigen",
+    "continue": "Weiter",
     "create_creds": "Bevor Sie loslegen, müssen Sie einen neuen Benutzernamen und ein neues Passwort für den Zugriff auf die Web-Oberfläche erstellen.",
     "create_creds_alert": "Die unten angegebenen Anmeldedaten werden benötigt, um auf das Webinterface von Sonnenschein zuzugreifen. Halten Sie sie sicher, da Sie sie nie wieder sehen werden!",
+    "done_pairing_hint": "Verbinde jetzt dein erstes Gerät:",
+    "done_relogin": "Dein Browser fragt auf der nächsten Seite nach den neuen Zugangsdaten.",
+    "done_step_moonlight": "Installiere und öffne Moonlight auf deinem Gerät (z. B. Steam Deck).",
+    "done_step_pin": "Moonlight zeigt eine PIN. Gib sie hier auf der Pairing-Seite ein.",
+    "done_step_select_host": "Dieser PC erscheint automatisch — wähle ihn aus.",
+    "done_title": "Zugangsdaten gespeichert — Sonnenschein ist bereit.",
     "greeting": "Willkommen bei Sonnenschein!",
     "login": "Anmelden",
+    "open_pairing": "Pairing-Seite öffnen",
+    "password_mismatch": "Die Passwörter stimmen nicht überein.",
+    "step_credentials": "Zugangsdaten",
+    "step_pairing": "Pairing",
+    "tagline": "Linux-Game-Streaming, das einfach funktioniert.",
     "welcome_success": "Diese Seite wird bald neu geladen, Ihr Browser wird Sie nach den neuen Anmeldeinformationen fragen"
   }
 }

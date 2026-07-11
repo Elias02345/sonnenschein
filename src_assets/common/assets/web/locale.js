@@ -4,8 +4,17 @@ import {createI18n} from "vue-i18n";
 import en from './public/assets/locale/en.json'
 
 export default async function() {
-    let r = await (await fetch("./api/configLocale", { credentials: 'include' })).json();
-    let locale = r.locale ?? "en";
+    // If the locale API is unreachable (backend down, static preview,
+    // transient error) the UI must still render — fall back to the
+    // browser language instead of leaving a blank page.
+    let locale = "en";
+    try {
+        let r = await (await fetch("./api/configLocale", { credentials: 'include' })).json();
+        locale = r.locale ?? "en";
+    } catch (e) {
+        console.error("Failed to fetch configured locale, using browser language", e);
+        locale = (navigator.language || "en").split("-")[0];
+    }
     document.querySelector('html').setAttribute('lang', locale);
     let messages = {
         en
@@ -17,6 +26,7 @@ export default async function() {
         }
     } catch (e) {
         console.error("Failed to download translations", e);
+        locale = 'en';
     }
     const i18n = createI18n({
         locale: locale, // set locale

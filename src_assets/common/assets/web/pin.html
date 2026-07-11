@@ -13,6 +13,18 @@
     .pin-tab-bar {
       margin-bottom: 2em !important;
     }
+
+    /* Big, thumb-friendly PIN entry — the Moonlight PIN is the core flow. */
+    #pin-input {
+      font-size: 2rem;
+      text-align: center;
+      letter-spacing: 0.5em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #pin-form-card {
+      min-width: 20rem;
+    }
   </style>
 </head>
 
@@ -28,10 +40,11 @@
       </li>
     </ul>
     <form v-if="currentTab === '#PIN'" class="form d-flex flex-column align-items-center" id="form" @submit.prevent="registerDevice">
-      <div class="card flex-column d-flex p-4 mb-4">
-        <input type="text" pattern="\d*" :placeholder="`${$t('navbar.pin')}`" autofocus id="pin-input" class="form-control mt-2" required />
+      <div id="pin-form-card" class="card flex-column d-flex p-4 mb-4">
+        <input type="text" pattern="\d*" inputmode="numeric" maxlength="8" autocomplete="off"
+          placeholder="0000" autofocus id="pin-input" class="form-control mt-2" required />
         <input type="text" :placeholder="`${$t('pin.device_name')}`" id="name-input" class="form-control my-4" />
-        <button class="btn btn-primary">{{ $t('pin.send') }}</button>
+        <button class="btn btn-primary btn-lg">{{ $t('pin.send') }}</button>
       </div>
       <div id="status"></div>
     </form>
@@ -357,7 +370,8 @@
     return {
       platform: '',
       editingHost: false,
-      currentTab: location.hash || '#OTP',
+      // PIN pairing is the standard Moonlight flow — make it the default tab.
+      currentTab: location.hash || '#PIN',
       otp: '',
       passphrase: '',
       otpMessage: '',
@@ -431,15 +445,14 @@
           .then((response) => response.json())
           .then((response) => {
             if (response.status === true) {
+              // Inline success feedback instead of a blocking alert() popup.
               document.querySelector(
                 "#status"
-              ).innerHTML = `<div class="alert alert-success" role="alert">${this.i18n.t('pin.pair_success')}</div>`;
+              ).innerHTML = `<div class="alert alert-success" role="alert"><b>${this.i18n.t('pin.pair_success')}</b><br>${this.i18n.t('pin.pair_success_check_perm')}</div>`;
               document.querySelector("#pin-input").value = "";
               document.querySelector("#name-input").value = "";
 
               setTimeout(() => this.refreshClients(), 1000);
-
-              alert(this.i18n.t('pin.pair_success_check_perm'));
             } else {
               document.querySelector(
                 "#status"
