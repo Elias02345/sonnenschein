@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-07-12 (Runde 8) — **End-to-End läuft: Install → Discovery → Pairing → Stream ✅, 90 Hz BESTÄTIGT ✅, konstantes Frame-Pacing ✅.** HDR = Upstream-Blocker (KWin liefert kein HDR-Capability-Bit auf Virtual Outputs, KDE-Request eingereicht; Code aktiviert sich automatisch sobald verfügbar). **Ubuntu-24.04-E2E komplett bestanden** (Install → doctor → Uninstall restlos, siehe Nachtrag Runde 8). WebUI-Kernflow vollständig PrimeVue: welcome, login, index (Dashboard), pin, password — alle live/statisch getestet. Offen: apps/config/troubleshooting-Migration, Live-Log-Tab, WebUI-Update-Knopf (Phase 6), Distro-Matrix Fedora/openSUSE, Client-Track C1–C4.
+**Stand:** 2026-07-12 (Runde 8) — **End-to-End läuft: Install → Discovery → Pairing → Stream ✅, 90 Hz BESTÄTIGT ✅, konstantes Frame-Pacing ✅.** HDR = Upstream-Blocker (KWin liefert kein HDR-Capability-Bit auf Virtual Outputs, KDE-Request eingereicht; Code aktiviert sich automatisch sobald verfügbar). **Ubuntu-24.04-E2E komplett bestanden** (Install → doctor → Uninstall restlos, siehe Nachtrag Runde 8). WebUI-Kernflow vollständig PrimeVue: welcome, login, index (Dashboard), pin, password, troubleshooting (inkl. Live-Log-Viewer) — alle live/statisch getestet. Offen: apps/config-Migration (je eigene Session), WebUI-Update-Knopf (Phase 6), Distro-Matrix Fedora/openSUSE, Client-Track C1–C4.
 
 **Vorherige Stand-Zeile (2026-05-28):** Overhaul-Session: Phase 1.6 Rebrand komplett, Phase-3-Installer-Gerüst + Phase-5-PrimeVue-Fundament gebaut, Code-Review der Laufzeit-Fixes erledigt, erste Vorab-Version nach `main` gepusht.
 
@@ -376,9 +376,27 @@ Live-Log-Tab + WebUI-Update-Knopf (Phase 6) ebenfalls offen.
    Browser: DE-Rendering komplett, Mismatch-Logik in beide Richtungen
    verifiziert). API unverändert (`POST ./api/password`).
 
-**Phase-5-Reststand nach Runde 8**: `apps.html`, `config.html`,
-`troubleshooting.html` (Bootstrap, funktionieren unverändert);
-Live-Log-Tab + WebUI-Update-Knopf (Phase 6).
+4. **Troubleshooting-Seite auf PrimeVue ✅** (`troubleshooting.html` →
+   `Troubleshooting.vue`): Action-Cards (App schließen erzwingen /
+   Neustart / Beenden mit Confirm), Log-Viewer mit Filter, Copy-Button
+   und 5s-Auto-Refresh — das deckt gleichzeitig den geplanten
+   „Live-Log-Tab" ab. Windows-only DD-Reset-Card entfernt (war auf
+   Linux nie sichtbar). Fehlende DE-Übersetzungen
+   `troubleshooting.quit_apollo*` ergänzt. Statisch getestet.
+5. **Topbar als Shared Component ✅**: Dashboard-Topbar (Nav + Theme-
+   Toggle) nach `Topbar.vue` extrahiert, von `Dashboard.vue` und
+   `Troubleshooting.vue` genutzt. Dashboard nach Refactor im Browser
+   gegengeprüft (Topbar, 6 Nav-Links, 3 Cards rendern).
+
+**Phase-5-Reststand nach Runde 8**: `apps.html` (953 Zeilen, Modal-
+Editor) und `config.html` (546 Zeilen + 17 Tab-Komponenten in
+`configs/tabs/`) sind bewusst noch Bootstrap — jede der beiden
+Migrationen ist eine eigene Session mit Live-Backend-Test (Blind-
+Rewrite = verbotener halbgarer Code). Beide funktionieren unverändert
+mit der alten Navbar. WebUI-Update-Knopf (Phase 6) braucht einen neuen
+Backend-Endpoint (POST /api/update → spawnt `installer/update.sh`
+detached; SRC_DIR via `$PREFIX/install-state.env` relativ zum Binary
+auflösen) + echten Update-E2E-Test — eigene Session.
 
 ### Was weiterhin offen ist (Maintainer-Test auf CachyOS)
 - **Nach Runde-2-Update**: `bash /opt/sonnenschein/installer/update.sh` →
@@ -1449,7 +1467,9 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
-<this commit> — feat: PrimeVue password page + skip distro nodejs/npm when present; Ubuntu E2E passed — 2026-07-12
+<this commit> — docs(status): round 8 complete — E2E passed, password + troubleshooting pages — 2026-07-12
+95e5742 — feat(webui): PrimeVue troubleshooting page, shared Topbar component — 2026-07-12
+282415f — feat: PrimeVue password page + skip distro nodejs/npm when present; Ubuntu E2E passed — 2026-07-12
 a5a1170 — docs(status): round 7b — login page, crash reporter v1, libva backport — 2026-07-11
 8f82ef1 — feat(webui): PrimeVue login page, live-tested against real backend — 2026-07-11
 9d9269b — feat: crash-reporter v1 button + automatic libva backport for Debian/Ubuntu — 2026-07-11
