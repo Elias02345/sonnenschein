@@ -409,6 +409,7 @@
     "troubleshoot": "Fehlerbehebung"
   },
   "password": {
+    "back": "Zurück zum Dashboard",
     "confirm_password": "Passwort wiederholen",
     "current_creds": "Aktuelle Zugangsdaten",
     "new_creds": "Neue Zugangsdaten",

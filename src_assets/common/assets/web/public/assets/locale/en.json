@@ -505,6 +505,7 @@
     "troubleshoot": "Troubleshooting"
   },
   "password": {
+    "back": "Back to Dashboard",
     "confirm_password": "Confirm Password",
     "current_creds": "Current Credentials",
     "new_creds": "New Credentials",

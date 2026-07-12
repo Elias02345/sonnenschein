@@ -68,6 +68,20 @@ install_packages() {
     return 0
   fi
 
+  # NodeSource & co. ship node+npm outside the distro packaging; installing
+  # the distro's npm on top breaks apt ("held broken packages"). Skip both
+  # when a working toolchain is already present.
+  if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+    local filtered=() p
+    for p in "${packages[@]}"; do
+      case "$p" in nodejs|npm) ;; *) filtered+=("$p") ;; esac
+    done
+    if [ "${#filtered[@]}" -ne "${#packages[@]}" ]; then
+      info "node + npm already present ($(node --version 2>/dev/null || echo '?')) — skipping distro nodejs/npm packages."
+      packages=("${filtered[@]}")
+    fi
+  fi
+
   info "Installing ${#packages[@]} packages for ${DISTRO_FAMILY}..."
   require_sudo
 

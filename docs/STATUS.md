@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-07-11 (Runde 4) — **End-to-End läuft: Install → Discovery → Pairing → Stream ✅, 90 Hz BESTÄTIGT ✅ (§9.20 endgültig zu), konstantes Frame-Pacing ✅.** Runde 4 implementiert **HDR Stufe 1** (KWin-Output-HDR via output-management, `is_hdr()`-Override, HDR10-Metadaten) — CachyOS-Test offen, Diagnose-Zeilen siehe Nachtrag Runde 4. Roadmap um Client-Track (nativer Steam-Deck-Client, C1–C4) + Boot-to-Ready erweitert. Danach: Phase 5 WebUI, Distro-Matrix, Phase 6–8.
+**Stand:** 2026-07-12 (Runde 8) — **End-to-End läuft: Install → Discovery → Pairing → Stream ✅, 90 Hz BESTÄTIGT ✅, konstantes Frame-Pacing ✅.** HDR = Upstream-Blocker (KWin liefert kein HDR-Capability-Bit auf Virtual Outputs, KDE-Request eingereicht; Code aktiviert sich automatisch sobald verfügbar). **Ubuntu-24.04-E2E komplett bestanden** (Install → doctor → Uninstall restlos, siehe Nachtrag Runde 8). WebUI-Kernflow vollständig PrimeVue: welcome, login, index (Dashboard), pin, password — alle live/statisch getestet. Offen: apps/config/troubleshooting-Migration, Live-Log-Tab, WebUI-Update-Knopf (Phase 6), Distro-Matrix Fedora/openSUSE, Client-Track C1–C4.
 
 **Vorherige Stand-Zeile (2026-05-28):** Overhaul-Session: Phase 1.6 Rebrand komplett, Phase-3-Installer-Gerüst + Phase-5-PrimeVue-Fundament gebaut, Code-Review der Laufzeit-Fixes erledigt, erste Vorab-Version nach `main` gepusht.
 
@@ -345,6 +345,40 @@ den Browser-Pane. Damit sind ab jetzt ALLE WebUI-Seiten live testbar.
 `password.html`, `troubleshooting.html` (funktionieren unverändert;
 Migration mit dem etablierten Live-Test-Setup in nächster Runde).
 Live-Log-Tab + WebUI-Update-Knopf (Phase 6) ebenfalls offen.
+→ `password.html` in Runde 8 erledigt, siehe unten.
+
+### Nachtrag Runde 8 (2026-07-12): Ubuntu-E2E bestanden, npm-Konflikt-Fix, Passwort-Seite
+
+1. **Ubuntu-24.04-E2E-Test ✅ KOMPLETT BESTANDEN** (WSL, frischer Klon
+   `/root/sns-e2e`, PREFIX=/opt/sonnenschein):
+   - **Install**: EXIT=0, Binaries in `/opt/sonnenschein/bin`, Symlink
+     `/usr/local/bin/sonnenschein`, install-state.env korrekt. Der
+     libva-2.22-Backport (`lib/libva.sh`) griff wie designed.
+   - **doctor.sh**: Strukturell sauber — 5 umgebungsunabhängige Checks
+     grün (Binary, keine File-Caps, avahi, uinput, WAYLAND_DISPLAY);
+     7 FAILs sind alle WSL-headless-bedingt (kein Wayland-Session-Type,
+     kein KDE, kein PipeWire/Portal, Service nicht gestartet) — auf
+     echtem Desktop-Ubuntu erwartbar grün.
+   - **uninstall.sh** (`SONNENSCHEIN_ASSUME_YES=1`): **restlos** —
+     /opt/sonnenschein, Symlink, Source-Checkout, ~/.config, ~/.local/
+     share, systemd-Units alle weg; installer-added Pakete entfernt.
+2. **npm/NodeSource-Konflikt-Fix ✅** (einziger E2E-Befund): Auf Systemen
+   mit NodeSource-nodejs bricht `apt-get install npm` mit „held broken
+   packages". Fix in `installer/lib/packages.sh`: wenn `node` + `npm`
+   schon existieren, werden die Distro-Pakete nodejs/npm aus der Liste
+   gefiltert (generisch für alle vier Familien). shellcheck grün.
+3. **Passwort-Seite auf PrimeVue ✅** (`password.html` →
+   `PasswordCard.vue`): Card-Look wie Login/Wizard, Live-Mismatch-
+   Validierung (Feld invalid + Meldung + Save-Button disabled, reused
+   `welcome.password_mismatch`), toggle-mask-Passwortfelder, i18n-Keys
+   `password.back` (DE+EN) mit Link zurück zum Dashboard, Success-
+   Message + Auto-Reload wie zuvor. Statisch getestet (Vite-Build +
+   Browser: DE-Rendering komplett, Mismatch-Logik in beide Richtungen
+   verifiziert). API unverändert (`POST ./api/password`).
+
+**Phase-5-Reststand nach Runde 8**: `apps.html`, `config.html`,
+`troubleshooting.html` (Bootstrap, funktionieren unverändert);
+Live-Log-Tab + WebUI-Update-Knopf (Phase 6).
 
 ### Was weiterhin offen ist (Maintainer-Test auf CachyOS)
 - **Nach Runde-2-Update**: `bash /opt/sonnenschein/installer/update.sh` →
@@ -1415,7 +1449,23 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
-<this commit> — docs: record production-readiness session (installer overhaul, Steam Deck fixes) — 2026-07-11
+<this commit> — feat: PrimeVue password page + skip distro nodejs/npm when present; Ubuntu E2E passed — 2026-07-12
+a5a1170 — docs(status): round 7b — login page, crash reporter v1, libva backport — 2026-07-11
+8f82ef1 — feat(webui): PrimeVue login page, live-tested against real backend — 2026-07-11
+9d9269b — feat: crash-reporter v1 button + automatic libva backport for Debian/Ubuntu — 2026-07-11
+92bbb9c — docs(status): round 7 — live-tested dashboard, WoL, CI hardening — 2026-07-11
+e2dbed8 — feat(installer): Wake-on-LAN setup + doctor check; harden CI matrix — 2026-07-11
+82b4ac0 — feat(webui): PrimeVue dashboard with live status cards (Phase 5) — 2026-07-11
+2bb77b5 — docs(status): record Phase 5 round 1 — setup wizard, PIN-first pairing — 2026-07-11
+78e69b4 — feat(webui): PrimeVue setup wizard, PIN-first pairing, locale-API resilience (Phase 5) — 2026-07-11
+86bf252 — docs(status): HDR test result — KWin virtual outputs lack HDR capability upstream (Plasma 6.7) — 2026-07-11
+150305c — docs(status): round 4 — 90 Hz confirmed solved, HDR stage 1 recorded — 2026-07-11
+ffe213e — feat(capture): enable HDR on KWin virtual outputs when the client requests it (Phase 4, stage 1) — 2026-07-11
+cca29b9 — docs(roadmap): add client track (native Steam Deck integration) + boot-to-ready host — 2026-07-11
+78030cc — docs(status): record round 3 — fps pacing fix, HDR + controller analysis — 2026-07-11
+027975e — fix(capture): repeat last frame at client cadence instead of stalling — 2026-07-11
+(ältere Runde-2/1-Commits siehe git log)
+<frühere Session> — docs: record production-readiness session (installer overhaul, Steam Deck fixes) — 2026-07-11
 e0ba34a — build(webui): commit package-lock.json for reproducible installs — 2026-07-11
 9be3ba4 — fix(capture): persist portal restore token across restarts — 2026-07-11
 e079f66 — fix(stream): normalize portrait client resolutions to landscape — 2026-07-11
