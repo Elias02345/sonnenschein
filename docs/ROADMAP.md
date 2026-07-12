@@ -58,14 +58,20 @@ Sonnenschein soll der **Standard-Weg** sein, einen Linux-PC oder -Server in eine
 
 **Erfolgskriterium**: Auf KDE Plasma 6 Wayland + AMD oder NVIDIA → Pairing erstellt ein neues Output, Spiel rendert dort, Stream zeigt es korrekt. Idem für GNOME Mutter Headless.
 
+> **Scope-Entscheidung 2026-07-12 (Maintainer):** Sonnenschein ist **KDE-only**.
+> Andere Desktop-Environment-Backends (Mutter/GNOME, wlroots/Sway/Hyprland,
+> Xorg-Dummy, NVIDIA-EDID-Spoof, EVDI) sind **kein Ziel mehr** — der Maintainer
+> nutzt KDE Plasma, das KWin-Backend funktioniert bestätigt. Below als
+> `~~durchgestrichen~~ (kein Ziel)` markiert.
+
 - [x] `src/platform/linux/virtual_display/interface.h` — die Abstraktions-Schicht
-- [ ] Backend: AMDGPU `virtual_display=` Kernel-Param (Boot-Setup im Installer)
-- [ ] Backend: Mutter `--headless --virtual-monitor` via D-Bus
-- [x] Backend: KWin Virtual Output (kscreen-doctor + KWin-D-Bus, ggf. KWin-Plugin) — 🟡 CachyOS-Test offen
-- [ ] Backend: wlroots Headless (Sway / Hyprland)
-- [ ] Backend: Xorg dummy + xrandr CVT-reduced
-- [ ] Backend: Xorg NVIDIA EDID-Spoof
-- [ ] Backend: EVDI als Last Resort
+- [x] Backend: KWin Virtual Output (kscreen-doctor + KWin-D-Bus) — ✅ live bestätigt CachyOS
+- ~~Backend: AMDGPU `virtual_display=` Kernel-Param~~ (kein Ziel — KDE-only)
+- ~~Backend: Mutter `--headless --virtual-monitor`~~ (kein Ziel — KDE-only)
+- ~~Backend: wlroots Headless (Sway / Hyprland)~~ (kein Ziel — KDE-only)
+- ~~Backend: Xorg dummy + xrandr CVT-reduced~~ (kein Ziel — KDE-only)
+- ~~Backend: Xorg NVIDIA EDID-Spoof~~ (kein Ziel — KDE-only)
+- ~~Backend: EVDI als Last Resort~~ (kein Ziel — KDE-only)
 - [x] Auswahl-Heuristik (Compositor-Detection + GPU-Detection)
 - [x] Per-Client GUID-Mapping (aus Apollo `process.cpp:285-330` adaptiert)
 - [x] Multi-Display-Cleanup beim Disconnect — 🟡 CachyOS-Test offen (60-Hz/HDR/Cursor)
@@ -150,14 +156,16 @@ Sonnenschein soll der **Standard-Weg** sein, einen Linux-PC oder -Server in eine
 
 ### Phase 8 — 1.0 Release
 
-**Ziel**: Native Pakete für die Top-Distros, klares Marketing.
+**Scope-Entscheidung 2026-07-12 (Maintainer):** **Kein natives Packaging.**
+Der One-Liner-Installer (`curl … | bash`) ist der einzige und bewusst gewählte
+Distributionsweg — er funktioniert bestätigt auf CachyOS + Ubuntu-E2E. AUR/COPR/
+PPA/Flatpak/AppImage sind **kein Ziel**. 1.0 = stabiler Installer + Doku +
+Release-Tag/Announcement.
 
-- [ ] AUR `sonnenschein-bin` und `sonnenschein-git`
-- [ ] COPR (Fedora)
-- [ ] PPA (Ubuntu)
-- [ ] Flatpak (flathub-Submission)
-- [ ] AppImage als Fallback
-- [ ] Release-Announcement (r/linux_gaming, r/Steamdeck, etc.)
+- ~~AUR `sonnenschein-bin` / `sonnenschein-git`~~ (kein Ziel — Installer reicht)
+- ~~COPR (Fedora), PPA (Ubuntu)~~ (kein Ziel — Installer reicht)
+- ~~Flatpak (flathub), AppImage~~ (kein Ziel — Installer reicht)
+- [ ] Release-Tag `v1.0.0` + Announcement (r/linux_gaming, r/Steamdeck)
 
 ---
 

@@ -18,6 +18,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${SCRIPT_DIR}/lib/firewall.sh"
 # shellcheck source=lib/wol.sh
 . "${SCRIPT_DIR}/lib/wol.sh"
+# shellcheck source=lib/updater.sh
+. "${SCRIPT_DIR}/lib/updater.sh"
 install_error_trap
 
 # The whole flow lives in main() so bash parses it completely before we
@@ -39,6 +41,9 @@ main() {
   fi
 
   # --- Stop and remove services -------------------------------------------
+  # Auto-update timer first (idempotent — safe even if it was never installed).
+  remove_updater
+
   if systemctl --user list-unit-files 2>/dev/null | grep -q '^sonnenschein\.service'; then
     info "Stopping user service."
     systemctl --user disable --now sonnenschein.service 2>/dev/null || true

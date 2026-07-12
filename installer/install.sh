@@ -105,6 +105,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 . "${SCRIPT_DIR}/lib/firewall.sh"
 # shellcheck source=lib/wol.sh
 . "${SCRIPT_DIR}/lib/wol.sh"
+# shellcheck source=lib/updater.sh
+. "${SCRIPT_DIR}/lib/updater.sh"
 # shellcheck source=lib/libva.sh
 . "${SCRIPT_DIR}/lib/libva.sh"
 # shellcheck source=lib/ui.sh
@@ -173,6 +175,9 @@ write_install_state() {
     echo "FIREWALL_MDNS_ADDED=${FIREWALL_MDNS_ADDED:-0}"
     echo "AVAHI_ENABLED=${AVAHI_ENABLED:-0}"
     echo "WOL_CONFIGURED=${WOL_CONFIGURED:-}"
+    echo "UPDATER_TIMER=${UPDATER_TIMER:-0}"
+    # Tracked branch for the auto-check timer; AUTO_UPDATE=1 makes it apply.
+    echo "AUTO_UPDATE=${AUTO_UPDATE:-0}"
     echo "INSTALL_DATE=$(date -Is)"
   } | $SUDO tee "${PREFIX}/install-state.env" >/dev/null
 
@@ -218,7 +223,19 @@ main() {
   configure_wol
 
   install_service "$SERVICE_MODE" "${REPO_ROOT}/build/sonnenschein.service" "$AUTOSTART"
+
+  # Record intent to install the auto-update timer (only for the --user
+  # service — it is a --user timer reusing the service's checkout + state dir).
+  UPDATER_TIMER=0
+  [ "$SERVICE_MODE" = "user" ] && UPDATER_TIMER=1
+
+  # Writes state AND copies installer/ to ${PREFIX}/installer — must run before
+  # configure_updater, whose timer ExecStart points there.
   write_install_state
+
+  if [ "$UPDATER_TIMER" = "1" ]; then
+    configure_updater "$PREFIX" || UPDATER_TIMER=0
+  fi
 
   # Start (or restart onto the fresh binary) right away — no manual step.
   if [ "$SERVICE_MODE" = "user" ]; then
