@@ -69,7 +69,7 @@ jobs:
                 libopenssl-devel libcurl-devel libminiupnpc-devel \
                 libdrm-devel libva-devel pipewire-devel libevdev-devel \
                 vulkan-devel wayland-devel wayland-protocols-devel \
-                libnotify-tools libcap-devel nodejs22 npm22 \
+                libnotify-tools libcap-devel nodejs-default npm-default \
                 libgbm-devel libdisplay-info-devel libxkbcommon-devel \
                 libopus-devel libpulse-devel libnuma-devel udev
 

@@ -7,8 +7,8 @@ ninja
 gcc13
 gcc13-c++
 git
-nodejs22
-npm22
+nodejs-default
+npm-default
 pkgconf-pkg-config
 
 # Core dev libraries
