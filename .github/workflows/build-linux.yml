@@ -63,13 +63,13 @@ jobs:
             setup: |
               zypper --non-interactive refresh
               zypper --non-interactive install --no-recommends \
-                gcc13 gcc13-c++ cmake git ninja pkg-config tar gzip \
+                gcc13 gcc13-c++ cmake git ninja pkgconf-pkg-config tar gzip \
                 libboost_headers-devel libboost_filesystem-devel libboost_log-devel \
                 libboost_program_options-devel libboost_locale-devel \
-                libopenssl-devel libcurl-devel miniupnpc-devel \
+                libopenssl-devel libcurl-devel libminiupnpc-devel \
                 libdrm-devel libva-devel pipewire-devel libevdev-devel \
                 vulkan-devel wayland-devel wayland-protocols-devel \
-                libnotify-tools libcap-devel nodejs npm \
+                libnotify-tools libcap-devel nodejs22 npm22 \
                 libgbm-devel libdisplay-info-devel libxkbcommon-devel \
                 libopus-devel libpulse-devel libnuma-devel udev
 

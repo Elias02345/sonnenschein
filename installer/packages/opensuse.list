@@ -7,9 +7,9 @@ ninja
 gcc13
 gcc13-c++
 git
-nodejs
-npm
-pkg-config
+nodejs22
+npm22
+pkgconf-pkg-config
 
 # Core dev libraries
 libcap-devel
@@ -17,7 +17,7 @@ libcurl-devel
 libdrm-devel
 libevdev-devel
 libgbm-devel
-miniupnpc-devel
+libminiupnpc-devel
 libnotify-tools
 libnuma-devel
 libopus-devel
