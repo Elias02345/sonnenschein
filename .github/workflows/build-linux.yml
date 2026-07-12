@@ -57,9 +57,8 @@ jobs:
               # Note: ffmpeg-full needs RPM Fusion, see docs/building.md (TODO).
           - name: openSUSE-Tumbleweed
             image: opensuse/tumbleweed:latest
-            # New matrix entry (2026-07-12): experimental until proven green,
-            # then drop the flag (same path Arch/Ubuntu/Fedora took).
-            experimental: true
+            # Hardened 2026-07-12: green after the package-name fixes, so it is
+            # now a required job like the other three.
             setup: |
               zypper --non-interactive refresh
               zypper --non-interactive install --no-recommends \

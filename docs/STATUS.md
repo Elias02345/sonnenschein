@@ -444,16 +444,18 @@ neu gesetzt (sonnenschein/test1234, nur WSL-Testinstanz).
    Message (i18n dashboard.update_now/update_started DE+EN).
    Doku: neues `docs/UPDATE_RULES.md` (Sacred Paths + Update-Vertrag),
    ROADMAP Phase 6 abgehakt.
-4. **openSUSE-Tumbleweed-CI-Job** in build-linux.yml (Paketliste aus
-   installer/packages/opensuse.list abgeleitet), als `experimental:
-   true` → `continue-on-error` nur für diesen Job; hart schalten sobald
-   real grün (gleicher Weg wie Arch/Ubuntu/Fedora). **Paketnamen-Fixes
-   über CI-Iterationen**: Tumbleweed nutzt `libminiupnpc-devel` (nicht
-   miniupnpc-devel), `pkgconf-pkg-config`, und `nodejs-default`/
-   `npm-default` (versionslose Meta-Pakete — feste Versionen wie
-   nodejs22 driften aus dem Repo). Dieselben Namen in
-   installer/packages/opensuse.list korrigiert, damit ein echtes
-   openSUSE-Install auflöst. Arch/Ubuntu/Fedora bleiben hart grün.
+4. **openSUSE-Tumbleweed-CI-Job ✅ GRÜN + HART GESCHALTET** in
+   build-linux.yml (Paketliste aus installer/packages/opensuse.list
+   abgeleitet). Kurz als `experimental` gestartet, über drei
+   CI-Iterationen die Paketnamen gefixt, dann Flag entfernt → jetzt
+   Pflicht-Job wie die anderen drei. **Paketnamen-Fixes**: Tumbleweed
+   nutzt `libminiupnpc-devel` (nicht miniupnpc-devel),
+   `pkgconf-pkg-config`, und `nodejs-default`/`npm-default`
+   (versionslose Meta-Pakete — feste Versionen wie nodejs22 driften aus
+   dem Repo). Dieselben Namen in installer/packages/opensuse.list
+   korrigiert, damit ein echtes openSUSE-Install auflöst. **CI-Matrix
+   jetzt: Arch, Ubuntu 24.04, Fedora 41, openSUSE Tumbleweed — alle
+   vier hart grün.**
 
 **Hinweis Session-Infrastruktur**: Der Permission-Classifier
 (claude-opus-4-8) fiel während Runde 9 zeitweise aus — Shell-Aktionen
