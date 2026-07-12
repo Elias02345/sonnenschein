@@ -213,7 +213,8 @@ Release-Tag/Announcement.
 
 **Erfolgskriterium**: Host-Spiel XY (nicht auf dem Deck installiert) erscheint im Game Mode mit Artwork; Start → Sonnenschein-Stream im Vollbild. Spiel Z (auf beiden installiert) fragt beim Start „Lokal / Streamen" (bzw. nutzt den pro Spiel gesetzten Default). Alles ohne Steam Remote Play.
 
-- [x] **Host: Library-API** — `GET /api/library`: scannt alle Steam-Library-Folders (nativ + flatpak + `libraryfolders.vdf`), parst `appmanifest_*.acf`, liefert AppID/Name/Installationszustand mit Dedupe. Non-Steam-Apps bleiben auf `/api/apps` (Client merged). Live gegen Fixtures getestet. (2026-07-12) — offen: Artwork (`librarycache`/SteamGridDB)
+- [x] **Host: Library-API** — `GET /api/library`: scannt alle Steam-Library-Folders (nativ + flatpak + `libraryfolders.vdf`), parst `appmanifest_*.acf`, liefert AppID/Name/Installationszustand mit Dedupe. Non-Steam-Apps bleiben auf `/api/apps` (Client merged). (2026-07-12)
+- [x] **Host: Artwork** — `GET /api/library/artwork/<appid>`: streamt das lokale `librarycache`-Cover (Portrait-Grid, beide Cache-Layouts), 404 → Client-Fallback SteamGridDB. Live gegen Fixtures getestet. (2026-07-12)
 - [ ] **Deck: Sonnenschein Companion** — synct die Host-Bibliothek in die Deck-Steam-Bibliothek (`shortcuts.vdf` + Grid-Artwork), jeder Eintrag startet `sonnenschein-client --host <id> --app <appid>`
   - Ausprägung A: **Decky-Loader-Plugin** (Sync + Toggles direkt im Game Mode, Quick-Access-Menü)
   - Ausprägung B: Fallback ohne Decky — Sync-Tool im Desktop Mode (einmalig ausführen, danach automatisch via Companion-Service)

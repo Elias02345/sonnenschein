@@ -442,13 +442,19 @@ lässt sich in WSL nicht sinnvoll durchspielen.
   bleiben auf `/api/apps` — der künftige Client merged beide Listen.
   Live gegen Fixtures getestet: HL2 (installiert) + Dota 2 (nicht) korrekt,
   `steam_found`, Auth erzwungen (401).
-- Das ist der Host-seitige Baustein für die native Steam-Deck-Integration
-  (die Bibliothek des Hosts im Deck-Game-Mode). Der eigentliche
-  **Client (C1, Moonlight-Qt-Fork)** braucht ein echtes Linux/Deck-Build-
-  Environment — nicht aus Windows+WSL baubar/testbar, daher hier bewusst
-  NICHT begonnen (kein untestbarer Code auf `dev`). Nächster realer
-  Schritt: Artwork-Endpoint (`librarycache`/SteamGridDB), dann der
-  Qt-Client auf einem Linux-Rechner.
+- **`GET /api/library/artwork/<appid>`** streamt das lokale Steam-Cover
+  (`appcache/librarycache/`, Portrait-Grid, beide Cache-Layouts: per-appid-
+  Subdir + altes Flat-Naming), 404 → Client kann auf SteamGridDB
+  ausweichen. Live getestet: existierendes Cover → image/jpeg mit
+  korrekten JPEG-Magic-Bytes, fehlend → 404, Auth erzwungen (401).
+- Das ist der komplette Host-seitige Baustein für die native Steam-Deck-
+  Integration (die Bibliothek des Hosts inkl. Artwork im Deck-Game-Mode).
+  Der eigentliche **Client (C1, Moonlight-Qt-Fork)** braucht ein echtes
+  Linux/Deck-Build-Environment — nicht aus Windows+WSL baubar/testbar,
+  daher hier bewusst NICHT begonnen (kein untestbarer Code auf `dev`).
+  Nächster realer Schritt: Qt-Client auf einem Linux-Rechner (z.B. das
+  CachyOS-System), der `/api/library` + `/api/library/artwork` + das
+  bestehende Pairing/Stream-Protokoll nutzt.
 
 ### Nachtrag Runde 9 (2026-07-12): apps + config migriert, /api/update, openSUSE-CI
 
@@ -1582,7 +1588,8 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
-<this commit> — docs(status): round 10 — Phase 6 done, Steam library API, scope decisions — 2026-07-12
+<this commit> — feat(library): Steam artwork endpoint + docs — 2026-07-12
+6b82593 — docs(status): round 10 — Phase 6 done, Steam library API, scope decisions — 2026-07-12
 a5d8686 — feat: update-state + branch selector + Steam library API — 2026-07-12
 5223079 — feat(update): auto-rollback, manual revert, auto-update timer (Phase 6) — 2026-07-12
 28d8f98 — ci: harden openSUSE Tumbleweed job (green, now required) — 2026-07-12

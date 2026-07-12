@@ -1489,6 +1489,22 @@ namespace confighttp {
   }
 #endif
 
+#ifdef __linux__
+  /**
+   * @brief Candidate Steam roots (native install layouts + flatpak).
+   */
+  static std::vector<std::string> steam_roots() {
+    const char *home = std::getenv("HOME");
+    std::string h = home ? home : "";
+    return {
+      h + "/.steam/steam",
+      h + "/.local/share/Steam",
+      h + "/.steam/root",
+      h + "/.var/app/com.valvesoftware.Steam/.local/share/Steam"
+    };
+  }
+#endif
+
   /**
    * @brief Scan the host's Steam library (Client-Track foundation, Linux).
    *
@@ -1509,25 +1525,12 @@ namespace confighttp {
     nlohmann::json out;
     nlohmann::json games = nlohmann::json::array();
 #ifdef __linux__
-    const char *home = std::getenv("HOME");
-    std::string h = home ? home : "";
-
-    // Candidate Steam roots (native + flatpak). libraryfolders.vdf under each
-    // adds any extra library drives.
-    std::vector<std::string> steam_roots = {
-      h + "/.steam/steam",
-      h + "/.local/share/Steam",
-      h + "/.steam/root",
-      h + "/.var/app/com.valvesoftware.Steam/.local/share/Steam"
-    };
-
     std::set<std::string> steamapps_dirs;
-    for (const auto &root : steam_roots) {
+    for (const auto &root : steam_roots()) {
       std::error_code ec;
       std::string apps = root + "/steamapps";
       if (fs::is_directory(apps, ec)) {
         steamapps_dirs.insert(apps);
-        // Parse libraryfolders.vdf for library paths on other drives.
         try {
           std::string vdf = file_handler::read_file((apps + "/libraryfolders.vdf").c_str());
           size_t pos = 0;
@@ -1540,7 +1543,6 @@ namespace confighttp {
               break;
             }
             std::string path = vdf.substr(q1 + 1, q2 - q1 - 1);
-            // VDF escapes backslashes; Linux paths have none, but be safe.
             std::string lib = path + "/steamapps";
             if (fs::is_directory(lib, ec)) {
               steamapps_dirs.insert(lib);
@@ -1609,6 +1611,64 @@ namespace confighttp {
 #endif
     out["games"] = std::move(games);
     send_response(response, out);
+  }
+
+  /**
+   * @brief Serve a game's Steam library artwork (portrait grid), Linux.
+   *
+   * Streams the local librarycache cover for an appid so the Steam Deck
+   * companion can build a Game-Mode grid without a network round-trip.
+   * Handles both cache layouts (per-appid subdir and the older flat naming).
+   * Returns 404 if no local art exists — the client then falls back to
+   * SteamGridDB.
+   *
+   * @api_examples{/api/library/artwork/220| GET| null}
+   */
+  void getLibraryArtwork(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+#ifdef __linux__
+    // Route captures a digits-only appid.
+    std::string appid = request->path_match[1].str();
+
+    // Prefer the portrait grid; fall back to the header image.
+    std::vector<std::string> rel = {
+      appid + "/library_600x900.jpg",
+      appid + "_library_600x900.jpg",
+      appid + "/header.jpg",
+      appid + "_header.jpg"
+    };
+
+    for (const auto &root : steam_roots()) {
+      std::string cache = root + "/appcache/librarycache/";
+      for (const auto &r : rel) {
+        std::error_code ec;
+        std::string full = cache + r;
+        if (!fs::is_regular_file(full, ec)) {
+          continue;
+        }
+        std::string bytes;
+        try {
+          bytes = file_handler::read_file(full.c_str());
+        } catch (...) {
+          continue;
+        }
+        if (bytes.empty()) {
+          continue;
+        }
+        SimpleWeb::CaseInsensitiveMultimap headers;
+        headers.emplace("Content-Type", r.size() >= 4 && r.substr(r.size() - 4) == ".png" ? "image/png" : "image/jpeg");
+        headers.emplace("Cache-Control", "max-age=86400");
+        response->write(bytes, headers);
+        return;
+      }
+    }
+#endif
+    response->write(SimpleWeb::StatusCode::client_error_not_found, "No local artwork");
   }
 
   /**
@@ -1821,6 +1881,7 @@ namespace confighttp {
     server.resource["^/api/update$"]["POST"] = updateSelf;
     server.resource["^/api/update-state$"]["GET"] = updateState;
     server.resource["^/api/library$"]["GET"] = getLibrary;
+    server.resource["^/api/library/artwork/([0-9]+)$"]["GET"] = getLibraryArtwork;
     server.resource["^/api/quit$"]["POST"] = quit;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/password$"]["POST"] = savePassword;
