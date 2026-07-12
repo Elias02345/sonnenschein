@@ -37,16 +37,30 @@
                 <Tag v-else-if="stableBuildAvailable" :value="$t('index.new_stable')" severity="warn" />
                 <Tag v-else :value="$t('index.version_latest')" severity="success" />
               </div>
+              <!-- Git-based update state (works for dev builds too) -->
+              <div v-if="gitUpdateAvailable" class="dash-update">
+                <p>{{ $t('dashboard.commits_behind', { n: updateState.available.commits_behind, branch: updateState.available.branch }) }}</p>
+              </div>
+              <p v-else-if="updateState && !gitUpdateAvailable" class="dash-muted dash-uptodate">
+                <i class="pi pi-check-circle" /> {{ $t('dashboard.up_to_date') }}
+              </p>
+
               <div v-if="stableBuildAvailable && githubVersion?.release" class="dash-update">
                 <p>{{ githubVersion.release.name }}</p>
-                <div class="dash-card-actions">
-                  <Button :label="$t('dashboard.update_now')" icon="pi pi-refresh" size="small"
-                    :loading="updating" @click="runUpdate" />
-                  <a :href="githubVersion.release.html_url" target="_blank">
-                    <Button :label="$t('index.download')" icon="pi pi-external-link" severity="secondary" size="small" />
-                  </a>
-                </div>
+                <a :href="githubVersion.release.html_url" target="_blank">
+                  <Button :label="$t('index.download')" icon="pi pi-external-link" severity="secondary" size="small" />
+                </a>
               </div>
+
+              <!-- Update controls: branch selector + trigger -->
+              <div class="dash-update-controls">
+                <label class="dash-branch-label" for="branch">{{ $t('dashboard.branch') }}</label>
+                <Select id="branch" v-model="branch" :options="branchOptions" option-label="label"
+                  option-value="value" size="small" class="dash-branch-select" />
+                <Button :label="$t('dashboard.update_now')" icon="pi pi-refresh" size="small"
+                  :loading="updating" @click="runUpdate" />
+              </div>
+
               <Message v-if="updateMsg" :severity="updateError ? 'error' : 'success'" :closable="false"
                 class="dash-update-msg">
                 {{ updateMsg }}
@@ -112,12 +126,13 @@
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 import Message from 'primevue/message'
+import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import ApolloVersion from './apollo_version'
 import Topbar from './Topbar.vue'
 
 export default {
-  components: { Button, Card, Message, Tag, Topbar },
+  components: { Button, Card, Message, Select, Tag, Topbar },
   data() {
     return {
       version: null,
@@ -127,7 +142,13 @@ export default {
       clients: [],
       updating: false,
       updateMsg: null,
-      updateError: false
+      updateError: false,
+      updateState: null,
+      branch: 'main',
+      branchOptions: [
+        { value: 'main', label: 'main (stable)' },
+        { value: 'dev', label: 'dev (preview)' }
+      ]
     }
   },
   computed: {
@@ -158,6 +179,9 @@ export default {
         stack: this.fatalLogs.join('\n')
       })
       return `https://github.com/Elias02345/sonnenschein/issues/new?${params.toString()}`
+    },
+    gitUpdateAvailable() {
+      return this.updateState?.available?.available === true
     }
   },
   async created() {
@@ -188,6 +212,14 @@ export default {
     } catch (e) {
       console.error(e)
     }
+    try {
+      this.updateState = await fetch('./api/update-state', { credentials: 'include' }).then((r) => r.json())
+      if (this.updateState?.available?.branch) {
+        this.branch = this.updateState.available.branch
+      }
+    } catch (e) {
+      console.error(e)
+    }
     this.loading = false
   },
   methods: {
@@ -199,7 +231,7 @@ export default {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
-        body: JSON.stringify({ branch: 'main' })
+        body: JSON.stringify({ branch: this.branch })
       })
         .then((r) => r.json())
         .then((r) => {
@@ -291,6 +323,30 @@ export default {
 
 .dash-update-msg {
   margin-top: 0.75rem;
+}
+
+.dash-update-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.dash-branch-label {
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color);
+}
+
+.dash-branch-select {
+  min-width: 9rem;
+}
+
+.dash-uptodate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.6rem 0 0;
 }
 
 .dash-clients {

@@ -14,6 +14,7 @@
 #include <fstream>
 #include <set>
 #include <sstream>
+#include <vector>
 #include <thread>
 #include <numeric>
 #include <algorithm>
@@ -1423,6 +1424,194 @@ namespace confighttp {
   }
 
   /**
+   * @brief Report the current update state (Phase 6).
+   *
+   * Surfaces the two JSON files the updater/timer write under
+   * ~/.local/state/sonnenschein/update-state/ so the WebUI can show update
+   * progress and availability without shelling out.
+   *
+   * @api_examples{/api/update-state| GET| null}
+   */
+  void updateState(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    nlohmann::json out;
+    out["status"] = true;
+#ifdef __linux__
+    const char *home = std::getenv("HOME");
+    std::string base = std::string(home ? home : "") + "/.local/state/sonnenschein/update-state/";
+    auto load = [&](const char *name) -> nlohmann::json {
+      try {
+        std::string content = file_handler::read_file((base + name).c_str());
+        if (content.empty()) {
+          return nullptr;
+        }
+        return nlohmann::json::parse(content);
+      } catch (...) {
+        return nullptr;
+      }
+    };
+    out["progress"] = load("status.json");    // last update run
+    out["available"] = load("available.json"); // last timer check
+#else
+    out["progress"] = nullptr;
+    out["available"] = nullptr;
+#endif
+    send_response(response, out);
+  }
+
+#ifdef __linux__
+  /**
+   * @brief Pull a top-level quoted string value out of a Steam VDF/ACF blob.
+   * Good enough for appmanifest fields (appid, name, StateFlags) which each
+   * appear once at the top level.
+   */
+  static std::string vdf_string(const std::string &s, const std::string &key) {
+    const std::string needle = "\"" + key + "\"";
+    size_t p = s.find(needle);
+    if (p == std::string::npos) {
+      return "";
+    }
+    p += needle.size();
+    size_t q1 = s.find('"', p);
+    if (q1 == std::string::npos) {
+      return "";
+    }
+    size_t q2 = s.find('"', q1 + 1);
+    if (q2 == std::string::npos) {
+      return "";
+    }
+    return s.substr(q1 + 1, q2 - q1 - 1);
+  }
+#endif
+
+  /**
+   * @brief Scan the host's Steam library (Client-Track foundation, Linux).
+   *
+   * Reads appmanifest_*.acf across every Steam library folder and returns the
+   * installed games. This is the host side the future Steam Deck companion
+   * needs to mirror the host library into the Deck's Game Mode. Non-Steam apps
+   * are already served by /api/apps; the client merges the two lists.
+   *
+   * @api_examples{/api/library| GET| null}
+   */
+  void getLibrary(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    nlohmann::json out;
+    nlohmann::json games = nlohmann::json::array();
+#ifdef __linux__
+    const char *home = std::getenv("HOME");
+    std::string h = home ? home : "";
+
+    // Candidate Steam roots (native + flatpak). libraryfolders.vdf under each
+    // adds any extra library drives.
+    std::vector<std::string> steam_roots = {
+      h + "/.steam/steam",
+      h + "/.local/share/Steam",
+      h + "/.steam/root",
+      h + "/.var/app/com.valvesoftware.Steam/.local/share/Steam"
+    };
+
+    std::set<std::string> steamapps_dirs;
+    for (const auto &root : steam_roots) {
+      std::error_code ec;
+      std::string apps = root + "/steamapps";
+      if (fs::is_directory(apps, ec)) {
+        steamapps_dirs.insert(apps);
+        // Parse libraryfolders.vdf for library paths on other drives.
+        try {
+          std::string vdf = file_handler::read_file((apps + "/libraryfolders.vdf").c_str());
+          size_t pos = 0;
+          const std::string pk = "\"path\"";
+          while ((pos = vdf.find(pk, pos)) != std::string::npos) {
+            pos += pk.size();
+            size_t q1 = vdf.find('"', pos);
+            size_t q2 = (q1 == std::string::npos) ? std::string::npos : vdf.find('"', q1 + 1);
+            if (q2 == std::string::npos) {
+              break;
+            }
+            std::string path = vdf.substr(q1 + 1, q2 - q1 - 1);
+            // VDF escapes backslashes; Linux paths have none, but be safe.
+            std::string lib = path + "/steamapps";
+            if (fs::is_directory(lib, ec)) {
+              steamapps_dirs.insert(lib);
+            }
+            pos = q2 + 1;
+          }
+        } catch (...) {
+          // no libraryfolders.vdf here — the base steamapps dir still counts
+        }
+      }
+    }
+
+    std::set<std::string> seen_appids;
+    for (const auto &dir : steamapps_dirs) {
+      std::error_code ec;
+      for (const auto &entry : fs::directory_iterator(dir, ec)) {
+        if (ec) {
+          break;
+        }
+        const std::string name = entry.path().filename().string();
+        if (name.rfind("appmanifest_", 0) != 0 || entry.path().extension() != ".acf") {
+          continue;
+        }
+        std::string acf;
+        try {
+          acf = file_handler::read_file(entry.path().string().c_str());
+        } catch (...) {
+          continue;
+        }
+        if (acf.empty()) {
+          continue;
+        }
+        std::string appid = vdf_string(acf, "appid");
+        std::string title = vdf_string(acf, "name");
+        std::string flags = vdf_string(acf, "StateFlags");
+        if (appid.empty() || title.empty()) {
+          continue;
+        }
+        if (!seen_appids.insert(appid).second) {
+          continue;  // dedupe games that appear in multiple libraries
+        }
+        bool installed = false;
+        try {
+          installed = (std::stoi(flags) & 4) != 0;  // bit 4 = fully installed
+        } catch (...) {
+          installed = false;
+        }
+        nlohmann::json g;
+        g["appid"] = appid;
+        g["name"] = title;
+        g["installed"] = installed;
+        games.push_back(std::move(g));
+        if (games.size() >= 1000) {
+          break;
+        }
+      }
+      if (games.size() >= 1000) {
+        break;
+      }
+    }
+    out["status"] = true;
+    out["steam_found"] = !steamapps_dirs.empty();
+#else
+    out["status"] = true;
+    out["steam_found"] = false;
+#endif
+    out["games"] = std::move(games);
+    send_response(response, out);
+  }
+
+  /**
    * @brief Quit Apollo.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -1630,6 +1819,8 @@ namespace confighttp {
     server.resource["^/api/configLocale$"]["GET"] = getLocale;
     server.resource["^/api/restart$"]["POST"] = restart;
     server.resource["^/api/update$"]["POST"] = updateSelf;
+    server.resource["^/api/update-state$"]["GET"] = updateState;
+    server.resource["^/api/library$"]["GET"] = getLibrary;
     server.resource["^/api/quit$"]["POST"] = quit;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/password$"]["POST"] = savePassword;

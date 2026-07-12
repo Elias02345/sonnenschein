@@ -141,8 +141,11 @@
     "paired_devices": "Paired devices",
     "report_issue": "Report on GitHub",
     "toggle_theme": "Toggle dark mode",
+    "branch": "Branch",
+    "commits_behind": "{n} update(s) available on {branch}.",
+    "up_to_date": "Up to date.",
     "update_now": "Update now",
-    "update_started": "Update started — Sonnenschein rebuilds and restarts itself. This can take a few minutes; the page will be unavailable during the restart.",
+    "update_started": "Update started — Sonnenschein rebuilds and restarts itself. This can take a few minutes; the page will be unavailable during the restart. It rolls back automatically if the new version fails its health check.",
     "view_logs": "View logs"
   },
   "config": {

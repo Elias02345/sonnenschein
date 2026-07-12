@@ -91,8 +91,11 @@
     "paired_devices": "Gekoppelte Geräte",
     "report_issue": "Auf GitHub melden",
     "toggle_theme": "Dunkelmodus umschalten",
+    "branch": "Branch",
+    "commits_behind": "{n} Update(s) verfügbar auf {branch}.",
+    "up_to_date": "Aktuell.",
     "update_now": "Jetzt aktualisieren",
-    "update_started": "Update gestartet — Sonnenschein baut sich neu und startet automatisch neu. Das kann einige Minuten dauern; die Seite ist während des Neustarts kurz nicht erreichbar.",
+    "update_started": "Update gestartet — Sonnenschein baut sich neu und startet automatisch neu. Das kann einige Minuten dauern; die Seite ist während des Neustarts kurz nicht erreichbar. Bei fehlgeschlagenem Health-Check wird automatisch zurückgerollt.",
     "view_logs": "Logs ansehen"
   },
   "config": {
