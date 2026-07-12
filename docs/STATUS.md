@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-07-12 (Runde 8) — **End-to-End läuft: Install → Discovery → Pairing → Stream ✅, 90 Hz BESTÄTIGT ✅, konstantes Frame-Pacing ✅.** HDR = Upstream-Blocker (KWin liefert kein HDR-Capability-Bit auf Virtual Outputs, KDE-Request eingereicht; Code aktiviert sich automatisch sobald verfügbar). **Ubuntu-24.04-E2E komplett bestanden** (Install → doctor → Uninstall restlos, siehe Nachtrag Runde 8). WebUI-Kernflow vollständig PrimeVue: welcome, login, index (Dashboard), pin, password, troubleshooting (inkl. Live-Log-Viewer) — alle live/statisch getestet. Offen: apps/config-Migration (je eigene Session), WebUI-Update-Knopf (Phase 6), Distro-Matrix Fedora/openSUSE, Client-Track C1–C4.
+**Stand:** 2026-07-12 (Runde 10) — **End-to-End läuft: Install → Discovery → Pairing → Stream ✅, 90 Hz ✅.** **Phase 6 (Update-System) fertig**: Auto-Rollback bei Health-Fail + manuelles `revert-update.sh` + Auto-Update-Timer (systemd --user) + Branch-Selector + `GET /api/update-state`. **Client-Track begonnen**: Host `GET /api/library` scannt die Steam-Bibliothek (Fundament der nativen Steam-Deck-Integration C2). **Scope-Entscheidungen 2026-07-12**: KDE-only (keine weiteren Desktop-Environments) + kein natives Packaging (der One-Liner-Installer ist der Distributionsweg). WebUI-Kernflow komplett PrimeVue (welcome/login/dashboard/pin/password/troubleshooting/apps/config). HDR = KWin-Upstream-Blocker (KDE-Request läuft, Code selbstaktivierend). Details siehe Nachtrag Runde 10.
 
 **Vorherige Stand-Zeile (2026-05-28):** Overhaul-Session: Phase 1.6 Rebrand komplett, Phase-3-Installer-Gerüst + Phase-5-PrimeVue-Fundament gebaut, Code-Review der Laufzeit-Fixes erledigt, erste Vorab-Version nach `main` gepusht.
 
@@ -398,6 +398,57 @@ Backend-Endpoint (POST /api/update → spawnt `installer/update.sh`
 detached; SRC_DIR via `$PREFIX/install-state.env` relativ zum Binary
 auflösen) + echten Update-E2E-Test — eigene Session.
 → Beides in Runde 9 erledigt, siehe unten.
+
+### Nachtrag Runde 10 (2026-07-12): Phase 6 fertig + Client-Track begonnen
+
+**Scope-Entscheidungen (Maintainer, in ROADMAP.md persistiert):**
+- **KDE-only** — keine weiteren Desktop-Environment-Backends (Mutter,
+  wlroots, Xorg, EVDI). KWin funktioniert bestätigt.
+- **Kein natives Packaging** — der One-Liner-Installer ist der
+  Distributionsweg (Phase 8 = nur noch Release-Tag + Announcement).
+
+**Phase 6 (Update-System) abgeschlossen:**
+1. **Auto-Rollback** (`update.sh` v2): erfasst Vor-Update-Commit, sichert
+   die Config, schreibt eine JSON-State-Datei durch jede Phase, und rollt
+   bei fehlgeschlagenem Health-Check automatisch zurück (Vorgänger-Commit
+   neu bauen + Config restaurieren + neu starten). Offline-Selbsttest via
+   `SONNENSCHEIN_SELFTEST=1`. shellcheck grün.
+2. **`revert-update.sh`**: Operator-Rollback auf beliebigen Commit,
+   restauriert das jüngste Config-Backup.
+3. **Auto-Update-Timer** (`update-check.sh` + `lib/updater.sh`): systemd
+   `--user`-Timer prüft alle 10 min (`available.json`), wendet nur bei
+   `AUTO_UPDATE=1` an. Installer-Wiring (nur User-Mode) + Uninstall
+   (idempotent). State-Keys `UPDATER_TIMER`/`AUTO_UPDATE` in
+   install-state.env.
+4. **`GET /api/update-state`**: surft die beiden State-Dateien (Fortschritt
+   + Verfügbarkeit) für die WebUI.
+5. **Branch-Selector** im Dashboard (main/dev) füttert den Update-Trigger;
+   „X Updates verfügbar" / „Aktuell"-Anzeige aus update-state. i18n DE+EN.
+   Live getestet: Selector-Auswahl `dev` → Button sendet `{"branch":"dev"}`.
+6. **Doku**: neue `docs/UPDATE_RULES.md` (Sacred Paths + Update-Vertrag);
+   Migration-Framework als N/A markiert (Flat-Config, keine DB-Schemas).
+
+Offen (Maintainer-Test, wie alle Laufzeit-Pfade): der komplette
+Rollback-E2E auf einer echten Installation (Fehl-Update → Auto-Rollback)
+— Logik ist shellcheck-grün + selbstgetestet, aber ein echter Build-Zyklus
+lässt sich in WSL nicht sinnvoll durchspielen.
+
+**Client-Track begonnen (C2-Fundament):**
+- **`GET /api/library`** (confighttp.cpp): scannt alle Steam-Library-Folders
+  (nativ `~/.steam/steam`, `~/.local/share/Steam`, flatpak, plus die in
+  `libraryfolders.vdf` gelisteten Laufwerke), parst `appmanifest_*.acf`
+  (VDF-Lite-Extraktor für appid/name/StateFlags), liefert die installierten
+  Spiele mit Dedupe + `installed`-Flag (StateFlags-Bit 4). Non-Steam-Apps
+  bleiben auf `/api/apps` — der künftige Client merged beide Listen.
+  Live gegen Fixtures getestet: HL2 (installiert) + Dota 2 (nicht) korrekt,
+  `steam_found`, Auth erzwungen (401).
+- Das ist der Host-seitige Baustein für die native Steam-Deck-Integration
+  (die Bibliothek des Hosts im Deck-Game-Mode). Der eigentliche
+  **Client (C1, Moonlight-Qt-Fork)** braucht ein echtes Linux/Deck-Build-
+  Environment — nicht aus Windows+WSL baubar/testbar, daher hier bewusst
+  NICHT begonnen (kein untestbarer Code auf `dev`). Nächster realer
+  Schritt: Artwork-Endpoint (`librarycache`/SteamGridDB), dann der
+  Qt-Client auf einem Linux-Rechner.
 
 ### Nachtrag Runde 9 (2026-07-12): apps + config migriert, /api/update, openSUSE-CI
 
@@ -1531,7 +1582,11 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
-<this commit> — docs(status): round 9 complete — apps+config migrated, self-update endpoint, openSUSE CI — 2026-07-12
+<this commit> — docs(status): round 10 — Phase 6 done, Steam library API, scope decisions — 2026-07-12
+a5d8686 — feat: update-state + branch selector + Steam library API — 2026-07-12
+5223079 — feat(update): auto-rollback, manual revert, auto-update timer (Phase 6) — 2026-07-12
+28d8f98 — ci: harden openSUSE Tumbleweed job (green, now required) — 2026-07-12
+7bc4500 — docs(status): round 9 complete — apps+config migrated, self-update endpoint, openSUSE CI — 2026-07-12
 ca21bf2 — feat(update): web-triggered self-update endpoint + dashboard button — 2026-07-12
 2f8530a — feat(webui): PrimeVue configuration shell, live-tested — 2026-07-12
 95ecd1d — feat(webui): PrimeVue applications page, live-tested against real backend — 2026-07-12

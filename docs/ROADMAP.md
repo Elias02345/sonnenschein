@@ -137,10 +137,10 @@ Sonnenschein soll der **Standard-Weg** sein, einen Linux-PC oder -Server in eine
 
 - [x] `update.sh` — Source-Pull + Rebuild + Reinstall + Service-Restart + doctor --repair (2026-07)
 - [x] WebUI-Update-Knopf — `POST /api/update` spawnt den Updater via `systemd-run --user` (überlebt den Service-Restart); Dashboard-Button erscheint bei neuer Version. Ohne NOPASSWD-sudo liefert der Endpoint den manuellen Befehl. (2026-07-12)
-- [ ] Branch-Wahl (`main` / `dev`) mit Verhalten: wenn `main` neuer als `dev` → automatisch zu `main` (API nimmt `branch` schon entgegen, UI-Selector fehlt)
-- [ ] Migration-Framework: pro Major-Version ein Up-Script, Backups vor jedem Lauf
-- [ ] Auto-Update als Service-Option (timer-basiert) oder On-Demand
-- [ ] Rollback-Befehl
+- [x] Branch-Wahl (`main` / `dev`) — Dashboard-Selector füttert den Update-Trigger; `GET /api/update-state` surft den Stand (2026-07-12)
+- [x] Auto-Update als Service-Option — systemd `--user`-Timer (10 min Check, `available.json`); Auto-Apply via `AUTO_UPDATE=1` (2026-07-12)
+- [x] Rollback — Auto-Rollback bei Health-Fail in `update.sh` (Backup + Vorgänger-Commit neu bauen) + manuelles `revert-update.sh` (2026-07-12)
+- [ ] Migration-Framework — **N/A für das aktuelle Flat-Config-Modell** (keine DB-Schema-Migrationen; Config ist additiv). Reaktivieren falls je ein Schema dazukommt.
 
 ### Phase 7 — Tests, Performance, Dokumentation
 
@@ -213,7 +213,7 @@ Release-Tag/Announcement.
 
 **Erfolgskriterium**: Host-Spiel XY (nicht auf dem Deck installiert) erscheint im Game Mode mit Artwork; Start → Sonnenschein-Stream im Vollbild. Spiel Z (auf beiden installiert) fragt beim Start „Lokal / Streamen" (bzw. nutzt den pro Spiel gesetzten Default). Alles ohne Steam Remote Play.
 
-- [ ] **Host: Library-API** — `/api/library`: scannt die Steam-Bibliothek des Hosts (`steamapps/appmanifest_*.acf`), liefert AppID, Name, Installationszustand + Artwork (`librarycache`, Fallback SteamGridDB), zusätzlich die Sonnenschein-Apps-Liste (Non-Steam)
+- [x] **Host: Library-API** — `GET /api/library`: scannt alle Steam-Library-Folders (nativ + flatpak + `libraryfolders.vdf`), parst `appmanifest_*.acf`, liefert AppID/Name/Installationszustand mit Dedupe. Non-Steam-Apps bleiben auf `/api/apps` (Client merged). Live gegen Fixtures getestet. (2026-07-12) — offen: Artwork (`librarycache`/SteamGridDB)
 - [ ] **Deck: Sonnenschein Companion** — synct die Host-Bibliothek in die Deck-Steam-Bibliothek (`shortcuts.vdf` + Grid-Artwork), jeder Eintrag startet `sonnenschein-client --host <id> --app <appid>`
   - Ausprägung A: **Decky-Loader-Plugin** (Sync + Toggles direkt im Game Mode, Quick-Access-Menü)
   - Ausprägung B: Fallback ohne Decky — Sync-Tool im Desktop Mode (einmalig ausführen, danach automatisch via Companion-Service)
