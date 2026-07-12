@@ -1523,7 +1523,11 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
-<this commit> — docs(status): round 8 complete — E2E passed, password + troubleshooting pages — 2026-07-12
+<this commit> — docs(status): round 9 complete — apps+config migrated, self-update endpoint, openSUSE CI — 2026-07-12
+ca21bf2 — feat(update): web-triggered self-update endpoint + dashboard button — 2026-07-12
+2f8530a — feat(webui): PrimeVue configuration shell, live-tested — 2026-07-12
+95ecd1d — feat(webui): PrimeVue applications page, live-tested against real backend — 2026-07-12
+9670739 — docs(status): round 8 complete — E2E passed, password + troubleshooting pages — 2026-07-12
 95e5742 — feat(webui): PrimeVue troubleshooting page, shared Topbar component — 2026-07-12
 282415f — feat: PrimeVue password page + skip distro nodejs/npm when present; Ubuntu E2E passed — 2026-07-12
 a5a1170 — docs(status): round 7b — login page, crash reporter v1, libva backport — 2026-07-11
