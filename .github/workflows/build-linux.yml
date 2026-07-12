@@ -55,12 +55,30 @@ jobs:
                 libnotify-devel libcap-devel nodejs npm \
                 ffmpeg-free-devel || true
               # Note: ffmpeg-full needs RPM Fusion, see docs/building.md (TODO).
+          - name: openSUSE-Tumbleweed
+            image: opensuse/tumbleweed:latest
+            # New matrix entry (2026-07-12): experimental until proven green,
+            # then drop the flag (same path Arch/Ubuntu/Fedora took).
+            experimental: true
+            setup: |
+              zypper --non-interactive refresh
+              zypper --non-interactive install --no-recommends \
+                gcc13 gcc13-c++ cmake git ninja pkg-config tar gzip \
+                libboost_headers-devel libboost_filesystem-devel libboost_log-devel \
+                libboost_program_options-devel libboost_locale-devel \
+                libopenssl-devel libcurl-devel miniupnpc-devel \
+                libdrm-devel libva-devel pipewire-devel libevdev-devel \
+                vulkan-devel wayland-devel wayland-protocols-devel \
+                libnotify-tools libcap-devel nodejs npm \
+                libgbm-devel libdisplay-info-devel libxkbcommon-devel \
+                libopus-devel libpulse-devel libnuma-devel udev
 
     container:
       image: ${{ matrix.distro.image }}
       options: --user 0
-    # Phase 7 hardening (2026-07-11): all three matrix jobs are genuinely
-    # green — build failures now fail the workflow.
+    continue-on-error: ${{ matrix.distro.experimental || false }}
+    # Phase 7 hardening (2026-07-11): Arch/Ubuntu/Fedora are genuinely green —
+    # build failures fail the workflow. Experimental entries are exempt.
 
     steps:
       - name: Distro setup

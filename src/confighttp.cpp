@@ -7,6 +7,8 @@
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 // standard includes
+#include <cctype>
+#include <cstdlib>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -1338,6 +1340,89 @@ namespace confighttp {
   }
 
   /**
+   * @brief Trigger a self-update via the bundled installer (Linux only).
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/update| POST| {"branch":"main"}}
+   */
+  void updateSelf(resp_https_t response, req_https_t request) {
+    if (!validateContentType(response, request, "application/json") || !authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    nlohmann::json output_tree;
+#ifdef __linux__
+    std::string branch = "main";
+    try {
+      std::stringstream ss;
+      ss << request->content.rdbuf();
+      auto body = ss.str();
+      if (!body.empty()) {
+        auto input_tree = nlohmann::json::parse(body);
+        if (input_tree.contains("branch") && input_tree["branch"].is_string()) {
+          branch = input_tree["branch"].get<std::string>();
+        }
+      }
+    } catch (...) {
+      // Leerer/kaputter Body → Default-Branch
+    }
+
+    // Der Branch-Name landet in einer Shell-Zeile — strikt validieren.
+    bool valid_branch = !branch.empty() && branch.size() <= 100 &&
+                        std::all_of(branch.begin(), branch.end(), [](unsigned char c) {
+                          return std::isalnum(c) || c == '.' || c == '_' || c == '-' || c == '/';
+                        });
+
+    // Updater relativ zum Binary auflösen: $PREFIX/bin/sonnenschein →
+    // $PREFIX/installer/update.sh (vom Installer dorthin kopiert).
+    std::error_code ec;
+    auto exe = fs::canonical("/proc/self/exe", ec);
+    fs::path script;
+    if (!ec) {
+      script = exe.parent_path().parent_path() / "installer" / "update.sh";
+    }
+
+    if (!valid_branch) {
+      output_tree["status"] = false;
+      output_tree["error"] = "Invalid branch name.";
+    } else if (ec || !fs::exists(script)) {
+      output_tree["status"] = false;
+      output_tree["error"] = "update.sh not found next to the binary — reinstall via the installer to enable self-update.";
+    } else if (std::system("sudo -n true >/dev/null 2>&1") != 0) {
+      // Der Install-Schritt des Updaters braucht sudo; ohne NOPASSWD kann der
+      // headless Service nicht fragen — ehrlicher Fehler mit manuellem Weg.
+      output_tree["status"] = false;
+      output_tree["error"] = "Passwordless sudo is unavailable for the service. Run the update manually: bash " + script.string() + " " + branch;
+    } else {
+      const char *home = std::getenv("HOME");
+      std::string log_path = std::string(home ? home : "/tmp") + "/.local/state/sonnenschein/update.log";
+      fs::create_directories(fs::path(log_path).parent_path(), ec);
+      // systemd-run löst den Updater aus der Service-cgroup — nur so überlebt
+      // er das `systemctl --user restart sonnenschein` am Ende des Updates.
+      std::string cmd = "systemd-run --user --collect --unit=sonnenschein-update"
+                        " bash -c 'exec bash \"" +
+                        script.string() + "\" \"" + branch + "\" >> \"" + log_path + "\" 2>&1'";
+      BOOST_LOG(info) << "Web-triggered self-update (branch "sv << branch << "), log: "sv << log_path;
+      int rc = std::system(cmd.c_str());
+      if (rc == 0) {
+        output_tree["status"] = true;
+        output_tree["log"] = log_path;
+      } else {
+        output_tree["status"] = false;
+        output_tree["error"] = "Could not launch the updater (systemd-run exit " + std::to_string(rc) + "). Is this running as a systemd --user service?";
+      }
+    }
+#else
+    output_tree["status"] = false;
+    output_tree["error"] = "Self-update is only supported on Linux.";
+#endif
+    send_response(response, output_tree);
+  }
+
+  /**
    * @brief Quit Apollo.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -1544,6 +1629,7 @@ namespace confighttp {
     server.resource["^/api/config$"]["POST"] = saveConfig;
     server.resource["^/api/configLocale$"]["GET"] = getLocale;
     server.resource["^/api/restart$"]["POST"] = restart;
+    server.resource["^/api/update$"]["POST"] = updateSelf;
     server.resource["^/api/quit$"]["POST"] = quit;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/password$"]["POST"] = savePassword;

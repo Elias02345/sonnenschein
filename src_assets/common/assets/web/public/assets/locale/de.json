@@ -91,6 +91,8 @@
     "paired_devices": "Gekoppelte Geräte",
     "report_issue": "Auf GitHub melden",
     "toggle_theme": "Dunkelmodus umschalten",
+    "update_now": "Jetzt aktualisieren",
+    "update_started": "Update gestartet — Sonnenschein baut sich neu und startet automatisch neu. Das kann einige Minuten dauern; die Seite ist während des Neustarts kurz nicht erreichbar.",
     "view_logs": "Logs ansehen"
   },
   "config": {

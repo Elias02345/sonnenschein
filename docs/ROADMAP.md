@@ -129,9 +129,9 @@ Sonnenschein soll der **Standard-Weg** sein, einen Linux-PC oder -Server in eine
 
 **Erfolgskriterium**: WebUI zeigt "Neue Version verfügbar", ein Klick → Service stoppt, neue Version lädt, Migration läuft, Service startet, alle Configs+Pairings sind heile. CLI-Befehl `sonnenschein update` macht dasselbe headless.
 
-- [ ] `update.sh` — GitHub-Releases-API, Versionsvergleich, Tarball-Download, Symlink-Switch, Service-Restart
-- [ ] WebUI-Update-Knopf
-- [ ] Branch-Wahl (`main` / `dev`) mit Verhalten: wenn `main` neuer als `dev` → automatisch zu `main`
+- [x] `update.sh` — Source-Pull + Rebuild + Reinstall + Service-Restart + doctor --repair (2026-07)
+- [x] WebUI-Update-Knopf — `POST /api/update` spawnt den Updater via `systemd-run --user` (überlebt den Service-Restart); Dashboard-Button erscheint bei neuer Version. Ohne NOPASSWD-sudo liefert der Endpoint den manuellen Befehl. (2026-07-12)
+- [ ] Branch-Wahl (`main` / `dev`) mit Verhalten: wenn `main` neuer als `dev` → automatisch zu `main` (API nimmt `branch` schon entgegen, UI-Selector fehlt)
 - [ ] Migration-Framework: pro Major-Version ein Up-Script, Backups vor jedem Lauf
 - [ ] Auto-Update als Service-Option (timer-basiert) oder On-Demand
 - [ ] Rollback-Befehl

@@ -39,10 +39,18 @@
               </div>
               <div v-if="stableBuildAvailable && githubVersion?.release" class="dash-update">
                 <p>{{ githubVersion.release.name }}</p>
-                <a :href="githubVersion.release.html_url" target="_blank">
-                  <Button :label="$t('index.download')" icon="pi pi-download" size="small" />
-                </a>
+                <div class="dash-card-actions">
+                  <Button :label="$t('dashboard.update_now')" icon="pi pi-refresh" size="small"
+                    :loading="updating" @click="runUpdate" />
+                  <a :href="githubVersion.release.html_url" target="_blank">
+                    <Button :label="$t('index.download')" icon="pi pi-external-link" severity="secondary" size="small" />
+                  </a>
+                </div>
               </div>
+              <Message v-if="updateMsg" :severity="updateError ? 'error' : 'success'" :closable="false"
+                class="dash-update-msg">
+                {{ updateMsg }}
+              </Message>
             </div>
             <div v-else>
               <Tag :value="$t('index.loading_latest')" severity="secondary" />
@@ -116,7 +124,10 @@ export default {
       githubVersion: null,
       loading: true,
       logs: null,
-      clients: []
+      clients: [],
+      updating: false,
+      updateMsg: null,
+      updateError: false
     }
   },
   computed: {
@@ -179,6 +190,35 @@ export default {
     }
     this.loading = false
   },
+  methods: {
+    runUpdate() {
+      this.updating = true
+      this.updateMsg = null
+      this.updateError = false
+      fetch('./api/update', {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        body: JSON.stringify({ branch: 'main' })
+      })
+        .then((r) => r.json())
+        .then((r) => {
+          if (r.status) {
+            this.updateMsg = this.$t('dashboard.update_started')
+          } else {
+            this.updateError = true
+            this.updateMsg = r.error
+          }
+        })
+        .catch((e) => {
+          this.updateError = true
+          this.updateMsg = e.message
+        })
+        .finally(() => {
+          this.updating = false
+        })
+    }
+  }
 }
 </script>
 
@@ -246,6 +286,10 @@ export default {
 }
 
 .dash-update {
+  margin-top: 0.75rem;
+}
+
+.dash-update-msg {
   margin-top: 0.75rem;
 }
 

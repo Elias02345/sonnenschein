@@ -397,6 +397,62 @@ mit der alten Navbar. WebUI-Update-Knopf (Phase 6) braucht einen neuen
 Backend-Endpoint (POST /api/update → spawnt `installer/update.sh`
 detached; SRC_DIR via `$PREFIX/install-state.env` relativ zum Binary
 auflösen) + echten Update-E2E-Test — eigene Session.
+→ Beides in Runde 9 erledigt, siehe unten.
+
+### Nachtrag Runde 9 (2026-07-12): apps + config migriert, /api/update, openSUSE-CI
+
+Live-Test-Setup wie etabliert: WSL-Binary + Assets-Staging nach
+`/usr/local/assets/web` + HTTP→HTTPS-Proxy 5181 mit Cookie-Injection.
+Achtung: Der E2E-Uninstall aus Runde 8 hatte die WSL-Config gewischt →
+Backend war im First-Run-Modus; Zugangsdaten per `POST /api/password`
+neu gesetzt (sonnenschein/test1234, nur WSL-Testinstanz).
+
+1. **apps.html → `Apps.vue` ✅ LIVE-GETESTET**: App-Liste mit nativem
+   Drag-Reorder (Logik 1:1 portiert), Edit/Delete/Launch/Export-Aktionen,
+   komplettes Edit-Formular (prep/state/detached-Kommandos, alle Toggles,
+   Gamepad-Override, Cover-Finder als PrimeVue-Dialog statt Bootstrap-
+   Dropdown). Windows/macOS-only-Blöcke (Elevation, scale-factor,
+   ds4/x360, RTSS/displayplacer-Beispiele) entfernt. Neues
+   `SettingToggle.vue`: ToggleSwitch, der die Wert-Repräsentation der
+   Config erhält (bool/String-Paare + inverse-values, Semantik von
+   Checkbox.vue). Live verifiziert: Liste rendert Backend-Apps,
+   Edit-Roundtrip persistiert (terminate-on-pause), Anlegen + Löschen
+   funktionieren, null Console-Errors.
+2. **config.html → `Config.vue` ✅ LIVE-GETESTET (Shell-Migration)**:
+   Topbar + PrimeVue-Tab-Leiste + Save/Apply; Logik wortgleich portiert
+   (Default-Population, serialize, Hash-Routing). Die 17 Bootstrap-
+   Tab-Komponenten unter `configs/tabs/` bleiben unangetastet — deren
+   Bootstrap-CSS/JS wird seitenlokal importiert, `data-bs-theme` folgt
+   dem PrimeVue-Dunkelmodus via MutationObserver. Live verifiziert:
+   Plattform-gefilterte Tabs (Linux: nv/vaapi/sw, amd/qsv/vt raus),
+   Tab-Wechsel rendert Inhalte, Save-Roundtrip persistiert
+   (sunshine_name), Dark-Styling kohärent, null Console-Errors.
+   Voll-Migration der 17 Tabs auf PrimeVue-Formulare bleibt optionales
+   Folge-Projekt (kein Funktionsverlust).
+3. **Phase 6: `POST /api/update` + Dashboard-Button** (Code fertig,
+   Compile-/Live-Verifikation lief zum Schreibzeitpunkt): confighttp.cpp
+   `updateSelf` — löst `$PREFIX/installer/update.sh` relativ zum Binary
+   auf (`/proc/self/exe` → parent/parent), validiert den Branch strikt
+   (`[A-Za-z0-9._/-]{1,100}`, Shell-Injection-Guard), prüft `sudo -n`
+   (ohne NOPASSWD → ehrlicher Fehler mit manuellem Befehl) und spawnt
+   den Updater via `systemd-run --user --collect
+   --unit=sonnenschein-update` — transiente Unit außerhalb der
+   Service-cgroup, überlebt den Service-Restart; doppelter Start
+   unmöglich (Unit-Name kollidiert). Log:
+   `~/.local/state/sonnenschein/update.log`. Dashboard: „Jetzt
+   aktualisieren"-Button bei verfügbarem Release + Erfolgs-/Fehler-
+   Message (i18n dashboard.update_now/update_started DE+EN).
+   Doku: neues `docs/UPDATE_RULES.md` (Sacred Paths + Update-Vertrag),
+   ROADMAP Phase 6 abgehakt.
+4. **openSUSE-Tumbleweed-CI-Job** in build-linux.yml (Paketliste aus
+   installer/packages/opensuse.list abgeleitet), als `experimental:
+   true` → `continue-on-error` nur für diesen Job; hart schalten sobald
+   real grün (gleicher Weg wie Arch/Ubuntu/Fedora).
+
+**Hinweis Session-Infrastruktur**: Der Permission-Classifier
+(claude-opus-4-8) fiel während Runde 9 zeitweise aus — Shell-Aktionen
+(WSL-Build, npm build, git) waren blockiert; Datei-Edits liefen weiter.
+Verifikationsschritte wurden nachgeholt, sobald die Shell wieder ging.
 
 ### Was weiterhin offen ist (Maintainer-Test auf CachyOS)
 - **Nach Runde-2-Update**: `bash /opt/sonnenschein/installer/update.sh` →
