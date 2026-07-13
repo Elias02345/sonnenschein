@@ -456,8 +456,19 @@ steht noch aus (Browser-Extension).
   1174180 liefern jetzt 300×450-Portrait-JPEGs, 1245620 weiter ok (Regression),
   nicht existente appid weiter 404. Commit siehe unten.
 - ⚠️ **Deployter Host serviert bis zu einem `update.sh`-Lauf noch das alte
-  Artwork-Verhalten** (404 für Hash-Layout-Spiele). Fix ist auf `dev`; live
-  wird er beim nächsten Update — das braucht einmal Maintainer-`sudo`.
+  Artwork-Verhalten** (404 für Hash-Layout-Spiele). Fix ist auf `dev`.
+- **Update-Robustheits-Bug entdeckt + gefixt (`f189a19`)**: Der erste
+  Versuch, den Fix live zu schalten, wurde als `sudo bash update.sh dev`
+  gestartet → lief komplett als root → `doctor.sh`-Health-Check scheiterte
+  (root hat kein `WAYLAND_DISPLAY`, sieht den `--user`-Service nicht) →
+  **Auto-Rollback auf `3661495`** (Phase-6-Rollback hat sauber funktioniert!).
+  Fix: `update.sh` re-exect sich bei sudo-Start als aufrufender User (mit
+  wiederhergestellter Session-Env), elevatet nur intern für den Install;
+  `common.sh` nutzt einen Per-UID-Log-Pfad (behebt die
+  `/tmp/sonnenschein-install.log`-Rechte-Kollision). **Richtiger Weg zum
+  Live-Schalten**: `bash /opt/sonnenschein/installer/update.sh dev` **als
+  normaler User** (kein `sudo` davor) — fragt beim Install-Schritt nach dem
+  sudo-Passwort. Das zieht auch die installer-Fixes nach /opt (self-healing).
 
 **Step 2 — Client-Track C1-Fundament (Moonlight-Qt-Build) ✅:**
 - Upstream `moonlight-qt` v6.1.0-526 rekursiv geklont (`~/Dokumente/moonlight-qt`),
