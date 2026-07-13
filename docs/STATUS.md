@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-07-12 (Runde 10) — **End-to-End läuft: Install → Discovery → Pairing → Stream ✅, 90 Hz ✅.** **Phase 6 (Update-System) fertig**: Auto-Rollback bei Health-Fail + manuelles `revert-update.sh` + Auto-Update-Timer (systemd --user) + Branch-Selector + `GET /api/update-state`. **Client-Track begonnen**: Host `GET /api/library` scannt die Steam-Bibliothek (Fundament der nativen Steam-Deck-Integration C2). **Scope-Entscheidungen 2026-07-12**: KDE-only (keine weiteren Desktop-Environments) + kein natives Packaging (der One-Liner-Installer ist der Distributionsweg). WebUI-Kernflow komplett PrimeVue (welcome/login/dashboard/pin/password/troubleshooting/apps/config). HDR = KWin-Upstream-Blocker (KDE-Request läuft, Code selbstaktivierend). Details siehe Nachtrag Runde 10.
+**Stand:** 2026-07-13 (Runde 11) — **Host-APIs auf dem echten CachyOS-Target live verifiziert.** doctor.sh 14/14 grün; `/api/library` liefert die **echte Steam-Bibliothek (31 Spiele, alle installiert)**; Artwork-Endpoint gegen neueren Steam-Cache (Content-Hash-Layout + `library_capsule.jpg`) **gefixt** und re-getestet (HL2/Cyberpunk/RDR2/Witcher liefern jetzt Portrait-Cover). **Client-Track C1-Fundament steht**: Moonlight-Qt v6.1 baut + läuft auf CachyOS (fehlende Deps `sdl2_ttf`/Vulkan-Headers ohne sudo lokal gelöst) — als Nächstes pairen+streamen, dann Rebrand zu `sonnenschein-client`. Umgebung: `sudo` braucht Passwort → `update.sh`/`pacman` aus Agent-Session blockiert (Details Nachtrag Runde 11). Voriger Stand siehe unten. — **Phase 6 (Update-System) fertig**: Auto-Rollback bei Health-Fail + manuelles `revert-update.sh` + Auto-Update-Timer (systemd --user) + Branch-Selector + `GET /api/update-state`. **Scope (fix)**: KDE-only + kein natives Packaging. HDR = KWin-Upstream-Blocker (Code selbstaktivierend). Details Runde 10 darunter.
 
 **Vorherige Stand-Zeile (2026-05-28):** Overhaul-Session: Phase 1.6 Rebrand komplett, Phase-3-Installer-Gerüst + Phase-5-PrimeVue-Fundament gebaut, Code-Review der Laufzeit-Fixes erledigt, erste Vorab-Version nach `main` gepusht.
 
@@ -398,6 +398,80 @@ Backend-Endpoint (POST /api/update → spawnt `installer/update.sh`
 detached; SRC_DIR via `$PREFIX/install-state.env` relativ zum Binary
 auflösen) + echten Update-E2E-Test — eigene Session.
 → Beides in Runde 9 erledigt, siehe unten.
+
+### Nachtrag Runde 11 (2026-07-13): CachyOS-Verifikation Host-APIs + Client C1-Fundament
+
+Session direkt auf dem CachyOS-Test-Target (RTX 3070, Plasma **6.7**,
+NVIDIA-Treiber **610.43.03** — beide neuer als bisher dokumentiert).
+Repo-Checkout war 54 Commits hinter origin/dev (lokale STATUS.md noch auf
+Stand 2026-05-14); per `git pull --ff-only` auf Runde 10 gebracht. Die
+uncommitteten Working-Tree-Änderungen davor waren reine CRLF-Zeilenende-Churn
+(Windows-Editier-Artefakt, `git diff --ignore-all-space` leer) → verworfen.
+
+**Umgebungs-Realität (wichtig für künftige Sessions):**
+- **`sudo` verlangt ein Passwort** — nicht-interaktiv nicht nutzbar. Damit
+  sind `update.sh` (braucht `cmake --install` als root) und `pacman -S`
+  aus einer Agent-Session **blockiert**. Workaround für Builds: fehlende
+  Dev-Deps lokal ohne root nach `~/Dokumente/.localdeps/prefix` bauen.
+- **Chrome-Extension nicht verbunden** → keine Browser-Automation; visuelle
+  WebUI-Checks nur manuell.
+
+**Step 1a — Host-Stand ✅ (kein Rebuild nötig):**
+- Die **installierte** Binary (`/opt/sonnenschein/bin`, 12.07. 18:21) enthält
+  bereits alle Runde-10-Endpoints (`strings`: `/api/library`,
+  `/api/library/artwork`, `/api/update`, `/api/update-state`). Der SRC-Checkout
+  (`~/.local/share/sonnenschein/src`) steht auf `3661495`. `update.sh` wäre
+  also ein reiner Rebuild desselben Codes (+ am sudo-PW hängend) → übersprungen.
+- **`doctor.sh`: alle 14 Checks grün.** WebUI antwortet, User-Service läuft,
+  uinput/PipeWire/Portal/avahi ok, Plasma 6.7 (custom refresh rates ok).
+
+**Step 1b — Update-Controls ✅ (Asset-Ebene):** Branch-Selector (main/dev) +
+„Jetzt aktualisieren"-Button + „Aktuell"-Logik sind ins deployte Bundle
+`assets/web/assets/index-DBSRB4W6.js` kompiliert (`branchOptions`,
+`commits_behind`, `update_now`, `update-state`) und fetchen `/api/update-state`.
+Backend liefert unauth **401** (korrekt gated). Rein visuelle Bestätigung
+steht noch aus (Browser-Extension).
+
+**Step 1c — Library-API LIVE gegen echte Steam-Installation ✅ + Fix:**
+- Auth-Weg ohne Maintainer-Passwort: eine **isolierte Wegwerf-Instanz** der
+  echten Binary auf Port 48989/Web 48990 mit eigener Config/State/Creds
+  (Test-User, separate Pfade) — rührt `~/.config/sunshine` + Pairings **nicht**
+  an, liest aber dasselbe `$HOME` → dieselbe echte Steam-Bibliothek.
+- **`GET /api/library` → 31 Spiele, alle `installed:true`** (Cyberpunk, Elden
+  Ring, RDR2, Witcher 3, Forza, Spider-Man, GTA V … + Runtimes), `steam_found:
+  true`. `steam_roots()` deckt die CachyOS-Pfade exakt ab (`~/.steam/steam` +
+  `/mnt/Games/SteamLibrary` via `libraryfolders.vdf`) → **kein Pfad-Fix nötig**.
+- **`GET /api/library/artwork/<appid>`: Steam-Cache-Layout-Drift gefunden +
+  gefixt.** Neuere Steam-Clients legen Cover nicht mehr nur als
+  `librarycache/<appid>/library_600x900.jpg` ab, sondern verschachtelt unter
+  einem Content-Hash-Ordner `librarycache/<appid>/<sha1>/…` und teils als
+  `library_capsule.jpg` statt `library_600x900.jpg`. Der alte Code fand nur
+  die flachen Namen → 404 für HL2 (220) und Cyberpunk (1091500), während Elden
+  Ring (1245620) direkt lag und ging. **Fix in `getLibraryArtwork`**
+  (confighttp.cpp): Portrait-first (`library_600x900.jpg` → `library_capsule.jpg`)
+  über alle drei Layouts (flach benannt / Content-Hash-Subdir / alt-flach
+  `<appid>_…`), Header (`header.jpg`/`library_header.jpg`) als Fallback, 404 nur
+  wenn wirklich nichts lokal existiert (Client → SteamGridDB). **Neu gebaut +
+  live gegen die isolierte Instanz re-getestet**: 220/1091500/546560/292030/
+  1174180 liefern jetzt 300×450-Portrait-JPEGs, 1245620 weiter ok (Regression),
+  nicht existente appid weiter 404. Commit siehe unten.
+- ⚠️ **Deployter Host serviert bis zu einem `update.sh`-Lauf noch das alte
+  Artwork-Verhalten** (404 für Hash-Layout-Spiele). Fix ist auf `dev`; live
+  wird er beim nächsten Update — das braucht einmal Maintainer-`sudo`.
+
+**Step 2 — Client-Track C1-Fundament (Moonlight-Qt-Build) ✅:**
+- Upstream `moonlight-qt` v6.1.0-526 rekursiv geklont (`~/Dokumente/moonlight-qt`),
+  Out-of-tree-Build `~/Dokumente/mqt-build`.
+- Fehlende Deps ohne sudo gelöst: **`sdl2_ttf` 2.22** lokal aus Quelle gebaut
+  (freetype+harfbuzz vorhanden) nach `~/Dokumente/.localdeps/prefix`; **Vulkan-
+  Headers** (für libplacebo/vulkan.h) lokal geklont. qt6-quickcontrols2 ist in
+  Arch Teil von qt6-declarative (schon da).
+- **Binary baut + läuft**: `app/moonlight --version` → „Moonlight 6.1.0", alle
+  HW-Renderer aktiv (FFmpeg/VAAPI/VDPAU/DRM/libplacebo-Vulkan/EGL/Wayland/X11),
+  `ldd` sauber (SDL2_ttf via `LD_LIBRARY_PATH=~/Dokumente/.localdeps/prefix/lib`).
+- Offen: gegen den laufenden Host pairen + streamen, danach Rebrand →
+  `sonnenschein-client` + Auto-Konfiguration + Library-Ansicht (nutzt die oben
+  verifizierten `/api/library` + `/api/library/artwork`).
 
 ### Nachtrag Runde 10 (2026-07-12): Phase 6 fertig + Client-Track begonnen
 

@@ -1635,35 +1635,72 @@ namespace confighttp {
     // Route captures a digits-only appid.
     std::string appid = request->path_match[1].str();
 
-    // Prefer the portrait grid; fall back to the header image.
-    std::vector<std::string> rel = {
-      appid + "/library_600x900.jpg",
-      appid + "_library_600x900.jpg",
-      appid + "/header.jpg",
-      appid + "_header.jpg"
+    // Steam stores a game's librarycache art in one of three layouts, and the
+    // one in use varies per game even within a single install:
+    //   1. flat named:   librarycache/<appid>/library_600x900.jpg
+    //   2. content-hash:  librarycache/<appid>/<sha1>/library_600x900.jpg  (2025)
+    //   3. old flat:      librarycache/<appid>_library_600x900.jpg
+    // The portrait cover is also named library_capsule.jpg on some titles.
+    // We prefer a portrait grid image (600x900 / capsule) and fall back to the
+    // landscape header; within each preference we probe direct, old-flat, then
+    // one level of content-hash subdirs. 404 lets the client use SteamGridDB.
+    const std::vector<std::string> portrait_names = {"library_600x900.jpg", "library_capsule.jpg"};
+    const std::vector<std::string> header_names = {"header.jpg", "library_header.jpg"};
+
+    auto send_if_present = [&](const std::string &full) -> bool {
+      std::error_code ec;
+      if (!fs::is_regular_file(full, ec)) {
+        return false;
+      }
+      std::string bytes;
+      try {
+        bytes = file_handler::read_file(full.c_str());
+      } catch (...) {
+        return false;
+      }
+      if (bytes.empty()) {
+        return false;
+      }
+      SimpleWeb::CaseInsensitiveMultimap headers;
+      headers.emplace("Content-Type", full.size() >= 4 && full.substr(full.size() - 4) == ".png" ? "image/png" : "image/jpeg");
+      headers.emplace("Cache-Control", "max-age=86400");
+      response->write(bytes, headers);
+      return true;
+    };
+
+    // Probe one set of filenames against every layout under a given cache dir.
+    auto probe = [&](const std::string &cache, const std::vector<std::string> &names) -> bool {
+      const std::string appdir = cache + appid;
+      for (const auto &n : names) {
+        if (send_if_present(appdir + "/" + n)) {
+          return true;  // layout 1: flat named
+        }
+        if (send_if_present(cache + appid + "_" + n)) {
+          return true;  // layout 3: old flat
+        }
+      }
+      std::error_code ec;
+      if (fs::is_directory(appdir, ec)) {
+        for (const auto &sub : fs::directory_iterator(appdir, ec)) {
+          if (ec) {
+            break;
+          }
+          if (!sub.is_directory(ec)) {
+            continue;
+          }
+          for (const auto &n : names) {
+            if (send_if_present(sub.path().string() + "/" + n)) {
+              return true;  // layout 2: content-hash subdir
+            }
+          }
+        }
+      }
+      return false;
     };
 
     for (const auto &root : steam_roots()) {
       std::string cache = root + "/appcache/librarycache/";
-      for (const auto &r : rel) {
-        std::error_code ec;
-        std::string full = cache + r;
-        if (!fs::is_regular_file(full, ec)) {
-          continue;
-        }
-        std::string bytes;
-        try {
-          bytes = file_handler::read_file(full.c_str());
-        } catch (...) {
-          continue;
-        }
-        if (bytes.empty()) {
-          continue;
-        }
-        SimpleWeb::CaseInsensitiveMultimap headers;
-        headers.emplace("Content-Type", r.size() >= 4 && r.substr(r.size() - 4) == ".png" ? "image/png" : "image/jpeg");
-        headers.emplace("Cache-Control", "max-age=86400");
-        response->write(bytes, headers);
+      if (probe(cache, portrait_names) || probe(cache, header_names)) {
         return;
       }
     }
