@@ -1528,7 +1528,11 @@ namespace nvhttp {
 
     std::ifstream in(app_image, std::ios::binary);
     SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "image/png");
+    // Sonnenschein: box art may be a jpg (Steam-library covers), not just png.
+    auto app_image_ext = fs::path(app_image).extension().string();
+    bool app_image_is_jpeg = app_image_ext == ".jpg" || app_image_ext == ".jpeg" ||
+                             app_image_ext == ".JPG" || app_image_ext == ".JPEG";
+    headers.emplace("Content-Type", app_image_is_jpeg ? "image/jpeg" : "image/png");
     response->write(SimpleWeb::StatusCode::success_ok, in, headers);
     response->close_connection_after_response = true;
   }

@@ -9,6 +9,8 @@
 #endif
 // standard includes
 #include <filesystem>
+#include <set>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
@@ -51,6 +53,147 @@
 #endif
 
 #define DEFAULT_APP_IMAGE_PATH SUNSHINE_ASSETS_DIR "/box.png"
+
+#ifdef __linux__
+namespace {
+  // Sonnenschein: scan the installed Steam library so the host can expose each
+  // game as a streamable app (Client-Track C2, approach a — the paired client
+  // then sees Desktop/Big Picture + all games in one grid). Self-contained on
+  // purpose (mirrors confighttp's /api/library scan) to avoid coupling the core
+  // process path to the Web-API module.
+  struct sns_steam_game {
+    std::string appid;
+    std::string name;
+    std::string cover;  // absolute librarycache portrait path, or empty
+  };
+
+  std::string sns_vdf_str(const std::string &s, const std::string &key) {
+    const std::string needle = "\"" + key + "\"";
+    size_t p = s.find(needle);
+    if (p == std::string::npos) return "";
+    p += needle.size();
+    size_t q1 = s.find('"', p);
+    if (q1 == std::string::npos) return "";
+    size_t q2 = s.find('"', q1 + 1);
+    if (q2 == std::string::npos) return "";
+    return s.substr(q1 + 1, q2 - q1 - 1);
+  }
+
+  std::vector<std::string> sns_steam_roots() {
+    const char *home = std::getenv("HOME");
+    std::string h = home ? home : "";
+    return {h + "/.steam/steam", h + "/.local/share/Steam", h + "/.steam/root",
+            h + "/.var/app/com.valvesoftware.Steam/.local/share/Steam"};
+  }
+
+  std::string sns_find_cover(const std::string &appid) {
+    static const std::vector<std::string> names = {"library_600x900.jpg", "library_capsule.jpg"};
+    for (const auto &root : sns_steam_roots()) {
+      std::string appdir = root + "/appcache/librarycache/" + appid;
+      std::error_code ec;
+      for (const auto &n : names) {
+        std::string f = appdir + "/" + n;
+        if (std::filesystem::is_regular_file(f, ec)) return f;
+      }
+      if (std::filesystem::is_directory(appdir, ec)) {
+        for (const auto &sub : std::filesystem::directory_iterator(appdir, ec)) {
+          if (ec) break;
+          if (!sub.is_directory(ec)) continue;
+          for (const auto &n : names) {
+            std::string f = sub.path().string() + "/" + n;
+            if (std::filesystem::is_regular_file(f, ec)) return f;
+          }
+        }
+      }
+    }
+    return "";
+  }
+
+  // Steam runtimes / redistributables are installed but are not playable games.
+  bool sns_is_runtime(const std::string &name) {
+    return name.find("Steam Linux Runtime") != std::string::npos ||
+           name.rfind("Proton", 0) == 0 ||
+           name.find("Steamworks Common Redistributables") != std::string::npos;
+  }
+
+  std::vector<sns_steam_game> sns_scan_steam_games() {
+    std::vector<sns_steam_game> out;
+    std::set<std::string> seen_dirs, seen_ids;
+    for (const auto &root : sns_steam_roots()) {
+      std::error_code ec;
+      std::string base = root + "/steamapps";
+      if (!std::filesystem::is_directory(base, ec)) continue;
+
+      std::vector<std::string> libs = {base};
+      try {
+        std::string vdf = file_handler::read_file((base + "/libraryfolders.vdf").c_str());
+        size_t pos = 0;
+        const std::string pk = "\"path\"";
+        while ((pos = vdf.find(pk, pos)) != std::string::npos) {
+          pos += pk.size();
+          size_t q1 = vdf.find('"', pos);
+          size_t q2 = (q1 == std::string::npos) ? std::string::npos : vdf.find('"', q1 + 1);
+          if (q2 == std::string::npos) break;
+          libs.push_back(vdf.substr(q1 + 1, q2 - q1 - 1) + "/steamapps");
+          pos = q2 + 1;
+        }
+      } catch (...) {
+        // no libraryfolders.vdf — the base steamapps dir still counts
+      }
+
+      for (const auto &lib : libs) {
+        if (!seen_dirs.insert(lib).second) continue;
+        if (!std::filesystem::is_directory(lib, ec)) continue;
+        for (const auto &entry : std::filesystem::directory_iterator(lib, ec)) {
+          if (ec) break;
+          const std::string fn = entry.path().filename().string();
+          if (fn.rfind("appmanifest_", 0) != 0 || entry.path().extension() != ".acf") continue;
+          std::string acf;
+          try {
+            acf = file_handler::read_file(entry.path().string().c_str());
+          } catch (...) {
+            continue;
+          }
+          if (acf.empty()) continue;
+          std::string appid = sns_vdf_str(acf, "appid");
+          std::string name = sns_vdf_str(acf, "name");
+          std::string flags = sns_vdf_str(acf, "StateFlags");
+          if (appid.empty() || name.empty()) continue;
+          bool installed = false;
+          try {
+            installed = (std::stoi(flags) & 4) != 0;
+          } catch (...) {
+            installed = false;
+          }
+          if (!installed || sns_is_runtime(name)) continue;
+          if (!seen_ids.insert(appid).second) continue;
+          out.push_back({appid, name, sns_find_cover(appid)});
+          if (out.size() >= 500) return out;
+        }
+      }
+    }
+    return out;
+  }
+
+  // Deterministic UUID (namespaced by appid) so a game keeps the same identity
+  // across re-scans / restarts.
+  std::string sns_steam_uuid(const std::string &appid) {
+    unsigned long long aid = 0;
+    try {
+      aid = std::stoull(appid);
+    } catch (...) {
+      aid = 0;
+    }
+    static const char *hex = "0123456789abcdef";
+    std::string tail(12, '0');
+    for (int j = 11; j >= 0; --j) {
+      tail[j] = hex[aid & 0xF];
+      aid >>= 4;
+    }
+    return "5715ea90-0000-4000-8000-" + tail;
+  }
+}  // namespace
+#endif
 
 namespace proc {
   using namespace std::literals;
@@ -1042,8 +1185,10 @@ namespace proc {
     auto image_extension = std::filesystem::path(app_image_path).extension().string();
     boost::to_lower(image_extension);
 
-    // return the default box image if extension is not "png"
-    if (image_extension != ".png") {
+    // return the default box image if the extension isn't a supported image
+    // type. Sonnenschein also accepts jpg/jpeg so Steam-library portrait covers
+    // (library_600x900.jpg) can be served as box art (see appasset content-type).
+    if (image_extension != ".png" && image_extension != ".jpg" && image_extension != ".jpeg") {
       return DEFAULT_APP_IMAGE_PATH;
     }
 
@@ -1656,6 +1801,43 @@ namespace proc {
         apps.emplace_back(std::move(ctx));
       }
     }
+
+#ifdef __linux__
+    // Sonnenschein: expose installed Steam games as streamable apps so a paired
+    // client sees Desktop/Big Picture + all games in one grid (Client-Track C2,
+    // approach a). Re-scanned on every parse()/refresh(). Each game launches via
+    // Steam (detached, like the Big Picture app) on an auto-matched virtual
+    // display; the portrait cover is served as the app's box art.
+    for (auto &game : sns_scan_steam_games()) {
+      proc::ctx_t ctx;
+      ctx.idx = std::to_string(i);
+      ctx.uuid = sns_steam_uuid(game.appid);
+      ctx.name = std::move(game.name);
+      ctx.detached.push_back("setsid steam steam://rungameid/" + game.appid);
+      ctx.image_path = std::move(game.cover);  // absolute librarycache path; may be empty
+      ctx.virtual_display = true;
+      ctx.scale_factor = 100;
+      ctx.use_app_identity = false;
+      ctx.per_client_app_identity = false;
+      ctx.allow_client_commands = false;
+      ctx.terminate_on_pause = false;
+
+      ctx.elevated = false;
+      ctx.auto_detach = true;
+      ctx.wait_all = false;
+      ctx.exit_timeout = 5s;
+
+      auto possible_ids = calculate_app_id(ctx.name, ctx.image_path, i++);
+      if (ids.count(std::get<0>(possible_ids)) == 0) {
+        ctx.id = std::get<0>(possible_ids);
+      } else {
+        ctx.id = std::get<1>(possible_ids);
+      }
+      ids.insert(ctx.id);
+
+      apps.emplace_back(std::move(ctx));
+    }
+#endif
 
     return proc::proc_t {
       std::move(this_env),
