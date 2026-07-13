@@ -5,6 +5,27 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
+> ## ⏸ HIER WEITERMACHEN (2026-07-13, Maintainer kommt zurück)
+>
+> **Sofort testen, sobald der Maintainer physisch am Deck ist:**
+> 1. `bash ~/.local/share/sonnenschein/src/installer/update.sh dev` → holt die
+>    **Spiele-als-Apps (Ansatz a, `a9bbaef`)** auf den Host.
+> 2. Vom **Steam Deck** ein Spiel aus der Liste (Desktop/Big Picture/26 Spiele)
+>    **starten + streamen** → prüfen: Launch via Steam, Virtual Display, Boxart
+>    im Grid. **Läuft's → `dev`→`main` mergen** (dann stabil).
+>
+> **Neue Maintainer-Aufgaben (2026-07-13, teils schon in Arbeit — siehe Nachtrag Runde 12):**
+> - **Remote-Desktop-Modus (C4)**: Host als Computer nutzen, Client mit **einem
+>   oder mehreren Screens** wie nativ (Multi-Monitor, Maus/Tastatur-first, Fenster).
+> - **Steam-Deck-Controller nativ**: aktuell emuliert der Host einen **Xbox**-Pad;
+>   der Deck-eigene **Steam-Controller** soll nativ genutzt werden (Trackpads/Gyro/
+>   Back-Buttons), **Deck-Layouts** einstellbar, und **erkennen welches Spiel offen
+>   ist**, obwohl gestreamt wird.
+> - Diese Punkte sind teils Deck-gebunden — was ohne Deck geht, mache ich vor;
+>   den Rest machen wir zusammen, wenn der Maintainer zurück ist.
+>
+> ---
+
 **Stand:** 2026-07-13 (Runde 11) — **Host-APIs live verifiziert + Artwork-Fix live auf `main` ausgerollt** (`main == dev == fc793f4`). `/api/library` liefert die echte Steam-Bibliothek (31 Spiele); Artwork gegen neueren Steam-Cache (Content-Hash-Layout + `library_capsule.jpg`) **gefixt** und per `update.sh main` live geschaltet (doctor **15/15**, deployte Binary re-getestet: HL2/Cyberpunk/Elden Ring → Cover). **Update-System dabei gehärtet** (2 Bugs: sudo-Kontext-Re-Exec `f189a19` + root-vergiftetes Build-Dir `fc793f4`; der Auto-Rollback hat sich zwischendurch real bewährt). **Client `sonnenschein-client`** (eigenes GitHub-Repo): Moonlight-Qt-Fork baut + läuft + **pairt** (voller Apollo-Handshake, App-Liste über mutual-TLS) + **Geräteprofil-Auto-Konfiguration** (`detect-profile`, live 4K60/AV1) — Video-Stream offen (2-Geräte-Test), dann Library-Ansicht. Umgebung: `sudo` braucht Passwort (Details Nachtrag Runde 11). Voriger Stand siehe unten. — **Phase 6 (Update-System) fertig**: Auto-Rollback bei Health-Fail + manuelles `revert-update.sh` + Auto-Update-Timer (systemd --user) + Branch-Selector + `GET /api/update-state`. **Scope (fix)**: KDE-only + kein natives Packaging. HDR = KWin-Upstream-Blocker (Code selbstaktivierend). Details Runde 10 darunter.
 
 **Vorherige Stand-Zeile (2026-05-28):** Overhaul-Session: Phase 1.6 Rebrand komplett, Phase-3-Installer-Gerüst + Phase-5-PrimeVue-Fundament gebaut, Code-Review der Laufzeit-Fixes erledigt, erste Vorab-Version nach `main` gepusht.
@@ -398,6 +419,41 @@ Backend-Endpoint (POST /api/update → spawnt `installer/update.sh`
 detached; SRC_DIR via `$PREFIX/install-state.env` relativ zum Binary
 auflösen) + echten Update-E2E-Test — eigene Session.
 → Beides in Runde 9 erledigt, siehe unten.
+
+### Nachtrag Runde 12 (2026-07-13): Ansatz-a Spiele-als-Apps + Pläne Remote-Desktop & Deck-Controller
+
+**Einheitliche Liste (Ansatz a)** — siehe TL;DR-Client-Abschnitt oben + Commit
+`a9bbaef` (host-seitig, auf `dev`, Listen-Teil verifiziert, Game-Launch offen).
+
+**Maintainer-Aufgaben 2026-07-13 (recherchiert, Pläne für die Zusammenarbeit):**
+
+**1. Remote-Desktop-Modus (C4)** — *„Host als Computer, Client mit 1+ Screens wie nativ".*
+- **Solo machbar (mache ich als Nächstes)**: Remote-Desktop-**Profil** im Client.
+  Die nötigen Settings existieren schon in `StreamingPreferences`
+  (`windowMode` = `WM_WINDOWED`, `absoluteMouseMode`, `captureSysKeysMode`,
+  `swapMouseButtons`). Profil = Fenster + absolute Maus + Maus/Tastatur-first,
+  streamt die Desktop-App. Zweiter Launcher-Eintrag „Remote Desktop" vs „Gaming"
+  (Roadmap C1). Auf dem PC testbar.
+- **Groß / später zusammen**: **Multi-Monitor** („mehrere Screens wie nativ").
+  Moonlight streamt genau *einen* Host-Display. Mehrere Screens gleichzeitig =
+  große Architektur-Erweiterung (Host müsste N Displays parallel encoden +
+  streamen, Client N Fenster/Screens mappen). Kein Quick-Win — eigener Track.
+
+**2. Steam-Deck-Controller nativ** — *aktuell emuliert der Host Xbox.*
+- **Ist-Zustand** (`src/platform/linux/input/inputtino_gamepad.cpp`): inputtino
+  kann **XboxOne / Switch / PS5** — Auswahl per Client-Typ (`LI_CTYPE_*`) oder
+  Config-Override. Kein Deck-/Steam-Controller-Typ.
+- **Nötig für „Deck-Controller nativ"**: neuer inputtino-Joypad-Typ, der sich als
+  **Steam-Deck-Controller** ausgibt (passende USB-VID/PID, damit Steam Input ihn
+  als Deck erkennt + Deck-Layouts anwendet; inkl. Trackpads/Gyro/Back-Buttons).
+  `inputtino` ist ein Submodul → Upstream-Beitrag oder lokaler Typ. **Nur am Deck
+  verifizierbar** → zusammen, wenn Maintainer zurück ist.
+- **Deck-Layouts einstellbar**: folgt aus (2) — sobald der Pad als Deck-Controller
+  erscheint, greifen Steams native Per-Spiel-Layouts auf dem Deck.
+- **„Erkennen welches Spiel offen ist obwohl gestreamt": schon da.** Der Host
+  meldet die laufende App über `/serverinfo` (`root.currentgame` +
+  `currentgameuuid`); mit Ansatz (a) ist die laufende App ein bekanntes Spiel →
+  der Deck/Client kann's auslesen (für Rich-Presence / Game-Mode-Anzeige).
 
 ### Nachtrag Runde 11 (2026-07-13): CachyOS-Verifikation Host-APIs + Client C1-Fundament
 
