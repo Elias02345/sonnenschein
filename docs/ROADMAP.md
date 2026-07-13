@@ -239,15 +239,61 @@ Auth-Konsequenz: für den nahtlosen Deck-Flow sollte `/api/library` **cert-authe
 - [ ] Android-Client (Fork moonlight-android): Fokus Android-TV + Handhelds (Ally, Odin), gleiche Autokonfiguration, WoL
 - [ ] Windows-Client (aus dem Moonlight-Qt-Fork): für Laptops/Tablets, Fokus Remote Desktop + Gaming gleichwertig
 
-### C4 — Remote-Desktop-Modus (nach Gaming-Track)
+### C4 — Remote-Desktop-Modus (Vision präzisiert 2026-07-13)
 
-**Ziel**: Dieselbe Infrastruktur, optimiert auf Arbeit statt Latenz.
+**Ziel**: Dieselbe Infrastruktur, optimiert auf Arbeit statt Latenz — der Host
+(PC/Server) wird nativ als Computer nutzbar. **Beide Modi erzeugen client-basiert
+native virtuelle Displays am Host und deaktivieren dessen physische Displays**
+(baut auf dem bestehenden Virtual-Display-Backend auf, das genau das schon tut).
 
-- [ ] **Multi-Display**: mehrere virtuelle Outputs pro Session (Host-Backend kann es schon konzeptionell — ein Virtual Output pro Client-Display), Client zeigt sie als getrennte Fenster/Vollbild pro Monitor
-- [ ] Text-Schärfe: 4:4:4-Chroma-Modus, höhere Bitrate statt niedriger Latenz
-- [ ] Clipboard-Sync (Text zuerst, Dateien optional später)
-- [ ] Docking-Profile: Client merkt sich Setups (z. B. „Deck im Dock an 2 Monitoren")
-- [ ] Session-Fortsetzung: Disconnect ohne Session-Ende, Reconnect nahtlos
+**Zwei Modi (Maintainer 2026-07-13):**
+- **Absoluter Modus** — den ganzen Host als Setup „übernehmen": **mehrere virtuelle
+  Screens** passend zu den Client-Displays, **Auto-Alignment** der virtuellen
+  Outputs (mit manuellem Fallback). Für Multi-Monitor-Arbeitsplätze, die komplett
+  mit dem Host arbeiten. Physische Host-Displays aus, N virtuelle rein.
+- **Single-Monitor-Modus** — den Client-Rechner **nebenbei** weiternutzen: auf
+  **einem wählbaren** Client-Monitor ein Host-Screen (virtuell + nativ angepasst),
+  Rest des Client-Desktops bleibt frei.
+- Unterschied: ganzes Setup übersteuern (absolut) vs. Client daneben weiternutzen
+  (single).
+
+**Native-Remote-Desktop-Features (alle „gut/nativ" gewünscht):**
+- **Clipboard-Sync** (Text zuerst, Dateien später) — NEU, Moonlight hat keine Basis.
+- **Drag & Drop** zwischen Client und Host — NEU.
+- **Einzelne Fenster vom Host in den Client holen** (Seamless/RemoteApp-artig, cross-
+  device, fühlt sich nativ an) — NEU, größtes Teilstück.
+- **USB-Geräte-Weiterleitung** (Maintainer 2026-07-13): steckt man z. B. einen
+  USB-Stick ein, **fragt der Client, ob das Gerät an den Host oder lokal soll**.
+  Bei „Host" → **virtuelle Brücke** (USB/IP-artige Redirection, z. B. `usbip`
+  oder gerätespezifische Kanäle) — das Gerät erscheint am Host, als wäre es dort
+  gesteckt. NEU, eigener Kanal (Hotplug-Erkennung Client-seitig + Bridge zum Host).
+- 4:4:4-Chroma + höhere Bitrate (Text-Schärfe), Docking-Profile, nahtlose Reconnects.
+
+**Phasierter Plan + Machbarkeit:**
+- [~] **Phase RD-0 — Modus-Fundament (Client)**: `remoteDesktopMode`-Enum
+  (Off / Single-Monitor / Absolute) + Settings-UI. Single-Monitor = Fenster +
+  absolute Maus (Client daneben nutzbar). *Tractable, in Arbeit 2026-07-13.*
+- [ ] **Phase RD-1 — Single-Monitor E2E**: Host virtual_display=true (physische
+  Displays aus, 1 virtueller Output in Client-Auflösung), Client zeigt ihn in
+  einem Fenster auf dem gewählten Monitor. Nutzt bestehende Virtual-Display-Pipeline.
+- [ ] **Phase RD-2 — Multi-Display / Absoluter Modus**: **großes Host-Teilstück** —
+  N virtuelle Outputs pro Session (Virtual-Display-Backend von 1 auf N erweitern),
+  Auto-Alignment (Client-Display-Topologie → virtuelle Output-Anordnung, manueller
+  Fallback), Client zeigt N Screens (Vollbild pro Monitor). Encoder-Pipeline muss
+  N Streams handhaben.
+- [ ] **Phase RD-3 — Clipboard-Sync**: neuer Datenkanal (Control-Stream-Erweiterung
+  oder Sidechannel) Host↔Client, Text zuerst (QClipboard ↔ Host-Clipboard via
+  wl-clipboard/xclip), Dateien später. NEU von Grund auf.
+- [ ] **Phase RD-4 — Drag & Drop**: baut auf Clipboard-Kanal + Datei-Transfer auf.
+- [ ] **Phase RD-5 — Seamless-Windows (einzelne Fenster holen)**: **größtes Teilstück**,
+  RemoteApp-artig. Host enumeriert Fenster (KWin-Scripting/Wayland), streamt ein
+  einzelnes Fenster als eigenen virtuellen Output oder croppt, Client zeigt es als
+  natives Fenster. Forschungs-/Prototyp-lastig.
+- [ ] Docking-Profile (Client merkt Setups) + nahtlose Reconnects.
+
+**Realität**: RD-0/RD-1 bauen auf Vorhandenem auf (tractable). RD-2..RD-5 sind
+substanzielle Neu-Entwicklung (Multi-Output-Encoding, neue Datenkanäle, Fenster-
+Forwarding) — mehrere Sessions, teils am Deck/Windows zu verifizieren.
 
 ## Crash-Reporter-Konzept
 
