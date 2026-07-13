@@ -428,7 +428,7 @@ auflösen) + echten Update-E2E-Test — eigene Session.
 **Maintainer-Aufgaben 2026-07-13 (recherchiert, Pläne für die Zusammenarbeit):**
 
 **1. Remote-Desktop-Modus (C4)** — *„Host als Computer, Client mit 1+ Screens wie nativ".*
-- **Solo machbar (mache ich als Nächstes)**: Remote-Desktop-**Profil** im Client.
+- **Solo erledigt (`19733c20`, Client-Repo)**: Remote-Desktop-**Profil** im Client (Settings-Toggle `remoteDesktopMode`) — Fenster + absolute Maus, kompiliert + Pref persistiert. Verhalten braucht Live-Desktop-Stream zur Bestätigung.
   Die nötigen Settings existieren schon in `StreamingPreferences`
   (`windowMode` = `WM_WINDOWED`, `absoluteMouseMode`, `captureSysKeysMode`,
   `swapMouseButtons`). Profil = Fenster + absolute Maus + Maus/Tastatur-first,
