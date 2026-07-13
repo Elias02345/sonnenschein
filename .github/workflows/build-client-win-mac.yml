@@ -1,0 +1,129 @@
+---
+name: Client - Windows and macOS
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      ci_version:
+        required: true
+        type: string
+
+# Builds the Sonnenschein client (client/ subdir) for Windows (x64 + arm64) and
+# macOS. Build/package steps run inside client/ where the .pro + scripts live.
+jobs:
+  build:
+    env:
+      CI_VERSION: ${{ inputs.ci_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            qt_version: 6.11.1
+          - os: macos-26
+            qt_version: 6.11.1
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          submodules: 'recursive'
+          fetch-depth: 1
+
+      - name: Download dependencies (Windows)
+        if: runner.os == 'Windows'
+        working-directory: client
+        run: powershell ./setup-deps.ps1
+
+      - name: Install create-dmg (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install node
+          npm install --global create-dmg
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          cache: true
+          set-env: ${{ runner.os != 'Windows' }}
+          add-tools-to-path: ${{ runner.os != 'Windows' }}
+          version: ${{ matrix.qt_version }}
+          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@073e34d7c2ab4ae6961ed7cca690b3abd5ba5a7e'
+
+      - name: Install Qt ARM64 (Windows)
+        if: runner.os == 'Windows'
+        uses: jurplel/install-qt-action@v4
+        with:
+          cache: true
+          set-env: false
+          add-tools-to-path: false
+          arch: win64_msvc2022_arm64_cross_compiled
+          version: ${{ matrix.qt_version }}
+
+      - name: Build x64 binaries (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        working-directory: client
+        run: |
+          set "PATH=%QT_PATH%;%PATH%"
+          scripts\build-arch.bat Release x64
+        env:
+          QT_PATH: ${{ runner.workspace }}\Qt\${{ matrix.qt_version }}\msvc2022_64\bin
+
+      - name: Build ARM64 binaries (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        working-directory: client
+        run: |
+          set "PATH=%QT_PATH%;%PATH%"
+          scripts\build-arch.bat Release arm64
+        env:
+          QT_PATH: ${{ runner.workspace }}\Qt\${{ matrix.qt_version }}\msvc2022_arm64\bin
+
+      - name: Build Package
+        shell: pwsh
+        working-directory: client
+        run: |
+          if ($Env:RUNNER_OS -eq "Windows") {
+            cmd /c scripts\generate-bundle.bat Release
+          } else {
+            bash scripts/generate-dmg.sh Release
+          }
+
+      - name: Upload Binaries (Windows x64)
+        uses: actions/upload-artifact@v6
+        if: runner.os == 'Windows'
+        with:
+          name: Sonnenschein-${{ runner.os }}-x64-${{ env.CI_VERSION }}
+          path: client/build/deploy-x64-release/*
+          if-no-files-found: error
+
+      - name: Upload Binaries (Windows arm64)
+        uses: actions/upload-artifact@v6
+        if: runner.os == 'Windows'
+        with:
+          name: Sonnenschein-${{ runner.os }}-arm64-${{ env.CI_VERSION }}
+          path: client/build/deploy-arm64-release/*
+          if-no-files-found: error
+
+      - name: Upload Binaries (macOS)
+        uses: actions/upload-artifact@v6
+        if: runner.os == 'macOS'
+        with:
+          name: Sonnenschein-${{ runner.os }}-${{ env.CI_VERSION }}
+          path: client/build/installer-Release/*.dmg
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload Symbols
+        uses: actions/upload-artifact@v6
+        with:
+          name: zDevDbgSyms-${{ runner.os }}-${{ env.CI_VERSION }}
+          path: |
+            client/build/installer-*/*.dsym/*
+            client/build/symbols-*/*.pdb
+          if-no-files-found: error

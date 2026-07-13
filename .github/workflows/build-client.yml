@@ -1,0 +1,79 @@
+---
+name: Client Build
+permissions:
+  contents: read
+
+# Builds the Sonnenschein client apps (client/ subdir) for Linux (AppImage),
+# Windows and macOS. Runs on client changes and on version tags; a tag push
+# publishes the built apps as a downloadable GitHub Release.
+on:
+  push:
+    paths:
+      - 'client/**'
+      - '.github/workflows/build-client*.yml'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: build-client-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      ci_version: ${{ steps.set-ci-version.outputs.ci_version }}
+    steps:
+      - name: Set CI version
+        id: set-ci-version
+        shell: bash
+        run: |
+          CI_VERSION=`echo ${GITHUB_SHA} | cut -c1-6`
+          echo "ci_version=${CI_VERSION}" >> "${GITHUB_OUTPUT}"
+
+  build-appimage:
+    needs: setup
+    uses: ./.github/workflows/build-client-appimage.yml
+    with:
+      ci_version: ${{ needs.setup.outputs.ci_version }}
+
+  build-windows-macos:
+    needs: setup
+    uses: ./.github/workflows/build-client-win-mac.yml
+    with:
+      ci_version: ${{ needs.setup.outputs.ci_version }}
+
+  # On a tag push, publish the built apps as a downloadable GitHub Release.
+  release:
+    needs: [build-appimage, build-windows-macos]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v6
+        with:
+          path: artifacts
+      - name: Package artifacts into single files
+        shell: bash
+        run: |
+          mkdir -p release
+          for d in artifacts/*/; do
+            name="$(basename "$d")"
+            if ls "$d"*.AppImage >/dev/null 2>&1; then
+              cp "$d"*.AppImage release/
+            elif ls "$d"*.dmg >/dev/null 2>&1; then
+              cp "$d"*.dmg release/
+            else
+              ( cd "$d" && zip -qr "$OLDPWD/release/${name}.zip" . )
+            fi
+          done
+          ls -la release
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          fail_on_unmatched_files: false
