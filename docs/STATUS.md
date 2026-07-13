@@ -24,8 +24,8 @@
 > **komplett gefixt** (`ec478cc6`/`6d39511c`/`c798b558`): Exec + Glob-Upload,
 > SteamLink-Job raus, **Release-Job** (Tag→GitHub-Release) hinzugefügt. **CI jetzt
 > voll grün** (AppImage + Windows + macOS). **Release live** mit downloadbaren
-> Test-Apps: <https://github.com/Elias02345/sonnenschein-client/releases/tag/v0.0.1-test>
-> — `Sonnenschein_Client-*.AppImage` (Deck), `Moonlight-Windows-x64-*.zip` (Windows),
+> Test-Apps: <https://github.com/Elias02345/sonnenschein-client/releases/tag/v0.0.2-test>
+> — `Sonnenschein_Client-*.AppImage` (Deck, verifiziert lauffähig), `Sonnenschein-Windows-x64-*.zip` (Windows),
 > `.dmg` (macOS). Neue Releases per Tag (`git tag vX.Y.Z && git push origin vX.Y.Z`).
 > Test-App-Doku: `sonnenschein-client/PACKAGING.sonnenschein.md`.
 >
