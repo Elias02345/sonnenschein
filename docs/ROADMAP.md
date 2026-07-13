@@ -217,7 +217,7 @@ Streaming-Protokoll, cert-auth) **plus alle installierten + ausführbaren Spiele
 (Steam-nativ *und* Steam-fremd) via `/api/library`. **Optional**: verfügbare, aber
 nicht installierte Spiele — evtl. mit **Install-Button** (Remote-Install auf dem Host
 auslösen). Die Liste wird bei **jedem Verbinden neu gemappt** (neue/aktualisierte Titel
-sofort sichtbar). **Reihenfolge: Client erst auf dem PC fertigstellen + testen, dann Deck.**
+sofort sichtbar). **Reihenfolge: Client erst auf dem PC fertigstellen + testen, dann Deck.** **Deck-Zielbild (2026-07-13):** ist der gepairte PC erreichbar, erscheinen seine Spiele direkt in der **nativen SteamOS-Game-Mode-Oberfläche** als „vom PC über Sonnenschein streamen" — realisiert über BEIDES: die native App (`sonnenschein-client`) UND ein Game-Mode-Plugin/Integration (Decky).
 Auth-Konsequenz: für den nahtlosen Deck-Flow sollte `/api/library` **cert-authentifiziert**
 über den gepairten Client abrufbar sein (ohne separates WebUI-Passwort) — offener Punkt.
 
