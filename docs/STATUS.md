@@ -516,9 +516,19 @@ steht noch aus (Browser-Extension).
   meldet Moonlights eigener Probe auf der VAAPI-NVIDIA-Kette als nicht verfügbar
   → ehrliches Ergebnis). Commit `071fa952` im Client-Repo (lokal; GitHub-Remote
   = Maintainer-Aktion, Repo `sonnenschein-client` anlegen + pushen).
-- Nächster Schritt: **Library-Ansicht** im Client (nutzt die verifizierten
-  `/api/library` + `/api/library/artwork`), dann C2 (Deck-Integration:
-  Entscheidung shortcuts.vdf vs. Decky steht dann an).
+- **Library-Datenschicht im Client ✅** (`a596e7b5`): `HostLibrary`
+  (`app/backend/hostlibrary.{h,cpp}`) spricht die Host-Web-API (login →
+  `/api/library` → `/api/library/artwork/<appid>`), CLI-Action `library <host>
+  --user --pass [--port]`. Live gegen laufenden Host verifiziert: **31 Spiele
+  mit korrekten Namen + installed-Flags**. Offen: die QML-Ansicht (UX) obendrauf.
+- **C2-Richtung entschieden (Maintainer 2026-07-13): Decky-Plugin (Weg B)** —
+  native Game-Mode-UX mit Live-Toggles (in ROADMAP C2 verankert).
+- **Offene Auth-Entscheidung**: `/api/library` liegt aktuell hinter der
+  WebUI-Passwort-Auth → der Client braucht die WebUI-Credentials. Für den
+  nahtlosen Deck-Flow sollte ein **gepairter** Client die Bibliothek per
+  Streaming-Zertifikat abfragen können (ohne separates Passwort) — dafür ein
+  host-seitiger cert-authentifizierter Endpoint nötig. Entscheidung, bevor die
+  GUI/Deck-Integration fest verdrahtet wird.
 
 ### Nachtrag Runde 10 (2026-07-12): Phase 6 fertig + Client-Track begonnen
 
