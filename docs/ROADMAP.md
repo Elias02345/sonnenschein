@@ -194,6 +194,32 @@ Release-Tag/Announcement.
 
 **Technische Basis**: Fork von Moonlight-Qt (GPL-3, Linux/Windows/SteamOS aus einer Codebasis; für Android später Fork von moonlight-android). Wir erben damit ein gereiftes Protokoll + Decoder/Renderer und konzentrieren uns auf die Sonnenschein-Mehrwerte. Protokoll bleibt Moonlight-kompatibel — Fremd-Clients funktionieren weiter.
 
+### Client-Track — Präzisierungen (Maintainer 2026-07-13, Runde 2)
+
+Verbindliche Richtungsentscheidungen, die C1–C4 überlagern:
+- **Repo-Konsolidierung**: Client-Code lebt **im Haupt-Repo `sonnenschein`** (als
+  `client/`), **kein GitHub-Fork von Moonlight** (der alte `sonnenschein-client`-Fork
+  zog alle Moonlight-Contributors/Netzwerk mit rein → wird archiviert). „Nur wir
+  zwei." GPL-3 + Moonlight-Attribution bleibt (Pflicht). **Releases (gebaute Apps)
+  erscheinen im Haupt-Repo** unter Releases.
+- **Windows**: echte `.exe` bauen + **installierbares Programm** (Installer), klar als
+  Client-Software benannt.
+- **Deck Game Mode = Decky-Plugin** (tiefe native Integration, Killer-Feature) —
+  bevorzugt vor Flatpak, damit ohne Desktop Mode testbar.
+- **Remote-Desktop-UX = Easy + Advanced**:
+  - **Easy (Default)**: alles automatisch. Beim Wählen von „Desktop"-Streaming auf
+    Nicht-Gaming-Geräten → Abfrage „Remote Desktop? → Single-Monitor / Absolut?".
+    **Auflösung, Skalierung, Bildwiederholrate werden von der App selbst ausgelesen
+    + gesetzt — für ALLE Screens** (Multi-Monitor), beste Werte je Anwendung +
+    Nutzerentscheidung automatisch. Kein manuelles Setup. Moonlights eingebaute
+    RD-Features nutzen, keine doppelten Optionen.
+  - **Advanced (opt-in)**: alle Toggles zurück, volle manuelle Kontrolle zum
+    Ausprobieren.
+- **UI**: moderner + weniger kompliziert.
+- **Bekannter Gap (2026-07-13)**: Windows-App übernimmt die Client-Display-Skalierung
+  noch nicht (wirkt seltsam); RD/Absolut-Toggles hatten keine sichtbare Wirkung →
+  wird durch Easy/Advanced-Redesign + Auto-Resolution ersetzt.
+
 ### C1 — Client-Fundament (Linux + SteamOS)
 
 **Ziel**: `sonnenschein-client` läuft auf Linux-Desktop und Steam Deck (Flatpak), verbindet sich mit einem Klick zum Host.
