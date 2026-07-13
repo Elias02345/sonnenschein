@@ -20,11 +20,15 @@
 >    **starten + streamen** → prüfen: Launch via Steam, Virtual Display, Boxart
 >    im Grid. **Läuft's → `dev`→`main` mergen** (dann stabil).
 >
-> **CI (2026-07-13)**: Host-Repo grün. Client-Repo `Build` war rot (Rebrand brach
-> AppImage: `.desktop`-Exec `moonlight` vs Binary `sonnenschein-client`; SteamLink-
-> Job irrelevant) → **gefixt** (`ec478cc6`): Exec korrigiert, SteamLink-Job raus.
-> GitHub Actions ist **aktiv**; Windows+AppImage-Artefakte im Actions-Tab. Test-App-
-> Anleitung: `sonnenschein-client/PACKAGING.sonnenschein.md`.
+> **CI + Test-Apps (2026-07-13) ✅ FERTIG**: Host-Repo grün. Client-Repo war rot
+> (Rebrand brach AppImage: `.desktop`-Exec + Upload-Pfad; SteamLink irrelevant) →
+> **komplett gefixt** (`ec478cc6`/`6d39511c`/`c798b558`): Exec + Glob-Upload,
+> SteamLink-Job raus, **Release-Job** (Tag→GitHub-Release) hinzugefügt. **CI jetzt
+> voll grün** (AppImage + Windows + macOS). **Release live** mit downloadbaren
+> Test-Apps: <https://github.com/Elias02345/sonnenschein-client/releases/tag/v0.0.1-test>
+> — `Sonnenschein_Client-*.AppImage` (Deck), `Moonlight-Windows-x64-*.zip` (Windows),
+> `.dmg` (macOS). Neue Releases per Tag (`git tag vX.Y.Z && git push origin vX.Y.Z`).
+> Test-App-Doku: `sonnenschein-client/PACKAGING.sonnenschein.md`.
 >
 > **Neue Maintainer-Aufgaben (2026-07-13, teils schon in Arbeit — siehe Nachtrag Runde 12):**
 > - **Remote-Desktop-Modus (C4)**: Host als Computer nutzen, Client mit **einem
