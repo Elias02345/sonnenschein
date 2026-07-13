@@ -520,7 +520,17 @@ steht noch aus (Browser-Extension).
   (`app/backend/hostlibrary.{h,cpp}`) spricht die Host-Web-API (login →
   `/api/library` → `/api/library/artwork/<appid>`), CLI-Action `library <host>
   --user --pass [--port]`. Live gegen laufenden Host verifiziert: **31 Spiele
-  mit korrekten Namen + installed-Flags**. Offen: die QML-Ansicht (UX) obendrauf.
+  mit korrekten Namen + installed-Flags**.
+- **Library-QML-Ansicht ✅ VISUELL VERIFIZIERT** (`a10707fa`, Client-Repo):
+  `LibraryView.qml` + `HostLibraryModel` (QAbstractListModel), Cover aus
+  `/api/library/artwork` in Datei-Cache (wie BoxArtManager), Portrait-Grid mit
+  Namen-Caption / Namens-Fallback. Deep-Link `library-gui <host> --user --pass
+  [--port]`. **Auf dem CachyOS-Desktop gestartet + Screenshot**: „Host-Bibliothek
+  — 31 Spiele", HL2/Half-Life/Psychonauts/VR2 mit echten Portrait-Cover, 31
+  Cover gecacht. Offen (nächste Schritte): eine **einheitliche Liste** (App-Liste
+  cert-auth + Bibliothek in EIN Grid), async Cover-Laden (aktuell ~2 s blockierend),
+  Toolbar-Eintrag aus einem gepairten Host, Creds-Speicherung, `/api/library`
+  auf cert-Auth (Deck-Flow).
 - **C2-Richtung entschieden (Maintainer 2026-07-13): Decky-Plugin (Weg B)** —
   native Game-Mode-UX mit Live-Toggles (in ROADMAP C2 verankert).
 - **Offene Auth-Entscheidung**: `/api/library` liegt aktuell hinter der
