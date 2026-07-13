@@ -531,6 +531,18 @@ steht noch aus (Browser-Extension).
   cert-auth + Bibliothek in EIN Grid), async Cover-Laden (aktuell ~2 s blockierend),
   Toolbar-Eintrag aus einem gepairten Host, Creds-Speicherung, `/api/library`
   auf cert-Auth (Deck-Flow).
+- **Einheitliche Liste (Ansatz a) ✅ HOST-SEITIG, auf `dev` (`a9bbaef`)**:
+  Der Host injiziert jedes installierte Steam-Spiel als streambare App in die
+  Stream-App-Liste (`process.cpp` parse: eigener Steam-Scan, Runtimes gefiltert,
+  Launch via `setsid steam steam://rungameid/<appid>` detached + virtual_display,
+  deterministische UUID, librarycache-Cover als Boxart; jpg-Boxart via
+  `validate_app_image_path`/`appasset`). **Live verifiziert** (`moonlight list`
+  über gepairten Client): Desktop + Big Picture + **26 echte Spiele**, Runtimes
+  gefiltert. WebUI-`/api/apps` liest apps.json direkt → **keine Regression** der
+  App-Verwaltung. **Noch offen (braucht Maintainer/Deck): Spiel wirklich
+  starten+streamen** (Steam-Launch + Virtual Display) + Boxart-Rendering im
+  Client-Grid + Re-Scan pro Connect (aktuell bei parse/refresh). Deshalb noch
+  **nicht auf `main`** — erst Game-Launch vom Deck bestätigen.
 - **C2-Richtung entschieden (Maintainer 2026-07-13): Decky-Plugin (Weg B)** —
   native Game-Mode-UX mit Live-Toggles (in ROADMAP C2 verankert).
 - **Offene Auth-Entscheidung**: `/api/library` liegt aktuell hinter der
