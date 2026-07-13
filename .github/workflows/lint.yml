@@ -16,7 +16,8 @@ jobs:
         uses: ludeeus/action-shellcheck@2.0.0
         with:
           severity: warning
-          ignore_paths: third-party _reference
+          # client/ is the Moonlight-derived client with its own conventions.
+          ignore_paths: third-party _reference client
 
   prettier:
     name: Prettier (WebUI)
