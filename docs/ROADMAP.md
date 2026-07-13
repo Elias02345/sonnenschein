@@ -201,7 +201,7 @@ Release-Tag/Announcement.
 **Erfolgskriterium**: Frisches Deck → Client installieren → Host wird gefunden → Pairing per PIN → Stream startet mit automatisch perfekten Settings (1280x800@90, HEVC/AV1, HDR wenn Kette es kann). Null manuelle Konfiguration.
 
 - [~] Moonlight-Qt-Fork, Rebrand, Build-Pipeline (Linux + Flatpak für SteamOS) — **Fundament 2026-07-13**: Upstream Moonlight-Qt v6.1 baut + läuft auf CachyOS (Deps `sdl2_ttf`/Vulkan-Headers ohne sudo lokal gelöst); Rebrand + Flatpak noch offen
-- [ ] **Geräteprofil-Autokonfiguration**: Display-Erkennung (Auflösung, Refresh, HDR, VRR), Decoder-Probe (AV1/HEVC-HW), Netzwerk-Klasse (Ethernet/5GHz/2.4GHz) → automatische Stream-Settings mit Override
+- [~] **Geräteprofil-Autokonfiguration**: Display-Erkennung (Auflösung, Refresh, HDR, VRR), Decoder-Probe (AV1/HEVC-HW), Netzwerk-Klasse (Ethernet/5GHz/2.4GHz) → automatische Stream-Settings mit Override — **Kern 2026-07-13**: `AutoConfig` + CLI `detect-profile` erkennt Display + HW-Decode pro Codec → optimales Profil, live auf CachyOS verifiziert (4K60/AV1). VRR + Netzwerk-Klasse + WebUI-Override offen
 - [ ] Bekannte Geräteprofile ab Werk: Steam Deck LCD/OLED, gängige Android-TV-Boxen, 4K-TVs
 - [~] Pairing-Flow: Discovery (mDNS) + PIN, QR-Code-Option von der Host-WebUI — **mDNS-Discovery + PIN-Pairing 2026-07-13 live verifiziert** (voller Apollo-Handshake, Client-Zert verifiziert, App-Liste über mutual-TLS abgerufen); QR-Code-Option offen
 - [ ] „Host aufwecken"-Knopf (WoL-Magic-Packet, MAC vom letzten Pairing gemerkt)

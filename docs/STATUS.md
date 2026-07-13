@@ -484,9 +484,22 @@ steht noch aus (Browser-Extension).
 - **Video-Stream** bewusst noch offen (Maintainer-Entscheidung Runde 11:
   „Pairing jetzt abschließen", kein Self-Loop-Stream) → echter Stream im
   2-Geräte-Test (Deck/Handy ↔ Host) oder Client-auf-Deck später.
-- Nächster Schritt: Rebrand → `sonnenschein-client` + Geräte-Auto-Konfiguration
-  (Auflösung/Refresh/HDR/Decoder) + Library-Ansicht (nutzt die verifizierten
-  `/api/library` + `/api/library/artwork`).
+- **Rebrand + Auto-Konfiguration erledigt** (eigenes Repo, Maintainer-Wahl
+  2026-07-13 „neues eigenes Repo"): Fork lokal als `~/Dokumente/sonnenschein-client`
+  (Branch `sonnenschein`, `upstream`-Remote → moonlight-qt). Rebrand: Binary
+  `sonnenschein-client`, eigene QSettings-Identität `Sonnenschein/sonnenschein-client`.
+  **Geräteprofil-Auto-Konfig** (`app/backend/autoconfig.{h,cpp}` + CLI
+  `detect-profile`): erkennt Display (native Auflösung/höchster Refresh) + probt
+  pro Codec die HW-Decode-Fähigkeit (`Session::getDecoderAvailability`, dafür in
+  session.h public gemacht) → optimales Profil (Auflösung/fps/Bitrate/HDR),
+  Codec bleibt `VCC_AUTO`. **Live auf CachyOS verifiziert**: `detect-profile` →
+  3840×2160@60, HW-Decode H.264/HEVC/AV1, Empfehlung AV1 80 Mbit/s (10-bit/HDR
+  meldet Moonlights eigener Probe auf der VAAPI-NVIDIA-Kette als nicht verfügbar
+  → ehrliches Ergebnis). Commit `071fa952` im Client-Repo (lokal; GitHub-Remote
+  = Maintainer-Aktion, Repo `sonnenschein-client` anlegen + pushen).
+- Nächster Schritt: **Library-Ansicht** im Client (nutzt die verifizierten
+  `/api/library` + `/api/library/artwork`), dann C2 (Deck-Integration:
+  Entscheidung shortcuts.vdf vs. Decky steht dann an).
 
 ### Nachtrag Runde 10 (2026-07-12): Phase 6 fertig + Client-Track begonnen
 
