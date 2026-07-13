@@ -153,6 +153,19 @@ build_and_install() {
   local ref="$1"
   git -C "$REPO_ROOT" checkout "$ref"
   git -C "$REPO_ROOT" submodule update --init --recursive
+
+  # Reclaim the build tree if a previous run left root-owned artifacts (e.g. an
+  # old `sudo bash update.sh`, or the install_manifest.txt that `sudo cmake
+  # --install` writes). A user-context build — especially Vite's emptyOutDir —
+  # cannot delete/overwrite root-owned files and fails with EACCES. chown keeps
+  # the build cache intact (vs. a full rm -rf).
+  if [ -d "${REPO_ROOT}/build" ] && \
+     find "${REPO_ROOT}/build" ! -user "$(id -un)" -print -quit 2>/dev/null | grep -q .; then
+    warn "Build dir has files from an earlier root run — reclaiming ownership."
+    require_sudo
+    $SUDO chown -R "$(id -un):$(id -gn)" "${REPO_ROOT}/build" 2>/dev/null || true
+  fi
+
   cmake -S "$REPO_ROOT" -B "${REPO_ROOT}/build" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$PREFIX" \
@@ -163,6 +176,9 @@ build_and_install() {
   $SUDO cmake --install "${REPO_ROOT}/build"
   if [ -f "${REPO_ROOT}/build/install_manifest.txt" ]; then
     $SUDO install -Dm644 "${REPO_ROOT}/build/install_manifest.txt" "${PREFIX}/install_manifest.txt"
+    # `cmake --install` wrote install_manifest.txt as root; hand it back so the
+    # next user-context build doesn't trip over a root-owned file.
+    $SUDO chown "$(id -un):$(id -gn)" "${REPO_ROOT}/build/install_manifest.txt" 2>/dev/null || true
   fi
   $SUDO mkdir -p "${PREFIX}/installer"
   $SUDO cp -r "${REPO_ROOT}/installer/." "${PREFIX}/installer/"
