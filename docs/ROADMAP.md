@@ -211,6 +211,16 @@ Release-Tag/Announcement.
 
 **Ziel**: Die Host-Bibliothek erscheint im **nativen Steam Game Mode** des Decks. Der Nutzer merkt nicht, dass er eine Streaming-App benutzt — er sieht einfach seine Spiele.
 
+**Maintainer-Vision (2026-07-13, präzisiert):** Der Client zeigt **eine einheitliche
+Liste** = Desktop + Steam Big Picture + host-konfigurierte Apps (über das gepairte
+Streaming-Protokoll, cert-auth) **plus alle installierten + ausführbaren Spiele**
+(Steam-nativ *und* Steam-fremd) via `/api/library`. **Optional**: verfügbare, aber
+nicht installierte Spiele — evtl. mit **Install-Button** (Remote-Install auf dem Host
+auslösen). Die Liste wird bei **jedem Verbinden neu gemappt** (neue/aktualisierte Titel
+sofort sichtbar). **Reihenfolge: Client erst auf dem PC fertigstellen + testen, dann Deck.**
+Auth-Konsequenz: für den nahtlosen Deck-Flow sollte `/api/library` **cert-authentifiziert**
+über den gepairten Client abrufbar sein (ohne separates WebUI-Passwort) — offener Punkt.
+
 **Erfolgskriterium**: Host-Spiel XY (nicht auf dem Deck installiert) erscheint im Game Mode mit Artwork; Start → Sonnenschein-Stream im Vollbild. Spiel Z (auf beiden installiert) fragt beim Start „Lokal / Streamen" (bzw. nutzt den pro Spiel gesetzten Default). Alles ohne Steam Remote Play.
 
 - [x] **Host: Library-API** — `GET /api/library`: scannt alle Steam-Library-Folders (nativ + flatpak + `libraryfolders.vdf`), parst `appmanifest_*.acf`, liefert AppID/Name/Installationszustand mit Dedupe. Non-Steam-Apps bleiben auf `/api/apps` (Client merged). **2026-07-13 live auf CachyOS verifiziert: 31 echte Spiele (Haupt-Lib + `/mnt/Games`), alle installiert korrekt.** (2026-07-12 / 07-13)
