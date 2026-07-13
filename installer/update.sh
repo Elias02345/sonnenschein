@@ -10,6 +10,37 @@
 #
 set -euo pipefail
 
+# The updater MUST run in the invoking user's session, not as root:
+#   - the source checkout is owned by the user (root git ops hit "dubious
+#     ownership"),
+#   - the service is a `systemctl --user` unit (invisible to root),
+#   - config/state live under the user's $HOME,
+#   - the post-update health check (doctor.sh) probes the Wayland session.
+# Running the whole thing as root breaks the service restart and fails the
+# Wayland health check, which triggers a needless auto-rollback. So if we were
+# started with sudo, re-run as the invoking user and elevate only for the
+# install step (via sudo internally). This makes `sudo bash update.sh` and
+# `bash update.sh` behave identically.
+if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+  _sns_uid="$(id -u "$SUDO_USER" 2>/dev/null || true)"
+  echo "==> Started with sudo; re-running as ${SUDO_USER} (the updater elevates for install itself)."
+  exec sudo -u "$SUDO_USER" env "XDG_RUNTIME_DIR=/run/user/${_sns_uid}" \
+    bash "$0" "$@"
+fi
+
+# Restore the graphical session env for the health check when it was stripped
+# from the inherited environment (e.g. a fresh sudo shell that got re-execed
+# above, or a bare login shell). KDE/Plasma exports these into the user's
+# systemd manager environment.
+if [ -z "${WAYLAND_DISPLAY:-}" ] && command -v systemctl >/dev/null 2>&1; then
+  while IFS='=' read -r _k _v; do
+    case "$_k" in
+      WAYLAND_DISPLAY|DISPLAY|DBUS_SESSION_BUS_ADDRESS)
+        [ -n "${_v:-}" ] && export "${_k}=${_v}" ;;
+    esac
+  done < <(systemctl --user show-environment 2>/dev/null || true)
+fi
+
 BRANCH="${1:-main}"
 PREFIX="${PREFIX:-/opt/sonnenschein}"
 

@@ -21,7 +21,9 @@ else
 fi
 
 # --- Logging --------------------------------------------------------------
-: "${SONNENSCHEIN_LOG:=/tmp/sonnenschein-install.log}"
+# Per-UID log path so a root-owned /tmp log from an earlier run can never make
+# a later user-context run (or vice versa) fail with "permission denied".
+: "${SONNENSCHEIN_LOG:=/tmp/sonnenschein-install-$(id -u).log}"
 
 _log() {
   # _log LEVEL MESSAGE...
