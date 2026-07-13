@@ -7,12 +7,24 @@
 
 > ## ⏸ HIER WEITERMACHEN (2026-07-13, Maintainer kommt zurück)
 >
+> **⚠️ WICHTIG — warum am Deck nur Desktop+Steam sichtbar war (2026-07-13):**
+> Der deployte Host läuft `main` (`5f09adf`) — **die Spiele-als-Apps liegen auf
+> `dev` (`a9bbaef`) und sind NOCH NICHT deployed**. Deshalb zeigt Moonlight nur
+> Desktop + Steam Big Picture. **Erst `update.sh dev` laufen lassen**, dann
+> erscheinen die 26 Spiele. (Kein Bug — nur noch nicht ausgerollt.)
+>
 > **Sofort testen, sobald der Maintainer physisch am Deck ist:**
 > 1. `bash ~/.local/share/sonnenschein/src/installer/update.sh dev` → holt die
->    **Spiele-als-Apps (Ansatz a, `a9bbaef`)** auf den Host.
+>    **Spiele-als-Apps** auf den Host.
 > 2. Vom **Steam Deck** ein Spiel aus der Liste (Desktop/Big Picture/26 Spiele)
 >    **starten + streamen** → prüfen: Launch via Steam, Virtual Display, Boxart
 >    im Grid. **Läuft's → `dev`→`main` mergen** (dann stabil).
+>
+> **CI (2026-07-13)**: Host-Repo grün. Client-Repo `Build` war rot (Rebrand brach
+> AppImage: `.desktop`-Exec `moonlight` vs Binary `sonnenschein-client`; SteamLink-
+> Job irrelevant) → **gefixt** (`ec478cc6`): Exec korrigiert, SteamLink-Job raus.
+> GitHub Actions ist **aktiv**; Windows+AppImage-Artefakte im Actions-Tab. Test-App-
+> Anleitung: `sonnenschein-client/PACKAGING.sonnenschein.md`.
 >
 > **Neue Maintainer-Aufgaben (2026-07-13, teils schon in Arbeit — siehe Nachtrag Runde 12):**
 > - **Remote-Desktop-Modus (C4)**: Host als Computer nutzen, Client mit **einem
