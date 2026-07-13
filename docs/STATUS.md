@@ -7,18 +7,17 @@
 
 > ## ⏸ HIER WEITERMACHEN (2026-07-13, Maintainer kommt zurück)
 >
-> **⚠️ WICHTIG — warum am Deck nur Desktop+Steam sichtbar war (2026-07-13):**
-> Der deployte Host läuft `main` (`5f09adf`) — **die Spiele-als-Apps liegen auf
-> `dev` (`a9bbaef`) und sind NOCH NICHT deployed**. Deshalb zeigt Moonlight nur
-> Desktop + Steam Big Picture. **Erst `update.sh dev` laufen lassen**, dann
-> erscheinen die 26 Spiele. (Kein Bug — nur noch nicht ausgerollt.)
+> **✅ Game-Launch VERIFIZIERT (2026-07-13)**: Maintainer hat vom Deck ein
+> spezifisches Spiel direkt aus Moonlight gestartet — Ansatz (a) läuft end-to-end.
+> `dev`→`main` **gemerged** (`main == dev == 1914c33`), Host auf `dev` deployed.
+> **✅ Client-Rebrand** (`b1e92ff9`): Fenstertitel „Sonnenschein Client", UI-Strings +
+> Windows-Metadaten + CI-Artefaktnamen auf Sonnenschein (interner .exe-Name bleibt
+> vorerst Moonlight wg. Wix-Installer). Remote-Desktop + Gaming sind
+> cross-platform (auch Windows).
 >
-> **Sofort testen, sobald der Maintainer physisch am Deck ist:**
-> 1. `bash ~/.local/share/sonnenschein/src/installer/update.sh dev` → holt die
->    **Spiele-als-Apps** auf den Host.
-> 2. Vom **Steam Deck** ein Spiel aus der Liste (Desktop/Big Picture/26 Spiele)
->    **starten + streamen** → prüfen: Launch via Steam, Virtual Display, Boxart
->    im Grid. **Läuft's → `dev`→`main` mergen** (dann stabil).
+> **Nächste Schritte (mit Maintainer am Deck):** RD-1 Single-Monitor E2E, nativer
+> Deck-Controller, Multi-Display (RD-2), USB-Bridge, Clipboard. Windows-App testet
+> Maintainer, wenn „komplett fertig".
 >
 > **CI + Test-Apps (2026-07-13) ✅ FERTIG**: Host-Repo grün. Client-Repo war rot
 > (Rebrand brach AppImage: `.desktop`-Exec + Upload-Pfad; SteamLink irrelevant) →
