@@ -8,9 +8,8 @@ permissions:
 # publishes the built apps as a downloadable GitHub Release.
 on:
   push:
-    paths:
-      - 'client/**'
-      - '.github/workflows/build-client*.yml'
+    branches:
+      - '**'
     tags:
       - 'v*'
   workflow_dispatch:
