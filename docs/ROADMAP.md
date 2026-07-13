@@ -200,10 +200,10 @@ Release-Tag/Announcement.
 
 **Erfolgskriterium**: Frisches Deck → Client installieren → Host wird gefunden → Pairing per PIN → Stream startet mit automatisch perfekten Settings (1280x800@90, HEVC/AV1, HDR wenn Kette es kann). Null manuelle Konfiguration.
 
-- [ ] Moonlight-Qt-Fork, Rebrand, Build-Pipeline (Linux + Flatpak für SteamOS)
+- [~] Moonlight-Qt-Fork, Rebrand, Build-Pipeline (Linux + Flatpak für SteamOS) — **Fundament 2026-07-13**: Upstream Moonlight-Qt v6.1 baut + läuft auf CachyOS (Deps `sdl2_ttf`/Vulkan-Headers ohne sudo lokal gelöst); Rebrand + Flatpak noch offen
 - [ ] **Geräteprofil-Autokonfiguration**: Display-Erkennung (Auflösung, Refresh, HDR, VRR), Decoder-Probe (AV1/HEVC-HW), Netzwerk-Klasse (Ethernet/5GHz/2.4GHz) → automatische Stream-Settings mit Override
 - [ ] Bekannte Geräteprofile ab Werk: Steam Deck LCD/OLED, gängige Android-TV-Boxen, 4K-TVs
-- [ ] Pairing-Flow: Discovery (mDNS) + PIN, QR-Code-Option von der Host-WebUI
+- [~] Pairing-Flow: Discovery (mDNS) + PIN, QR-Code-Option von der Host-WebUI — **mDNS-Discovery + PIN-Pairing 2026-07-13 live verifiziert** (voller Apollo-Handshake, Client-Zert verifiziert, App-Liste über mutual-TLS abgerufen); QR-Code-Option offen
 - [ ] „Host aufwecken"-Knopf (WoL-Magic-Packet, MAC vom letzten Pairing gemerkt)
 - [ ] Zwei App-Profile: **Gaming** (Vollbild, Controller-first, Low-Latency-Preset) und **Remote Desktop** (Fenster, Maus/Tastatur-first) — eine Codebasis, zwei Launcher-Einträge
 
@@ -213,8 +213,8 @@ Release-Tag/Announcement.
 
 **Erfolgskriterium**: Host-Spiel XY (nicht auf dem Deck installiert) erscheint im Game Mode mit Artwork; Start → Sonnenschein-Stream im Vollbild. Spiel Z (auf beiden installiert) fragt beim Start „Lokal / Streamen" (bzw. nutzt den pro Spiel gesetzten Default). Alles ohne Steam Remote Play.
 
-- [x] **Host: Library-API** — `GET /api/library`: scannt alle Steam-Library-Folders (nativ + flatpak + `libraryfolders.vdf`), parst `appmanifest_*.acf`, liefert AppID/Name/Installationszustand mit Dedupe. Non-Steam-Apps bleiben auf `/api/apps` (Client merged). (2026-07-12)
-- [x] **Host: Artwork** — `GET /api/library/artwork/<appid>`: streamt das lokale `librarycache`-Cover (Portrait-Grid, beide Cache-Layouts), 404 → Client-Fallback SteamGridDB. Live gegen Fixtures getestet. (2026-07-12)
+- [x] **Host: Library-API** — `GET /api/library`: scannt alle Steam-Library-Folders (nativ + flatpak + `libraryfolders.vdf`), parst `appmanifest_*.acf`, liefert AppID/Name/Installationszustand mit Dedupe. Non-Steam-Apps bleiben auf `/api/apps` (Client merged). **2026-07-13 live auf CachyOS verifiziert: 31 echte Spiele (Haupt-Lib + `/mnt/Games`), alle installiert korrekt.** (2026-07-12 / 07-13)
+- [x] **Host: Artwork** — `GET /api/library/artwork/<appid>`: streamt das lokale `librarycache`-Cover (Portrait-Grid), 404 → Client-Fallback SteamGridDB. **2026-07-13 live gegen echte Steam-Installation auf CachyOS verifiziert** + Fix für neueres Steam-Cache-Layout (Content-Hash-Subdirs + `library_capsule.jpg`; Commit `db8bcf0`) — HL2/Cyberpunk/RDR2/Witcher liefern jetzt Portrait-Cover. (2026-07-12 / 07-13)
 - [ ] **Deck: Sonnenschein Companion** — synct die Host-Bibliothek in die Deck-Steam-Bibliothek (`shortcuts.vdf` + Grid-Artwork), jeder Eintrag startet `sonnenschein-client --host <id> --app <appid>`
   - Ausprägung A: **Decky-Loader-Plugin** (Sync + Toggles direkt im Game Mode, Quick-Access-Menü)
   - Ausprägung B: Fallback ohne Decky — Sync-Tool im Desktop Mode (einmalig ausführen, danach automatisch via Companion-Service)
@@ -268,4 +268,4 @@ Update-System default: `main`. Wer `dev` will, schaltet das in der WebUI um.
 
 ## Status
 
-Letztes Update: 2026-07-11 (Client-Track + Boot-to-Ready aufgenommen; Host läuft End-to-End auf CachyOS + Steam Deck)
+Letztes Update: 2026-07-13 (Runde 11: Host-Library-API + Artwork live auf CachyOS gegen echte Steam-Installation verifiziert & Cache-Layout-Fix; Client-Track C1-Fundament — Moonlight-Qt baut+läuft+pairt auf CachyOS)

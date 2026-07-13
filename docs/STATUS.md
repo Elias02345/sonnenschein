@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-07-13 (Runde 11) — **Host-APIs auf dem echten CachyOS-Target live verifiziert.** doctor.sh 14/14 grün; `/api/library` liefert die **echte Steam-Bibliothek (31 Spiele, alle installiert)**; Artwork-Endpoint gegen neueren Steam-Cache (Content-Hash-Layout + `library_capsule.jpg`) **gefixt** und re-getestet (HL2/Cyberpunk/RDR2/Witcher liefern jetzt Portrait-Cover). **Client-Track C1-Fundament steht**: Moonlight-Qt v6.1 baut + läuft auf CachyOS (fehlende Deps `sdl2_ttf`/Vulkan-Headers ohne sudo lokal gelöst) — als Nächstes pairen+streamen, dann Rebrand zu `sonnenschein-client`. Umgebung: `sudo` braucht Passwort → `update.sh`/`pacman` aus Agent-Session blockiert (Details Nachtrag Runde 11). Voriger Stand siehe unten. — **Phase 6 (Update-System) fertig**: Auto-Rollback bei Health-Fail + manuelles `revert-update.sh` + Auto-Update-Timer (systemd --user) + Branch-Selector + `GET /api/update-state`. **Scope (fix)**: KDE-only + kein natives Packaging. HDR = KWin-Upstream-Blocker (Code selbstaktivierend). Details Runde 10 darunter.
+**Stand:** 2026-07-13 (Runde 11) — **Host-APIs auf dem echten CachyOS-Target live verifiziert.** doctor.sh 14/14 grün; `/api/library` liefert die **echte Steam-Bibliothek (31 Spiele, alle installiert)**; Artwork-Endpoint gegen neueren Steam-Cache (Content-Hash-Layout + `library_capsule.jpg`) **gefixt** und re-getestet (HL2/Cyberpunk/RDR2/Witcher liefern jetzt Portrait-Cover). **Client-Track C1-Fundament steht**: Moonlight-Qt v6.1 baut + läuft + **pairt** auf CachyOS (voller Apollo-Handshake, Client-Zert verifiziert, App-Liste über mutual-TLS abgerufen; Deps `sdl2_ttf`/Vulkan-Headers ohne sudo lokal gelöst) — Video-Stream für 2-Geräte-Test offen, als Nächstes Rebrand zu `sonnenschein-client`. Umgebung: `sudo` braucht Passwort → `update.sh`/`pacman` aus Agent-Session blockiert (Details Nachtrag Runde 11). Voriger Stand siehe unten. — **Phase 6 (Update-System) fertig**: Auto-Rollback bei Health-Fail + manuelles `revert-update.sh` + Auto-Update-Timer (systemd --user) + Branch-Selector + `GET /api/update-state`. **Scope (fix)**: KDE-only + kein natives Packaging. HDR = KWin-Upstream-Blocker (Code selbstaktivierend). Details Runde 10 darunter.
 
 **Vorherige Stand-Zeile (2026-05-28):** Overhaul-Session: Phase 1.6 Rebrand komplett, Phase-3-Installer-Gerüst + Phase-5-PrimeVue-Fundament gebaut, Code-Review der Laufzeit-Fixes erledigt, erste Vorab-Version nach `main` gepusht.
 
@@ -469,9 +469,24 @@ steht noch aus (Browser-Extension).
 - **Binary baut + läuft**: `app/moonlight --version` → „Moonlight 6.1.0", alle
   HW-Renderer aktiv (FFmpeg/VAAPI/VDPAU/DRM/libplacebo-Vulkan/EGL/Wayland/X11),
   `ldd` sauber (SDL2_ttf via `LD_LIBRARY_PATH=~/Dokumente/.localdeps/prefix/lib`).
-- Offen: gegen den laufenden Host pairen + streamen, danach Rebrand →
-  `sonnenschein-client` + Auto-Konfiguration + Library-Ansicht (nutzt die oben
-  verifizierten `/api/library` + `/api/library/artwork`).
+- **Pairing + App-Liste LIVE verifiziert** (autonom, ohne Maintainer-Timing):
+  Client findet den Host per mDNS (`cachyos-gaming-pc.local`), spricht das
+  volle Apollo-Pairing-Protokoll (getservercert → clientchallenge →
+  serverchallengeresp → clientpairingsecret). Gegen eine **isolierte
+  Instanz** der echten Binary (Port 48989, Test-Creds) getestet, bei der der
+  PIN autonom via `POST /api/pin` bestätigt wird: Server verifiziert das
+  Client-Zert (`/CN=NVIDIA GameStream Client -- verified, device name:
+  sonnenschein-client`) und `moonlight list` liefert die Host-App-Liste
+  (Desktop + Steam Big Picture) über mutual-TLS. Wichtig: die Isolation
+  schreibt **nur** in die Tmp-Config, der reale Host bleibt bei 0 gepairten
+  Devices — Pairings/Config unberührt. moonlight parst `host:port`, was das
+  Testen auf Nicht-Default-Ports erlaubt.
+- **Video-Stream** bewusst noch offen (Maintainer-Entscheidung Runde 11:
+  „Pairing jetzt abschließen", kein Self-Loop-Stream) → echter Stream im
+  2-Geräte-Test (Deck/Handy ↔ Host) oder Client-auf-Deck später.
+- Nächster Schritt: Rebrand → `sonnenschein-client` + Geräte-Auto-Konfiguration
+  (Auflösung/Refresh/HDR/Decoder) + Library-Ansicht (nutzt die verifizierten
+  `/api/library` + `/api/library/artwork`).
 
 ### Nachtrag Runde 10 (2026-07-12): Phase 6 fertig + Client-Track begonnen
 
