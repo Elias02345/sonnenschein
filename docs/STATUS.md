@@ -5,7 +5,7 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-**Stand:** 2026-07-13 (Runde 11) — **Host-APIs auf dem echten CachyOS-Target live verifiziert.** doctor.sh 14/14 grün; `/api/library` liefert die **echte Steam-Bibliothek (31 Spiele, alle installiert)**; Artwork-Endpoint gegen neueren Steam-Cache (Content-Hash-Layout + `library_capsule.jpg`) **gefixt** und re-getestet (HL2/Cyberpunk/RDR2/Witcher liefern jetzt Portrait-Cover). **Client-Track C1-Fundament steht**: Moonlight-Qt v6.1 baut + läuft + **pairt** auf CachyOS (voller Apollo-Handshake, Client-Zert verifiziert, App-Liste über mutual-TLS abgerufen; Deps `sdl2_ttf`/Vulkan-Headers ohne sudo lokal gelöst) — Video-Stream für 2-Geräte-Test offen, als Nächstes Rebrand zu `sonnenschein-client`. Umgebung: `sudo` braucht Passwort → `update.sh`/`pacman` aus Agent-Session blockiert (Details Nachtrag Runde 11). Voriger Stand siehe unten. — **Phase 6 (Update-System) fertig**: Auto-Rollback bei Health-Fail + manuelles `revert-update.sh` + Auto-Update-Timer (systemd --user) + Branch-Selector + `GET /api/update-state`. **Scope (fix)**: KDE-only + kein natives Packaging. HDR = KWin-Upstream-Blocker (Code selbstaktivierend). Details Runde 10 darunter.
+**Stand:** 2026-07-13 (Runde 11) — **Host-APIs live verifiziert + Artwork-Fix live auf `main` ausgerollt** (`main == dev == fc793f4`). `/api/library` liefert die echte Steam-Bibliothek (31 Spiele); Artwork gegen neueren Steam-Cache (Content-Hash-Layout + `library_capsule.jpg`) **gefixt** und per `update.sh main` live geschaltet (doctor **15/15**, deployte Binary re-getestet: HL2/Cyberpunk/Elden Ring → Cover). **Update-System dabei gehärtet** (2 Bugs: sudo-Kontext-Re-Exec `f189a19` + root-vergiftetes Build-Dir `fc793f4`; der Auto-Rollback hat sich zwischendurch real bewährt). **Client `sonnenschein-client`** (eigenes GitHub-Repo): Moonlight-Qt-Fork baut + läuft + **pairt** (voller Apollo-Handshake, App-Liste über mutual-TLS) + **Geräteprofil-Auto-Konfiguration** (`detect-profile`, live 4K60/AV1) — Video-Stream offen (2-Geräte-Test), dann Library-Ansicht. Umgebung: `sudo` braucht Passwort (Details Nachtrag Runde 11). Voriger Stand siehe unten. — **Phase 6 (Update-System) fertig**: Auto-Rollback bei Health-Fail + manuelles `revert-update.sh` + Auto-Update-Timer (systemd --user) + Branch-Selector + `GET /api/update-state`. **Scope (fix)**: KDE-only + kein natives Packaging. HDR = KWin-Upstream-Blocker (Code selbstaktivierend). Details Runde 10 darunter.
 
 **Vorherige Stand-Zeile (2026-05-28):** Overhaul-Session: Phase 1.6 Rebrand komplett, Phase-3-Installer-Gerüst + Phase-5-PrimeVue-Fundament gebaut, Code-Review der Laufzeit-Fixes erledigt, erste Vorab-Version nach `main` gepusht.
 
@@ -455,20 +455,28 @@ steht noch aus (Browser-Extension).
   live gegen die isolierte Instanz re-getestet**: 220/1091500/546560/292030/
   1174180 liefern jetzt 300×450-Portrait-JPEGs, 1245620 weiter ok (Regression),
   nicht existente appid weiter 404. Commit siehe unten.
-- ⚠️ **Deployter Host serviert bis zu einem `update.sh`-Lauf noch das alte
-  Artwork-Verhalten** (404 für Hash-Layout-Spiele). Fix ist auf `dev`.
-- **Update-Robustheits-Bug entdeckt + gefixt (`f189a19`)**: Der erste
-  Versuch, den Fix live zu schalten, wurde als `sudo bash update.sh dev`
-  gestartet → lief komplett als root → `doctor.sh`-Health-Check scheiterte
-  (root hat kein `WAYLAND_DISPLAY`, sieht den `--user`-Service nicht) →
-  **Auto-Rollback auf `3661495`** (Phase-6-Rollback hat sauber funktioniert!).
-  Fix: `update.sh` re-exect sich bei sudo-Start als aufrufender User (mit
-  wiederhergestellter Session-Env), elevatet nur intern für den Install;
-  `common.sh` nutzt einen Per-UID-Log-Pfad (behebt die
-  `/tmp/sonnenschein-install.log`-Rechte-Kollision). **Richtiger Weg zum
-  Live-Schalten**: `bash /opt/sonnenschein/installer/update.sh dev` **als
-  normaler User** (kein `sudo` davor) — fragt beim Install-Schritt nach dem
-  sudo-Passwort. Das zieht auch die installer-Fixes nach /opt (self-healing).
+- ✅ **Artwork-Fix LIVE auf dem deployten Host, auf `main`** (2026-07-13):
+  `dev → main` fast-forward (`fc793f4`), `update.sh main` erfolgreich
+  durchgelaufen („✓ All 15 checks passed", „✓ Update complete"). Deployte
+  `/opt`-Binary verifiziert: `/api/library` = 31 Spiele, Artwork für HL2 (220)
+  + Cyberpunk (1091500) + Elden Ring → 200 JPEG, nicht-existent → 404.
+- **Update-System gehärtet (2 Bugs, entdeckt beim Live-Schalten):**
+  1. **Sudo-Kontext (`f189a19`)**: `sudo bash update.sh` lief komplett als root
+     → `doctor.sh`-Health-Check scheiterte (root hat kein `WAYLAND_DISPLAY`,
+     sieht den `--user`-Service nicht) → **Auto-Rollback** (Phase-6-Rollback
+     hat sauber funktioniert!). Fix: `update.sh` re-exect sich bei sudo-Start
+     als aufrufender User (Session-Env via `systemctl --user show-environment`
+     wiederhergestellt), elevatet nur intern für Install. `common.sh`:
+     Per-UID-Log-Pfad (behebt `/tmp/sonnenschein-install.log`-Kollision).
+  2. **Root-vergiftetes Build-Dir (`fc793f4`)**: der root-Lauf hinterließ
+     61 root-owned Dateien in `SRC_DIR/build` → nächster User-Build scheiterte
+     an Vite `emptyOutDir` (EACCES). Fix: `build_and_install` holt sich per
+     `chown` die Ownership des Build-Trees zurück, wenn Fremd-Dateien liegen
+     (erhält den Cache statt `rm -rf`), und chownt `install_manifest.txt` nach
+     jedem Install zurück (verhindert Wiederauftreten).
+  - **Lektion für STATUS**: `update.sh` **als normaler User** starten (kein
+    `sudo` davor) — es fragt beim Install nach dem Passwort. Seit `f189a19`
+    ist `sudo bash update.sh` aber auch abgesichert (Re-Exec).
 
 **Step 2 — Client-Track C1-Fundament (Moonlight-Qt-Build) ✅:**
 - Upstream `moonlight-qt` v6.1.0-526 rekursiv geklont (`~/Dokumente/moonlight-qt`),
