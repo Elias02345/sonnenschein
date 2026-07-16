@@ -7,19 +7,23 @@
 
 > ## ⏸ HIER WEITERMACHEN (2026-07-16, Session auf dem CachyOS-Target)
 >
-> **🔧 Client-CI-Fix im Haupt-Repo (2026-07-16, gepusht, CI-Ergebnis offen)**:
-> Der erste „Client Build"-Run auf `dev` (nach `dff9b93`) war rot — AppImage:
-> `scripts/build-appimage.sh: Permission denied` (**alle `client/scripts/*.sh`
-> verloren beim Repo-Umzug `c36c20b` die Exec-Bits**; Achtung: das Repo hat
-> `core.fileMode=false`, chmod allein reicht nicht → `git update-index
-> --chmod=+x`); Windows: `cl.exe` nicht im PATH, seit der Client im Unterordner
-> liegt. Fix: Exec-Bits für 7 Scripts restauriert (exakt Upstream-Modes),
-> `bash scripts/build-appimage.sh` im AppImage-Workflow, MSVC-Setup via
-> `ilammy/msvc-dev-cmd@v1`, Windows-ARM64-Build ersatzlos entfernt (Roadmap-Ziel
-> ist x64-.exe + Installer). Danach: Test-Tag → Release-Job verifizieren →
-> alten Fork archivieren. **Umgebung heute**: Session läuft direkt auf dem
-> CachyOS-Test-Target, Repo-Pfad neu **`~/Dokumente/sonnenschein`**, Deck ist
-> verfügbar (Deck-gebundene Tests möglich).
+> **🔧 Client-CI-Fix im Haupt-Repo (2026-07-16, Runde 13)**: Der erste „Client
+> Build"-Run auf `dev` (nach `dff9b93`) war rot. Der Repo-Umzug `c36c20b` hatte
+> **zweierlei verschluckt**: (1) die Exec-Bits aller `client/scripts/*.sh`
+> (Achtung: Repo hat `core.fileMode=false`, chmod allein reicht nicht → `git
+> update-index --chmod=+x`) → AppImage „Permission denied"; (2) die vendored
+> Windows-Build-Tools `client/scripts/{jom,vswhere}.exe` wegen `*.exe` in der
+> Root-`.gitignore` → Windows-Build Exit 9009. Dazu: `cl.exe` nicht im PATH,
+> seit der Client im Unterordner liegt. Fixes: `577ce22` (Exec-Bits für 7
+> Scripts, `bash scripts/build-appimage.sh`, MSVC via `ilammy/msvc-dev-cmd@v1`,
+> Windows-ARM64-Build ersatzlos raus — Roadmap-Ziel ist x64-.exe + Installer) —
+> damit **AppImage + macOS grün**; danach jom/vswhere.exe aus Upstream
+> re-added (Blob-Hashes verifiziert) + gitignore-Ausnahmen. Wenn Windows grün:
+> Test-Tag → Release-Job verifizieren → alten Fork archivieren.
+> **Umgebung heute**: Session läuft direkt auf dem CachyOS-Test-Target,
+> Repo-Pfad neu **`~/Dokumente/sonnenschein`**, Deck ist verfügbar. Merke:
+> Push während laufendem Client-Build-Run cancelt den Run (Concurrency-Gruppe)
+> — Doku-Pushes bündeln!
 >
 > **✅ Game-Launch VERIFIZIERT (2026-07-13)**: Maintainer hat vom Deck ein
 > spezifisches Spiel direkt aus Moonlight gestartet — Ansatz (a) läuft end-to-end.
@@ -458,6 +462,47 @@ Backend-Endpoint (POST /api/update → spawnt `installer/update.sh`
 detached; SRC_DIR via `$PREFIX/install-state.env` relativ zum Binary
 auflösen) + echten Update-E2E-Test — eigene Session.
 → Beides in Runde 9 erledigt, siehe unten.
+
+### Nachtrag Runde 13 (2026-07-16): CI-Fixes, §12-Neufassung, Deck-Controller-Recherche
+
+**Session auf dem CachyOS-Target** (Details im HIER-WEITERMACHEN-Block oben):
+Client-CI-Fixes (Exec-Bits/MSVC `577ce22`, jom+vswhere.exe re-added), AGENTS.md
+committed (`a4746f0`), §12 komplett neu geschrieben (alte erledigte Einträge
+raus, Widerspruch Phase 1.6 aufgelöst — CMake-Rebrand war real längst
+erledigt), §6-Phase-1.6-Zeile korrigiert. Host läuft aktiv auf `dev@1914c33`
+(funktional aktuell inkl. Spiele-als-Apps — Commits seither nur CI/Doku).
+
+**Deck-Controller-Recherche (Web + Repo, 2026-07-16) — Kernbefunde:**
+- **Deck-Controller „Neptune" = USB `28de:1205`**; Steam erkennt ihn rein über
+  VID/PID via hidraw (SDL `SDL_hidapi_steamdeck.c`, Valve-udev-Regeln matchen
+  pauschal VID `28de`). Desktop-Steam erkennt ein solches Gerät auch auf
+  Nicht-SteamOS nativ (steam-for-linux #11215) — kein Hardware-Bindungs-Check.
+- **uhid-Emulation ist prinzipiell machbar**: sc-ble-bridge emuliert erfolgreich
+  einen Steam Controller via /dev/uhid; inputtino hat mit dem DS5-uhid-Backend
+  (`src/uhid/joypad_ps5.cpp`) die passende Vorlage. Upstream-inputtino hat
+  keinen Deck-Typ (auch keine PRs). Protokoll gut dokumentiert (64-Byte-Reports
+  inkl. L4/L5/R4/R5, 2 Trackpads, Gyro; Feature-Reports für Lizard-Mode etc.).
+- **Valve selbst** tunnelt bei Remote Play auf Steam-Input-Ebene (Host sieht
+  „Steam Virtual Gamepad" `28de:11ff`) — Rear-Buttons/Gyro dort notorisch
+  kaputt. Hier könnte Sonnenschein besser sein.
+- **ABER — eigentlicher Blocker ist client-seitig**: Im Deck Game Mode claimt
+  Steam den Controller und reicht Moonlight nur das virtuelle Pad weiter —
+  Paddles/Trackpad-Rohdaten kommen im Client gar nicht an (moonlight-qt #936,
+  #1123). Moonlight-Protokoll hat zwar `PADDLE1–4_FLAG`s, aber host-seitig
+  konsumiert sie kein Backend, und es kennt nur EIN Touchpad → für 2 Trackpads
+  bräuchte es eine eigene Protokollerweiterung (wir kontrollieren beide Enden).
+- **Einschätzung: möglich mit großem Aufwand.** Empfohlener Pfad: (1) Host-PoC
+  standalone (uhid-Testtool `28de:1205`, Report-Descriptor vom echten Deck
+  dumpen, Erfolgskriterium: Desktop-Steam zeigt „Steam Deck Controller"),
+  (2) Steam↔Controller-Traffic am echten Deck mit hid-recorder mitschneiden,
+  (3) inputtino-Fork `SteamDeckJoypad` nach DS5-uhid-Vorbild (+ Upstream-PR),
+  (4) Host: `gamepad = steamdeck` + PADDLE-Flags → L4/L5/R4/R5,
+  (5) Client: Raw-Capture der Deck-Extras + Protokollerweiterung — ohne
+  Schritt 5 bringt Host-Emulation gegenüber DS5 fast nichts.
+- **Nur am Gerät klärbar**: unbekannte Feature-Report-Abfragen (Serial/
+  Firmware), Firmware-Update-Prompt-Risiko, hid-steam-Treiber-Verhalten am
+  uhid-Gerät, ob Game-Mode-Raw-Zugriff überhaupt möglich ist (Steam claimt
+  hidraw exklusiv), ob Desktop-Steam externe Deck-Controller voll bedient.
 
 ### Nachtrag Runde 12 (2026-07-13): Ansatz-a Spiele-als-Apps + Pläne Remote-Desktop & Deck-Controller
 
@@ -1043,7 +1088,7 @@ Legende: ✅ done · 🟡 in_progress · 🔴 blocked · ⏸ pending
 | cmake configure grün | ✅ | (verifikation) | `-DSUNSHINE_ENABLE_CUDA=OFF` für WSL (kein NVIDIA) |
 | cmake build grün, sunshine-Binary kompiliert | ✅ | (verifikation) | 33 MB ELF, läuft mit `--help` |
 | docs/building.md komplett neu für Sonnenschein | ✅ | `539d3a5` | Per-Distro-Lists (Arch/Ubuntu/Fedora/openSUSE), libva-2.22-Anleitung, WSL2-Workflow, Troubleshooting-Sektion |
-| Phase 1.6: CMake `project(Apollo)` → `project(Sonnenschein)` Rebrand | ⏸ | — | **bewusst aufgeschoben bis nach Phase 2** — riskant, betrifft viele Pfade/Configs/Service-Files. In den meisten Logs heißt das Binary noch "Apollo". |
+| Phase 1.6: CMake `project(Apollo)` → `project(Sonnenschein)` Rebrand | ✅ (Rest kosmetisch) | — | Real erledigt (verifiziert 2026-07-16): `project(Sonnenschein)` in CMakeLists.txt:7, eigene FQDN-Service/Desktop-Files. Nur noch intern offen: „Sunshine Branch:"-Logzeile (build_version.cmake:57) + Target-Name `sunshine` (common.cmake:4) → §12 C. |
 
 ### Phase 2 — Virtual-Display-Abstraktion 🟡
 
@@ -2021,17 +2066,58 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 ## 12. Was als nächstes — konkrete Schritte
 
-In Reihenfolge der Priorität.
+> **Neu geschrieben 2026-07-16.** Die historischen §12-Einträge (60-Hz-v3-
+> Testplan, alter CMake-Rebrand-Plan, Installer-Reihenfolge) waren erledigt
+> oder überholt (60-Hz/90-Hz vom Maintainer bestätigt, Phase 3+6 fertig,
+> CachyOS-Gesamttest „funktioniert perfekt" 2026-07-11) und wurden entfernt.
+> Tagesaktuelle Autorität bleibt der „HIER WEITERMACHEN"-Block ganz oben
+> plus die Runden-Nachträge.
 
-### 0) ✅ ERLEDIGT: CachyOS-Gesamttest — Maintainer bestätigt „funktioniert perfekt" (2026-07-11)
+In Reihenfolge der Priorität:
 
-Install + Discovery + Pairing + Stream laufen End-to-End. **Noch offen zur
-Detail-Bestätigung** (beim nächsten Stream kurz prüfen, keine Blocker):
-- Zeigt Moonlight 90 Hz (nicht 60)? → schließt §9.20 endgültig
-- HDR10-Indikator im Moonlight-Overlay? → Input für Phase 4
-- Log-Zeile „normalizing to landscape" wenn das Deck Portrait anfordert? → bestätigt §9.23
+### A) Client-CI im Haupt-Repo grün + erstes Release (in Arbeit 2026-07-16)
 
-### 0-alt) CachyOS-Gesamttest der Session 2026-07-11 (Referenz)
+Exec-Bit/MSVC-Fix `577ce22` gepusht (Details im HIER-WEITERMACHEN-Block).
+Wenn grün: Test-Tag setzen → Release-Job verifizieren (AppImage + Windows-zip
++ dmg) → alten Fork `sonnenschein-client` archivieren.
+
+### B) Deck-gebundene Tests (Deck ist verfügbar, mit Maintainer)
+
+1. Spiele-Streaming (Ansatz a, `a9bbaef`) auf aktuellem `dev` re-verifizieren
+   + Boxart-Rendering im Client-Grid prüfen (offen aus Runde 12).
+2. RD-1: Remote-Desktop Single-Monitor E2E — Client-Profil `remoteDesktopMode`
+   (`19733c20`) live gegen den Host bestätigen.
+3. cert-auth-Zugriff auf `/api/library` für gepairte Clients entscheiden
+   (offene Architektur-Frage, Voraussetzung für die einheitliche Client-Liste).
+4. Nativer Steam-Deck-Controller (neuer inputtino-Typ mit Deck-VID/PID,
+   Trackpads/Gyro/Back-Buttons) — Recherche + Machbarkeitsskizze.
+
+### C) Phase-1.6-Rest (kosmetisch, LOW)
+
+Real längst erledigt (entgegen älterer §6/§12-Einträge): `project(Sonnenschein)`
+(CMakeLists.txt:7), eigene FQDN-Service/Desktop-Files
+(`io.github.elias02345.Sonnenschein.*`, `sonnenschein.service.in`). Noch offen,
+rein intern: `cmake/prep/build_version.cmake:57` loggt „Sunshine Branch:", und
+das CMake-Target heißt `add_executable(sunshine)` (cmake/targets/common.cmake:4)
+— bei Umbenennung Symlink-/Installer-Kompat beachten.
+
+### D) Phase 5 WebUI-Rest
+
+17 Bootstrap-Config-Tabs (`configs/tabs/`) → PrimeVue mit dem etablierten
+Live-Test-Setup; Geräteverwaltung. Kein Funktionsverlust im Ist-Zustand.
+
+### E) Phase 4 HDR — upstream-blockiert
+
+KWins virtuelle Outputs melden kein HDR-Capability (Plasma 6.7, caps=0x2000,
+Runde 5). Unser Code ist capability-guarded und selbstaktivierend — bei jedem
+Plasma-Update einen Stream mit HDR-Request testen (Log „HDR+WCG enabled").
+
+### F) Sunshine-Upstream-Sync
+
+Spätestens Phase 7. Script `scripts/sync-from-sunshine.sh` automatisieren,
+das Sunshine für sicherheitsrelevante Fixes cherry-pickt.
+
+### Referenz: CachyOS-Gesamttest-Prozedur (Session 2026-07-11, bestanden)
 
 1. **Installer**: `curl -fsSL https://raw.githubusercontent.com/Elias02345/sonnenschein/main/installer/install.sh | bash`
    — erwartet: Build läuft durch, alles landet in `/opt/sonnenschein`, Abschluss-Summary mit WebUI-URL.
@@ -2043,73 +2129,6 @@ Detail-Bestätigung** (beim nächsten Stream kurz prüfen, keine Blocker):
    - Physische Monitore aus während Stream, wieder an nach Disconnect
 4. **Uninstall-Probe** (optional): `bash /opt/sonnenschein/installer/uninstall.sh` — erwartet: System wie vorher.
 5. Bei Fehlern: `journalctl --user -eu sonnenschein` + `/tmp/sonnenschein-install.log` posten.
-
-### A) 60-Hz-Fix v3 — Cleanup-Hardening + gehärteter Retry (höchste Prio) ✅ implementiert, 🟡 CachyOS-Test offen
-
-v2 (Commits `2996b4e` + `806a7ca`) wurde in `d7afb8b` + `ea201f5` zurückgerollt. v3 ist jetzt vollständig gepusht (`b9f431b` Cleanup-Hardening + `b0f4fd1` 60-Hz v3). WSL2 incremental build 16/16 grün.
-
-**Crash-Safety ist garantiert** durch `b9f431b`: Auch wenn v3 wieder failed, kommen die physischen Monitore zurück (SIGSEGV/SIGABRT-Handler → `proc.terminate()` vor `_Exit`; bei SIGKILL → Boot-Recovery beim nächsten Sonnenschein-Start). Force-Shutdown sollte nicht mehr nötig sein.
-
-#### Phase 2 — Cleanup-Hardening (orthogonal, sollte sowieso passieren)
-- **2a Signal-Handler in `src/main.cpp`** für SIGSEGV + SIGABRT, die `proc::proc.terminate()` + `logging::log_flush()` + `_Exit()` rufen.
-- **2b RAII-Destruktor** in `KwinWaylandBackend` (`src/platform/linux/virtual_display/backends/kwin_wayland.cpp`) der `destroy_all()` ruft.
-- **2c Boot-Time-Recovery** via Lockfile in `~/.local/state/sonnenschein/disabled-outputs.lock`: `create()` trackt disabled outputs, `destroy()` untrackt sie, `main()` ruft beim Start `recovery::recover_on_boot()` welches `kscreen-doctor output.X.enable` für jeden gelisteten output ausführt.
-
-#### Phase 3 — v3 60-Hz-Fix (gehärtet)
-- **CMake-Patch** wieder einspielen (identisch zu `2996b4e`).
-- **pwgrab.cpp v3**: Basis `806a7ca` + fünf Hardenings (Details siehe Plan-File `~/.claude/plans/jetzt-haben-wir-ein-nested-candle.md`):
-  1. Destroy-Reihenfolge in `apply_kde_configuration` — mode_list ZUERST, dann configuration.
-  2. Stream-State-Validation nach `apply_output_management_settings` — wenn `failed=true` (KWin closed stream), return false → Portal-Fallback statt hängender capture-loop.
-  3. Ausführliches Logging vor jedem KDE-call + `log_flush()` damit selbst bei Crash die LAST-action persistiert.
-  4. Timeout 1500ms → 800ms damit kein langes Hängen.
-  5. Dritter Roundtrip in `init()` damit kde_output_device_registry_v2-events durchgeschossen sind.
-
-#### CachyOS-Test (nach Phase 2 + 3 Push)
-1. **Pre-Test cleanup-Validation**: `pkill -9 sonnenschein` mid-stream simulieren → Monitore bleiben aus → Sonnenschein neu starten → Erwartung `recovery: re-enabling HDMI-A-1` + Monitore zurück.
-2. **Main test**: Logs streamen (`journalctl --user -fb -u sonnenschein.service` oder `sonnenschein 2>&1 | tee ~/sns-v3.log`), SteamDeck @ 90 Hz connecten. Erwartete Log-Zeilen pro Pfad in §9.20.
-3. **Fail-Pfad-Validation**: bei jedem fail-Pfad muss Sonnenschein clean enden (kein Force-Shutdown nötig), Logs müssen die LAST-action zeigen.
-
-#### Falls Test grün
-STATUS.md TL;DR auf „60-Hz-Bug GELÖST" aktualisieren, §6 Phase 2 von 🟡 auf ✅, §9.20 als „GELÖST in v3" markieren.
-
-#### Falls Test rot trotz Cleanup-Hardening
-Iteration auf feature/branch (nicht direkt dev), Logs analysieren, mögliche Pfade: EDID-Firmware-Injection (§9.19) als alternative Strategie, KWin-DBus statt Wayland-Protocol, oder reine Acceptance des 60-Hz-Limits + Dokumentation.
-
-### B) Falls 60-Hz-Fix grün: weitere Stabilisierung
-
-- HDR-Pfad nochmal validieren (`hdr_enable` Log-Zeile + Moonlight HDR10-Indikator)
-- Multi-Client-Test (zwei Moonlight-Clients gleichzeitig — verschiedene Virtual Outputs)
-- Restore-Token persistent speichern (§9.15) → kein Portal-Dialog mehr beim Re-Start
-
-### C) Phase 1.6 — CMake-Rebrand (nach Phase 2D-Done)
-
-Sobald der 60-Hz-Fix steht und der Stream auf 90Hz auf dem SteamDeck läuft:
-- `CMakeLists.txt`: `project(Sonnenschein)`
-- `cmake/prep/build_version.cmake`: `Sunshine Branch:` → `Sonnenschein Branch:`
-- Add-Executable-Target: `sunshine` → `sonnenschein` (Symlink `sunshine` für Rückwärts-Kompat)
-- Service-Files / .desktop-Files: `dev.lizardbyte.app.Sunshine` → eigener FQDN
-- README/Docs: alle "Sunshine"-Erwähnungen prüfen
-
-### C) Phase 1.6 — CMake-Rebrand (nach 2D)
-
-Sobald Phase 2D grün ist und ein erster Virtual Display erfolgreich erzeugt wurde:
-- `CMakeLists.txt`: `project(Sonnenschein)`
-- `cmake/prep/build_version.cmake`: `Sunshine Branch:` → `Sonnenschein Branch:`
-- Add-Executable-Target: `sunshine` → `sonnenschein` (Symlink `sunshine` für Rückwärts-Kompat)
-- Service-Files / .desktop-Files: `dev.lizardbyte.app.Sunshine` → eigener FQDN
-- README/Docs: alle "Sunshine"-Erwähnungen prüfen
-
-### D) Phase 3 — Installer
-
-Sobald 1.6 done. Erste Iteration: nur Arch (CachyOS-Test-Hardware). Dann iterativ andere Distros.
-
-### E) Phase 4 — HDR & AV1
-
-Nach Phase 3, weil Installer braucht systemd-User-Mode-Setup für DBus-Bus zur HDR-Kommunikation mit KWin.
-
-### F) Sunshine-Upstream-Sync
-
-Spätestens Phase 7. Ein Script `scripts/sync-from-sunshine.sh` automatisieren, das Sunshine cherry-pickt für sicherheitsrelevante Fixes.
 
 ---
 
