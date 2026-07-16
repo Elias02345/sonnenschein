@@ -40,9 +40,15 @@
 >    `build-decky-plugin` (pnpm 9 + rollup) baut das Plugin-Zip. **Doku:
 >    `docs/steam-deck.md`** (2-Teile-Anleitung, im README verlinkt).
 >    Release-Job: exe/zip direkt als Assets, Tag-Name als Version.
-> 4. **Nach CI-Grün**: Tag `v0.1.0-test` → Release mit AppImage + Installer
->    + dmg + Plugin-Zip → große Testrunde (Deck: Gaming+Plugin;
->    Windows-Laptop: RD + Easy/Advanced + Updater).
+> 4. **✅ RELEASE v0.1.0-test LIVE** (2026-07-16, Run 29497827949 komplett
+>    grün): <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.0-test>
+>    — `SonnenscheinClientSetup-0.1.0-test.exe` (nativer Win-Installer, 26 MB),
+>    AppImage, dmg (jetzt `Sonnenschein_Client-*`), Decky-Plugin-Zip
+>    (Struktur verifiziert: `sonnenschein/` mit plugin.json/main.py/dist/
+>    Runner/LICENSE), Release-Notes mit Download-Tabelle + Deck-Anleitung.
+>    **→ Jetzt: große Testrunde des Maintainers** (Deck: AppImage +
+>    Decky-Plugin nach docs/steam-deck.md; Windows-Laptop: Installer,
+>    Easy/Advanced, RD-Abfrage, Update-Banner beim nächsten Release).
 > **Decky-Plugin komplett ungetestet auf echter Hardware** (kein Deck-Zugriff
 > aus der Session) — SteamClient-API-Aufrufe (AddShortcut etc.) sind nach
 > MoonDeck-Vorbild implementiert, erste Fehlerrunde am Deck einplanen.
