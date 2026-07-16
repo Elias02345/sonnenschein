@@ -76,6 +76,29 @@
 > und der Client-Update-Check auf die gefixte Version zeigen).
 > **Testrunde des Maintainers startet mit v0.1.1-test.**
 >
+> **🔧 DECK-FEHLERRUNDE 2 (2026-07-16)**: Plugin hing bei „Verbinde…".
+> **Backend diesmal komplett lokal E2E-getestet** (Harness mit decky-Stub
+> gegen echte Client-Config + laufenden Host auf dem CachyOS-Rechner) —
+> 3 echte Bugs gefunden + gefixt (`0031447`):
+> 1. **Conf-Parser las die Hosts nicht**: reale QSettings-INI hat eine
+>    eigene `[hosts]`-Sektion mit `N\feld`-Keys (Feld heißt `hostname`,
+>    nicht `name`) — Parser war auf `hosts\N\name` unter [General] gebaut
+>    → 0 Hosts → paired=false.
+> 2. **Falscher Port**: gespeichert ist der HTTP-Port (47989); die
+>    cert-auth-API läuft auf HTTPS — jetzt live via unauth `/serverinfo`
+>    aufgelöst (wie der Client, `HttpsPort`-Feld), Fallback Port−5.
+> 3. **Fehler unsichtbar**: Moonlight-Hosts liefern Fehler als
+>    `status_code`-Attribut bei HTTP 200 (401 = nicht gepairt) — wird
+>    jetzt als klare Meldung geworfen (lokal verifiziert, da hiesiger
+>    Client nur mit der alten Test-Instanz gepairt ist).
+> **Frontend kann nicht mehr hängen**: Ping-Probe (6 s) unterscheidet
+> totes Backend von Host-Problemen, alle Calls mit Deadline, Fehler
+> inline im Panel mit Retry-Button (statt verpassbarem Toast), Backend
+> loggt Import-OK. App-Parsing zusätzlich synthetisch getestet.
+> → Release v0.1.2-test nach CI-Grün. **Hinweis**: das „Verbinde…" der
+> v0.1.1 hätte jede der drei Ursachen sein können — mit v0.1.2 zeigt das
+> Panel im Fehlerfall die exakte Ursache an.
+>
 > **🔧 Client-CI-Fix im Haupt-Repo (2026-07-16, Runde 13)**: Der erste „Client
 > Build"-Run auf `dev` (nach `dff9b93`) war rot. Der Repo-Umzug `c36c20b` hatte
 > **zweierlei verschluckt**: (1) die Exec-Bits aller `client/scripts/*.sh`
