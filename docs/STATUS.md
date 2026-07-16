@@ -18,8 +18,13 @@
 > Scripts, `bash scripts/build-appimage.sh`, MSVC via `ilammy/msvc-dev-cmd@v1`,
 > Windows-ARM64-Build ersatzlos raus — Roadmap-Ziel ist x64-.exe + Installer) —
 > damit **AppImage + macOS grün**; danach jom/vswhere.exe aus Upstream
-> re-added (Blob-Hashes verifiziert) + gitignore-Ausnahmen. Wenn Windows grün:
-> Test-Tag → Release-Job verifizieren → alten Fork archivieren.
+> re-added (Blob-Hashes verifiziert, `18500c7`) + gitignore-Ausnahmen; dritte
+> Regression: WiX-Bundle verlangte den entfernten ARM64-Build → Package-Step
+> macOS-only, Output wurde auf Windows eh nie hochgeladen (`7c2fda9`).
+> **✅ Client-CI KOMPLETT GRÜN auf `dev@7c2fda9`** (AppImage + Windows x64 +
+> macOS, Run 29477549618). Offen: Test-Tag (z. B. `v0.0.3-test`) → Release-Job
+> verifizieren → alten Fork archivieren (beides wartet auf Maintainer-Go —
+> öffentliche Aktionen).
 > **Umgebung heute**: Session läuft direkt auf dem CachyOS-Test-Target,
 > Repo-Pfad neu **`~/Dokumente/sonnenschein`**, Deck ist verfügbar. Merke:
 > Push während laufendem Client-Build-Run cancelt den Run (Concurrency-Gruppe)
