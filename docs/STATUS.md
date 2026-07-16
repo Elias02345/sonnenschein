@@ -22,9 +22,13 @@
 > Regression: WiX-Bundle verlangte den entfernten ARM64-Build → Package-Step
 > macOS-only, Output wurde auf Windows eh nie hochgeladen (`7c2fda9`).
 > **✅ Client-CI KOMPLETT GRÜN auf `dev@7c2fda9`** (AppImage + Windows x64 +
-> macOS, Run 29477549618). Offen: Test-Tag (z. B. `v0.0.3-test`) → Release-Job
-> verifizieren → alten Fork archivieren (beides wartet auf Maintainer-Go —
-> öffentliche Aktionen).
+> macOS, Run 29477549618). **✅ Erstes Client-Release im Haupt-Repo LIVE**
+> (Maintainer-Go 2026-07-16): <https://github.com/Elias02345/sonnenschein/releases/tag/v0.0.3-test>
+> — `Sonnenschein_Client-*-x86_64.AppImage` + `Sonnenschein-Windows-x64-*.zip`
+> + dmg + Debug-Symbols. **✅ Alter Fork `sonnenschein-client` ARCHIVIERT**
+> (Bedingung erfüllt: CI grün + Release im Haupt-Repo). Kosmetik-TODO: die
+> macOS-dmg heißt noch `Moonlight-<ver>.dmg` (generate-dmg.sh/Target-Name
+> nicht rebranded) — bei nächster Client-Runde mitnehmen.
 > **Umgebung heute**: Session läuft direkt auf dem CachyOS-Test-Target,
 > Repo-Pfad neu **`~/Dokumente/sonnenschein`**, Deck ist verfügbar. Merke:
 > Push während laufendem Client-Build-Run cancelt den Run (Concurrency-Gruppe)
