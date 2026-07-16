@@ -95,9 +95,12 @@
 > totes Backend von Host-Problemen, alle Calls mit Deadline, Fehler
 > inline im Panel mit Retry-Button (statt verpassbarem Toast), Backend
 > loggt Import-OK. App-Parsing zusätzlich synthetisch getestet.
-> → Release v0.1.2-test nach CI-Grün. **Hinweis**: das „Verbinde…" der
-> v0.1.1 hätte jede der drei Ursachen sein können — mit v0.1.2 zeigt das
-> Panel im Fehlerfall die exakte Ursache an.
+> → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
+> <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
+> veröffentlichtes Plugin-Zip nachgeprüft (Parser-Fix + Timeouts im
+> Bundle), v0.1.1-test als überholt markiert. **Hinweis**: das
+> „Verbinde…" der v0.1.1 hätte jede der drei Ursachen sein können — mit
+> v0.1.2 zeigt das Panel im Fehlerfall die exakte Ursache an.
 >
 > **🔧 Client-CI-Fix im Haupt-Repo (2026-07-16, Runde 13)**: Der erste „Client
 > Build"-Run auf `dev` (nach `dff9b93`) war rot. Der Repo-Umzug `c36c20b` hatte
