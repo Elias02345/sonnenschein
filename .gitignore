@@ -81,3 +81,8 @@ build/assets/web/
 .vscode/
 *.swp
 *.swo
+
+# Decky plugin build artifacts
+decky-plugin/node_modules/
+decky-plugin/dist/
+decky-plugin/pnpm-lock.yaml

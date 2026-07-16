@@ -75,7 +75,7 @@ function shortcutExists(appId: number): boolean {
   }
 }
 
-async function syncHost(host: HostInfo, state: SyncState): Promise<{ added: number; removed: number; total: number }> {
+async function syncHost(host: HostInfo, runnerPath: string, state: SyncState): Promise<{ added: number; removed: number; total: number }> {
   const status = { added: 0, removed: 0, total: 0 };
   const apps = await getApps(host.address, host.port);
   const games = apps.filter((a) => !EXCLUDED_TITLES.has(a.title));
@@ -106,8 +106,7 @@ async function syncHost(host: HostInfo, state: SyncState): Promise<{ added: numb
       continue;
     }
 
-    const status2 = await getStatus();
-    const appId = await addShortcut(app.title, status2.runnerPath);
+    const appId = await addShortcut(app.title, runnerPath);
     if (appId === null) {
       continue;
     }
@@ -171,7 +170,7 @@ function Content() {
 
       if (autoSync) {
         setBusy("Synchronisiere Bibliothek…");
-        const result = await syncHost(host, state);
+        const result = await syncHost(host, s.runnerPath, state);
         if (result.added || result.removed) {
           toaster.toast({
             title: "Sonnenschein",
