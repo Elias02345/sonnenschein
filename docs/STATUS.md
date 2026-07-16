@@ -53,6 +53,23 @@
 > aus der Session) — SteamClient-API-Aufrufe (AddShortcut etc.) sind nach
 > MoonDeck-Vorbild implementiert, erste Fehlerrunde am Deck einplanen.
 >
+> **🔧 DECK-FEHLERRUNDE 1 (2026-07-16, Maintainer-Test)**: Plugin crashte
+> beim Laden mit `ReferenceError: React is not defined`
+> (PluginLoader.importReactPlugin). **Ursache verifiziert** (lokaler
+> Rebuild + @decky/rollup-Quellcode + Template-Recherche): tsconfig hatte
+> `"jsx": "react"` (classic) → Bundle enthielt nackte `React.createElement`-
+> Referenzen; @decky/rollup mappt aber nur Imports auf die Loader-Globals
+> (`react`→SP_REACT, **`react/jsx-runtime`→SP_JSX**, `@decky/ui`→DFL) und
+> Steams CEF hat kein `window.React`. **Fix `c2913df`**: `"jsx": "react-jsx"`
+> (exakt wie decky-plugin-template + MoonDeck) + Deps template-konform
+> (@types/react 19.x — Steam shipped React 19; tslib/react-icons/@decky/api
+> als runtime-deps). Lokal verifiziert: Bundle nutzt SP_JSX (17 Stellen),
+> null nackte React-Referenzen. Weitere Template-Checks bestanden:
+> `api_version: 1` (Pflicht für @decky/api-callable-Dispatch, positional
+> args auf Plugin-Klasse), `"type": "module"` (ESM-Import-Pfad), Zip-Layout
+> (plugin.json auf Tiefe 1), decky-Konstanten existieren alle.
+> → Release v0.1.1-test nach CI-Grün.
+>
 > **🔧 Client-CI-Fix im Haupt-Repo (2026-07-16, Runde 13)**: Der erste „Client
 > Build"-Run auf `dev` (nach `dff9b93`) war rot. Der Repo-Umzug `c36c20b` hatte
 > **zweierlei verschluckt**: (1) die Exec-Bits aller `client/scripts/*.sh`
