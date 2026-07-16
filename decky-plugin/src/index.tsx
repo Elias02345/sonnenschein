@@ -37,12 +37,24 @@ interface HostApp {
 
 type SyncState = Record<string, number>; // "<hostUuid>/<appId>" -> steam appId
 
+const ping = callable<[], boolean>("ping");
 const getStatus = callable<[], Status>("get_status");
 const getApps = callable<[string, number], HostApp[]>("get_apps");
 const getBoxart = callable<[string, number, string], { data: string; ext: string }>("get_boxart");
 const getLaunchOptions = callable<[string, string], string>("get_launch_options");
 const getState = callable<[], SyncState>("get_state");
 const setState = callable<[SyncState], boolean>("set_state");
+
+// A backend that never answers must not leave the panel stuck — every
+// backend call runs against a deadline.
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label}: Zeitüberschreitung (${ms / 1000}s)`)), ms)
+    ),
+  ]);
+}
 
 // Non-stream entries of the unified list we do not want in the library
 const EXCLUDED_TITLES = new Set(["Desktop", "Steam Big Picture"]);
@@ -77,7 +89,7 @@ function shortcutExists(appId: number): boolean {
 
 async function syncHost(host: HostInfo, runnerPath: string, state: SyncState): Promise<{ added: number; removed: number; total: number }> {
   const status = { added: 0, removed: 0, total: 0 };
-  const apps = await getApps(host.address, host.port);
+  const apps = await withTimeout(getApps(host.address, host.port), 20000, "Spieleliste");
   const games = apps.filter((a) => !EXCLUDED_TITLES.has(a.title));
   status.total = games.length;
 
@@ -120,7 +132,7 @@ async function syncHost(host: HostInfo, runnerPath: string, state: SyncState): P
 
     // Box art (portrait grid) from the host's Steam cache
     try {
-      const art = await getBoxart(host.address, host.port, app.id);
+      const art = await withTimeout(getBoxart(host.address, host.port, app.id), 15000, "Boxart");
       if (art.data) {
         await SteamClient.Apps.SetCustomArtworkForApp(appId, art.data, art.ext, 0);
       }
@@ -155,18 +167,32 @@ function Content() {
   const [apps, setApps] = useState<HostApp[]>([]);
   const [syncState, setSyncState] = useState<SyncState>({});
   const [busy, setBusy] = useState<string>("");
+  const [error, setError] = useState<string>("");
 
   const refresh = async (autoSync: boolean) => {
     try {
-      setBusy("Verbinde…");
-      const s = await getStatus();
+      setError("");
+      setBusy("Verbinde mit Backend…");
+
+      // Liveness first: a dead backend gets a precise message instead of a
+      // silently stuck panel.
+      try {
+        await withTimeout(ping(), 6000, "Backend-Ping");
+      } catch (e: any) {
+        throw new Error(
+          "Plugin-Backend antwortet nicht. Decky-Log prüfen: /home/deck/homebrew/logs/Sonnenschein/ — ggf. Plugin neu installieren und Steam neu starten."
+        );
+      }
+
+      setBusy("Lese Client-Konfiguration…");
+      const s = await withTimeout(getStatus(), 10000, "Status");
       setStatus(s);
       if (!s.paired || s.hosts.length === 0) {
         setBusy("");
         return;
       }
       const host = s.hosts[0];
-      const state = await getState();
+      const state = await withTimeout(getState(), 10000, "Sync-Status");
 
       if (autoSync) {
         setBusy("Synchronisiere Bibliothek…");
@@ -179,14 +205,15 @@ function Content() {
         }
       }
 
-      const hostApps = await getApps(host.address, host.port);
+      setBusy("Lade Spieleliste…");
+      const hostApps = await withTimeout(getApps(host.address, host.port), 20000, "Spieleliste");
       setApps(hostApps.filter((a) => !EXCLUDED_TITLES.has(a.title)));
       setSyncState({ ...state });
       setBusy("");
     } catch (e: any) {
       console.error("Sonnenschein: refresh failed", e);
       setBusy("");
-      toaster.toast({ title: "Sonnenschein", body: `Fehler: ${e?.message ?? e}` });
+      setError(`${e?.message ?? e}`);
     }
   };
 
@@ -194,6 +221,19 @@ function Content() {
     // Auto-sync on panel open (maintainer decision: full auto sync)
     refresh(true);
   }, []);
+
+  if (error) {
+    return (
+      <PanelSection title="Fehler">
+        <PanelSectionRow>{error}</PanelSectionRow>
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={() => refresh(true)}>
+            Erneut versuchen
+          </ButtonItem>
+        </PanelSectionRow>
+      </PanelSection>
+    );
+  }
 
   if (!status) {
     return (

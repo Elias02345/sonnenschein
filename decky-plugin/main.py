@@ -42,49 +42,94 @@ def _unescape_qsettings(value: str) -> str:
 
 
 def _read_client_conf():
-    """Parse the Sonnenschein Client QSettings INI: identity + paired hosts."""
+    """Parse the Sonnenschein Client QSettings INI: identity + paired hosts.
+
+    Real on-disk layout (verified): identity keys live in [General]; paired
+    hosts live in their own [hosts] section as `<idx>\\<field>=<value>`
+    (fields: hostname, uuid, localaddress/localport, manualaddress/
+    manualport, remoteaddress/remoteport, ...) plus a `size` key.
+    """
     conf = {"certificate": None, "key": None, "uniqueid": None, "hosts": []}
     if not os.path.exists(CLIENT_CONF):
         return conf
 
+    section = ""
     hosts = {}
     with open(CLIENT_CONF, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-            if "=" not in line or line.startswith("["):
+            if line.startswith("[") and line.endswith("]"):
+                section = line[1:-1]
+                continue
+            if "=" not in line:
                 continue
             key, _, raw = line.partition("=")
             key = key.strip()
             raw = raw.strip()
 
-            if key in ("certificate", "key"):
-                val = _unescape_qsettings(raw)
-                if val.startswith("@ByteArray("):
-                    val = val[len("@ByteArray(") : -1]
-                conf[key] = val
-            elif key == "uniqueid":
-                conf["uniqueid"] = _unescape_qsettings(raw)
-            elif key.startswith("hosts\\"):
-                # hosts\<n>\<field>=<value>
-                parts = key.split("\\")
-                if len(parts) == 3:
-                    idx, field = parts[1], parts[2]
-                    hosts.setdefault(idx, {})[field] = _unescape_qsettings(raw)
+            if section == "General":
+                if key in ("certificate", "key"):
+                    val = _unescape_qsettings(raw)
+                    if val.startswith("@ByteArray("):
+                        val = val[len("@ByteArray(") : -1]
+                    conf[key] = val
+                elif key == "uniqueid":
+                    conf["uniqueid"] = _unescape_qsettings(raw)
+            elif section == "hosts" and "\\" in key:
+                idx, _, field = key.partition("\\")
+                hosts.setdefault(idx, {})[field] = _unescape_qsettings(raw)
 
     for idx in sorted(hosts, key=lambda i: int(i) if i.isdigit() else 0):
         h = hosts[idx]
-        address = h.get("manualaddress") or h.get("localaddress") or h.get("remoteaddress")
+        # Prefer a manual address, then LAN, then WAN — same order the
+        # client uses for local streaming.
+        address, port = "", 0
+        for addr_field, port_field in (
+            ("manualaddress", "manualport"),
+            ("localaddress", "localport"),
+            ("remoteaddress", "remoteport"),
+        ):
+            if h.get(addr_field):
+                address = h[addr_field]
+                try:
+                    port = int(h.get(port_field) or 0)
+                except ValueError:
+                    port = 0
+                break
         if not address:
             continue
         conf["hosts"].append(
             {
-                "name": h.get("name", address),
+                "name": h.get("hostname", address),
                 "uuid": h.get("uuid", ""),
                 "address": address,
-                "port": int(h.get("localport") or h.get("manualport") or HTTPS_PORT),
+                # NB: this is the HTTP port (47989 default); the HTTPS port
+                # is resolved per request via /serverinfo (fallback -5).
+                "port": port or 47989,
             }
         )
     return conf
+
+
+def _https_port(address, http_port):
+    """Resolve the host's HTTPS port via unauthenticated HTTP /serverinfo
+    (same as the client does); fall back to the Sunshine convention -5."""
+    try:
+        conn = http.client.HTTPConnection(address, int(http_port), timeout=5)
+        try:
+            conn.request("GET", "/serverinfo", headers={"User-Agent": "sonnenschein-decky"})
+            resp = conn.getresponse()
+            body = resp.read()
+        finally:
+            conn.close()
+        if resp.status == 200:
+            root = ET.fromstring(body)
+            val = root.findtext("HttpsPort")
+            if val and val.isdigit() and int(val) > 0:
+                return int(val)
+    except Exception as e:
+        decky.logger.info(f"serverinfo probe failed for {address}:{http_port}: {e}")
+    return int(http_port) - 5
 
 
 class _HostApi:
@@ -134,6 +179,11 @@ class Plugin:
     async def _main(self):
         decky.logger.info("Sonnenschein plugin loaded")
 
+    async def ping(self):
+        """Cheap liveness probe so the frontend can tell a dead backend
+        apart from host/network problems."""
+        return True
+
     async def _unload(self):
         decky.logger.info("Sonnenschein plugin unloaded")
 
@@ -165,17 +215,26 @@ class Plugin:
         }
 
     async def get_apps(self, address, port):
-        """Fetch the host's app list (unified library) via mutual TLS."""
+        """Fetch the host's app list (unified library) via mutual TLS.
+
+        `port` is the stored HTTP port; the HTTPS port is resolved live.
+        """
         conf = _read_client_conf()
         api = _HostApi(conf)
         uid = conf["uniqueid"] or "0123456789ABCDEF"
         path = "/applist?uniqueid={}&uuid={}".format(
             urllib.parse.quote(uid), uuidlib.uuid4().hex
         )
-        body = api.get(address, int(port), path)
+        body = api.get(address, _https_port(address, port), path)
 
         apps = []
         root = ET.fromstring(body)
+        # Moonlight hosts answer HTTP 200 with an error status_code attribute
+        # (e.g. 401 when the client cert isn't paired) — surface that clearly.
+        sc = root.get("status_code")
+        if sc and sc != "200":
+            msg = root.get("status_message") or f"Host-Fehler {sc}"
+            raise RuntimeError(f"Host lehnt ab ({sc}): {msg} — ggf. Client-App neu pairen.")
         for app in root.iter("App"):
             title = app.findtext("AppTitle")
             app_id = app.findtext("ID")
@@ -192,7 +251,7 @@ class Plugin:
             urllib.parse.quote(uid), uuidlib.uuid4().hex, urllib.parse.quote(str(app_id))
         )
         try:
-            body = api.get(address, int(port), path)
+            body = api.get(address, _https_port(address, port), path)
         except Exception as e:
             decky.logger.info(f"No box art for app {app_id}: {e}")
             return {"data": "", "ext": ""}
@@ -217,3 +276,6 @@ def _find_client_app():
         if glob.glob(os.path.join(flatpak, "app", "io.github.elias02345.Sonnenschein*")):
             return "flatpak"
     return ""
+
+
+decky.logger.info("Sonnenschein backend module imported OK")
