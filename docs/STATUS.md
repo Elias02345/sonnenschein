@@ -62,6 +62,22 @@
 > Rebrand/moderne UI, M5 Windows-Installer+Updater, M6 Decky-Plugin.
 > Implementierung läuft ab 2026-07-16 in dieser Reihenfolge (M1–M3 PC-testbar,
 > M6 Deck-gebunden).
+>
+> **🟡 M1+M2 IMPLEMENTIERT (2026-07-16, `feature/client-easy-mode` @ `9647e34`,
+> Maintainer-Sichttest offen)**: Easy/Advanced-Modus (`settingsMode`, Default
+> Easy) + Auto-Settings-Engine (`AutoConfig::applyEasyMode`, gecachte Probe,
+> Qualitätsregler Ausgewogen/Bildqualität/Flüssigkeit — letzterer cappt bei
+> 1080p; Hook in `Session::initialize`) + Easy-Settings-UI (nur Qualität,
+> Audio, RD; Advanced blendet alle 7 Gruppen wieder ein) + RD-Abfrage-Dialog
+> beim Start der Desktop-App von einem Client mit Desktop-Umgebung
+> (`hasDesktopEnvironment`, 3 Optionen + „Auswahl merken" →
+> `rememberRdChoice`). **DE-Übersetzung komplett** (qml_de.ts 275/275, inkl.
+> 27 vorher fehlender Alt-Strings; via `lupdate6 app.pro` + lrelease).
+> Lokal gebaut (CachyOS, qmake6; Vulkan-Header fehlten systemweit → nach
+> `~/Dokumente/.localdeps/prefix/include` gelegt; Build-Dir
+> `~/Dokumente/sns-client-build`) + `detect-profile`-Smoke ✅ (4K60/AV1 wie
+> Runde 10) + GUI-Start ohne QML-Fehler. **Merge auf `dev` erst nach
+> Maintainer-Sichttest** (Settings-Seite Easy/Advanced, RD-Dialog, Stream).
 > **Umgebung heute**: Session läuft direkt auf dem CachyOS-Test-Target,
 > Repo-Pfad neu **`~/Dokumente/sonnenschein`**, Deck ist verfügbar. Merke:
 > Push während laufendem Client-Build-Run cancelt den Run (Concurrency-Gruppe)
@@ -545,6 +561,34 @@ erledigt), §6-Phase-1.6-Zeile korrigiert. Host läuft aktiv auf `dev@1914c33`
   Firmware), Firmware-Update-Prompt-Risiko, hid-steam-Treiber-Verhalten am
   uhid-Gerät, ob Game-Mode-Raw-Zugriff überhaupt möglich ist (Steam claimt
   hidraw exklusiv), ob Desktop-Steam externe Deck-Controller voll bedient.
+
+**Decky-Plugin-Recherche (Web, 2026-07-16) — Kernbefunde für M6:**
+- **Stack**: `decky-plugin-template` (React/TS-Frontend via `@decky/ui` +
+  `@decky/api`, Rollup, **pnpm v9 zwingend**; optional Python-Backend).
+  Deploy: SSH nach `/home/deck/homebrew/plugins/` + `systemctl restart
+  plugin_loader`; Decky-Dev-Mode für Sideload + CEF-Debugging (Port 8081).
+- **Maßgebliches Vorbild: MoonDeck** (GPL-3 → kompatibel, aktiv maintained
+  v1.11.3): legt Non-Steam-Shortcuts auf einen **Shell-Wrapper** (nötig für
+  Steam-Fokus), kodiert die App-Identität als Env-Var in den Launch-Options
+  (`X=Y %command%`), startet Moonlight als Subprozess (Flatpak/AppImage, CLI
+  `stream <host> <app>` + `--resolution/--bitrate/--hdr`), Spiele in eigener
+  Steam-Collection. Braucht „MoonDeck Buddy" auf dem Host — **unsere
+  `/api/library` ersetzt das nativ inkl. Artwork.**
+- **Game-Mode-Start**: `SteamClient.Apps.RunGame(gameId, ...)` auf den
+  Shortcut → Steam/gamescope managt die Session (Overlay + Controller-Config
+  funktionieren). Library-Injection via `AddShortcut`/`SetShortcutName`/
+  `SetAppLaunchOptions`/`SetCustomArtworkForApp` (produktiv bewiesen durch
+  SteamGridDB-Plugin) — APIs sind Valve-intern/undokumentiert (Drift real,
+  z. B. AddShortcut setzt Namen nicht mehr). Bekannter Bug: viele Add/Remove-
+  Zyklen korruptieren den Steam-Client → diff-basiert syncen + Restart-Helper.
+- **Architektur (beschlossen: Plugin nutzt unsere Client-App)**: Python-
+  Backend = REST-Client für `/api/library` + Runner-Wrapper (`sonnenschein-
+  run.sh` + `runner.py` startet unsere Client-App); TS-Frontend = Quick-
+  Access-Panel (Hosts, Spiele, Sync-Button) + Shortcut-Sync + Collection.
+  Unser Client braucht dafür stabile Stream-CLI + deterministische Exit-Codes.
+- **Store-Anforderung**: kein Remote-Code-Nachladen — Client-App muss separat
+  installiert sein (Plugin verweist auf Installation). Risiken: SteamClient-
+  API-Drift, SteamOS-Updates entfernen Decky gelegentlich.
 
 ### Nachtrag Runde 12 (2026-07-13): Ansatz-a Spiele-als-Apps + Pläne Remote-Desktop & Deck-Controller
 
