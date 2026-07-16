@@ -78,6 +78,17 @@
 > `~/Dokumente/sns-client-build`) + `detect-profile`-Smoke ✅ (4K60/AV1 wie
 > Runde 10) + GUI-Start ohne QML-Fehler. **Merge auf `dev` erst nach
 > Maintainer-Sichttest** (Settings-Seite Easy/Advanced, RD-Dialog, Stream).
+>
+> **M3-Analyse (2026-07-16)**: Client-Teil durch M1 erledigt (Easy fordert
+> native Refresh an). Host-Pacing (Runde 3, pwgrab.cpp ~2058-2132): auf dem
+> **SHM-Pfad** wird der letzte Frame bei Damage-Stille re-encodet (voller
+> Takt) — auf dem realen Host aktiv (BGRx-SHM-Negotiation, von Maintainer
+> als „komplett funktional" bestätigt). **Bekannte Lücke**: auf dem
+> **DMA-BUF-Zero-Copy-Pfad** wird bei ausbleibendem Frame nur
+> `frame_captured=false` signalisiert → video.cpp raised nichts → Encoder
+> pausiert → FPS sinken bei Statik, falls ein Setup dmabuf negotiated.
+> Nächster M3-Schritt: Live-Messung (Moonlight-Overlay auf Idle-Desktop);
+> nur bei realem Einbruch dmabuf-Frame-Repeat implementieren.
 > **Umgebung heute**: Session läuft direkt auf dem CachyOS-Test-Target,
 > Repo-Pfad neu **`~/Dokumente/sonnenschein`**, Deck ist verfügbar. Merke:
 > Push während laufendem Client-Build-Run cancelt den Run (Concurrency-Gruppe)
