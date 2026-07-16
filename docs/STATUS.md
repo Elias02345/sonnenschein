@@ -7,6 +7,18 @@
 
 > ## ⏸ HIER WEITERMACHEN (2026-07-16, Session auf dem CachyOS-Target)
 >
+> **📋 MAINTAINER-PRÄZISIERUNG (2026-07-16, Runde 2)**: RD-Tests macht der
+> Maintainer auf dem **Windows-Laptop mit der .exe** (nicht am CachyOS-PC) —
+> es braucht also downloadbare GitHub-Builds mit M1+M2. **Deck = nur
+> Gaming-Version + Decky-Plugin** (keine RD-Features nötig). Auftrag: alles
+> fertig bauen → **ein Release mit allen Apps** (Windows: **nativer
+> Installer statt zip**, klar als Client benannt) + **Deck-Anleitung auf
+> GitHub** (2 Teile: Client-App + Decky-Plugin). Danach eine große
+> Testrunde (Gaming am Deck, RD auf Windows).
+> **Decky-Scope-Entscheidung**: **Voll-Sync automatisch** — Host-Spiele
+> werden automatisch in die Steam-Bibliothek gesynct (diff-basiert,
+> Restart-Helper als Sicherheitsnetz).
+>
 > **🔧 Client-CI-Fix im Haupt-Repo (2026-07-16, Runde 13)**: Der erste „Client
 > Build"-Run auf `dev` (nach `dff9b93`) war rot. Der Repo-Umzug `c36c20b` hatte
 > **zweierlei verschluckt**: (1) die Exec-Bits aller `client/scripts/*.sh`
