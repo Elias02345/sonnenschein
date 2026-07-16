@@ -30,6 +30,9 @@
 *.exe
 *.out
 *.app
+# Vendored Windows build tools from Moonlight-Qt (needed by client CI)
+!client/scripts/jom.exe
+!client/scripts/vswhere.exe
 
 # JetBrains IDE
 .idea/
