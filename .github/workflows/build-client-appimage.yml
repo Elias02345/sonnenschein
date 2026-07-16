@@ -158,7 +158,7 @@ jobs:
         working-directory: client
         run: |
           sudo ldconfig
-          scripts/build-appimage.sh
+          bash scripts/build-appimage.sh
 
       - name: Upload Binaries
         uses: actions/upload-artifact@v6

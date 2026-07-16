@@ -5,7 +5,21 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-> ## ⏸ HIER WEITERMACHEN (2026-07-13, Maintainer kommt zurück)
+> ## ⏸ HIER WEITERMACHEN (2026-07-16, Session auf dem CachyOS-Target)
+>
+> **🔧 Client-CI-Fix im Haupt-Repo (2026-07-16, gepusht, CI-Ergebnis offen)**:
+> Der erste „Client Build"-Run auf `dev` (nach `dff9b93`) war rot — AppImage:
+> `scripts/build-appimage.sh: Permission denied` (**alle `client/scripts/*.sh`
+> verloren beim Repo-Umzug `c36c20b` die Exec-Bits**; Achtung: das Repo hat
+> `core.fileMode=false`, chmod allein reicht nicht → `git update-index
+> --chmod=+x`); Windows: `cl.exe` nicht im PATH, seit der Client im Unterordner
+> liegt. Fix: Exec-Bits für 7 Scripts restauriert (exakt Upstream-Modes),
+> `bash scripts/build-appimage.sh` im AppImage-Workflow, MSVC-Setup via
+> `ilammy/msvc-dev-cmd@v1`, Windows-ARM64-Build ersatzlos entfernt (Roadmap-Ziel
+> ist x64-.exe + Installer). Danach: Test-Tag → Release-Job verifizieren →
+> alten Fork archivieren. **Umgebung heute**: Session läuft direkt auf dem
+> CachyOS-Test-Target, Repo-Pfad neu **`~/Dokumente/sonnenschein`**, Deck ist
+> verfügbar (Deck-gebundene Tests möglich).
 >
 > **✅ Game-Launch VERIFIZIERT (2026-07-13)**: Maintainer hat vom Deck ein
 > spezifisches Spiel direkt aus Moonlight gestartet — Ansatz (a) läuft end-to-end.
@@ -15,9 +29,19 @@
 > vorerst Moonlight wg. Wix-Installer). Remote-Desktop + Gaming sind
 > cross-platform (auch Windows).
 >
-> **Nächste Schritte (mit Maintainer am Deck):** RD-1 Single-Monitor E2E, nativer
-> Deck-Controller, Multi-Display (RD-2), USB-Bridge, Clipboard. Windows-App testet
-> Maintainer, wenn „komplett fertig".
+> **✅ Repo-Konsolidierung (2026-07-13, `c36c20b`)**: Client-Code lebt jetzt **im
+> Haupt-Repo unter `client/`** (kein Moonlight-Fork mehr — der alte
+> `sonnenschein-client`-Fork wird archiviert), Submodule sauber unter `client/`,
+> GPL-3+Attribution (`client/NOTICE.sonnenschein.md`). Baut + läuft aus `client/`.
+> **Client-CI + Releases im Haupt-Repo** aufgesetzt (`.github/workflows/build-client*.yml`
+> → AppImage + Windows + macOS, Tag → Release). Host-Lint exkludiert `client/`.
+>
+> **Nächste Phase (Maintainer-Entscheidungen 2026-07-13, siehe ROADMAP „Client-Track
+> Präzisierungen"):** Easy/Advanced-RD-UX (Easy=Auto+Abfrage, Advanced=alle Toggles),
+> **Auto-Auflösung/Skalierung/Refresh für ALLE Screens**, moderne UI, **Windows echte
+> .exe + Installer**, **Decky-Plugin** (Deck Game Mode). Vieles Deck-/Stream-testgebunden.
+> Alter Fork-Repo `sonnenschein-client` → archivieren, sobald Haupt-Repo-Client-CI grün +
+> erstes Release dort.
 >
 > **CI + Test-Apps (2026-07-13) ✅ FERTIG**: Host-Repo grün. Client-Repo war rot
 > (Rebrand brach AppImage: `.desktop`-Exec + Upload-Pfad; SteamLink irrelevant) →

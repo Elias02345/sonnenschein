@@ -54,15 +54,13 @@ jobs:
           version: ${{ matrix.qt_version }}
           aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@073e34d7c2ab4ae6961ed7cca690b3abd5ba5a7e'
 
-      - name: Install Qt ARM64 (Windows)
+      # Ensure the MSVC toolchain (cl.exe) is on PATH — with the client in a
+      # subdir the default dev environment wasn't picked up ("Cannot run cl").
+      - name: Set up MSVC (Windows)
         if: runner.os == 'Windows'
-        uses: jurplel/install-qt-action@v4
+        uses: ilammy/msvc-dev-cmd@v1
         with:
-          cache: true
-          set-env: false
-          add-tools-to-path: false
-          arch: win64_msvc2022_arm64_cross_compiled
-          version: ${{ matrix.qt_version }}
+          arch: x64
 
       - name: Build x64 binaries (Windows)
         if: runner.os == 'Windows'
@@ -73,16 +71,6 @@ jobs:
           scripts\build-arch.bat Release x64
         env:
           QT_PATH: ${{ runner.workspace }}\Qt\${{ matrix.qt_version }}\msvc2022_64\bin
-
-      - name: Build ARM64 binaries (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        working-directory: client
-        run: |
-          set "PATH=%QT_PATH%;%PATH%"
-          scripts\build-arch.bat Release arm64
-        env:
-          QT_PATH: ${{ runner.workspace }}\Qt\${{ matrix.qt_version }}\msvc2022_arm64\bin
 
       - name: Build Package
         shell: pwsh
@@ -100,14 +88,6 @@ jobs:
         with:
           name: Sonnenschein-${{ runner.os }}-x64-${{ env.CI_VERSION }}
           path: client/build/deploy-x64-release/*
-          if-no-files-found: error
-
-      - name: Upload Binaries (Windows arm64)
-        uses: actions/upload-artifact@v6
-        if: runner.os == 'Windows'
-        with:
-          name: Sonnenschein-${{ runner.os }}-arm64-${{ env.CI_VERSION }}
-          path: client/build/deploy-arm64-release/*
           if-no-files-found: error
 
       - name: Upload Binaries (macOS)
