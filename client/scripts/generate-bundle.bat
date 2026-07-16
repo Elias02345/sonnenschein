@@ -52,11 +52,6 @@ if not exist "%BUILD_ROOT%\build-x64-%BUILD_CONFIG%\Moonlight.msi" (
     echo You must run 'build-arch.bat %BUILD_CONFIG% x64' first
     exit /b 1
 )
-if not exist "%BUILD_ROOT%\build-arm64-%BUILD_CONFIG%\Moonlight.msi" (
-    echo Unable to build bundle - missing binaries for %BUILD_CONFIG% arm64
-    echo You must run 'build-arch.bat %BUILD_CONFIG% arm64' first
-    exit /b 1
-)
 
 echo Cleaning output directories
 rmdir /s /q %BUILD_FOLDER%
@@ -77,9 +72,9 @@ cmd /c "set VERSION= && msbuild -Restore %SOURCE_ROOT%\wix\MoonlightSetup\Moonli
 if !ERRORLEVEL! NEQ 0 goto Error
 
 rem Rename the installer to match the publishing convention
-ren %INSTALLER_FOLDER%\MoonlightSetup.exe MoonlightSetup-%VERSION%.exe
+ren %INSTALLER_FOLDER%\MoonlightSetup.exe SonnenscheinClientSetup-%VERSION%.exe
 
-echo Build successful for Moonlight v%VERSION% installer!
+echo Build successful for Sonnenschein Client v%VERSION% installer!
 exit /b 0
 
 :Error

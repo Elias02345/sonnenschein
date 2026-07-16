@@ -1,27 +1,27 @@
-﻿<?define ShortName = "Moonlight" ?>
-<?define FullName = "Moonlight Game Streaming Client" ?>
+﻿<?define ShortName = "Sonnenschein Client" ?>
+<?define FullName = "Sonnenschein Client" ?>
 
 <?define ShortcutName = "$(var.ShortName)" ?>
-<?define ShortcutDesc = "Stream games and other applications from another PC" ?>
-<?define InstallFolder = "Moonlight Game Streaming" ?>
+<?define ShortcutDesc = "Stream games and your desktop from a Sonnenschein host" ?>
+<?define InstallFolder = "Sonnenschein Client" ?>
 
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:fire="http://wixtoolset.org/schemas/v4/wxs/firewall" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
   <Package Name="$(var.FullName)"
            Language="1033"
            Version="!(bind.fileVersion.MoonlightExe)"
-           Manufacturer="Moonlight Game Streaming Project"
-           UpgradeCode="5c09f94e-f809-4c6a-9b7b-597c99f041fe">
+           Manufacturer="Sonnenschein Project"
+           UpgradeCode="167c5326-0ad3-4bdc-b5c3-f7d712514c8e">
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." Schedule="afterInstallInitialize" />
     <MediaTemplate CompressionLevel="high" EmbedCab="yes" />
 
-    <Property Id="APPDATAFOLDER" Value="%LOCALAPPDATA%\Moonlight Game Streaming Project" />
+    <Property Id="APPDATAFOLDER" Value="%LOCALAPPDATA%\Sonnenschein" />
 
     <!-- There's no way to delete a registry key on uninstall but not major upgrade, so
         we have to roll our own deletion via custom action -->
     <CustomAction Id="DeleteRegistryKey"
                   Directory="ProgramFiles6432Folder"
-                  ExeCommand="reg.exe delete &quot;HKCU\Software\Moonlight Game Streaming Project&quot; /f"
+                  ExeCommand="reg.exe delete &quot;HKCU\Software\Sonnenschein&quot; /f"
                   Execute="deferred"
                   Return="ignore"
                   Impersonate="yes" />
@@ -45,7 +45,7 @@
                            On="uninstall"
                            Property="APPDATAFOLDER" />
       <RegistryValue Root="HKCU"
-                     Key="Software\Moonlight Game Streaming Project"
+                     Key="Software\Sonnenschein"
                      Name="Installed"
                      Type="integer"
                      Value="1"
@@ -63,7 +63,7 @@
                     Directory="DesktopFolder"
                     On="uninstall" />
       <RegistryValue Root="HKCU"
-                     Key="Software\Moonlight Game Streaming Project"
+                     Key="Software\Sonnenschein"
                      Name="DesktopShortcutInstalled"
                      Type="integer"
                      Value="1"
@@ -75,7 +75,7 @@
          product -->
     <Component Id="MoonlightDesktopShortcutState" Directory="INSTALLFOLDER">
       <RegistryValue Root="HKCU"
-                     Key="Software\Moonlight Game Streaming Project"
+                     Key="Software\Sonnenschein"
                      Name="DesktopShortcutInstallState"
                      Type="integer"
                      Value="[ADDDESKTOPSHORTCUT]"
@@ -100,7 +100,7 @@
       <Files Include="$(var.DeployDir)\**" />
     </ComponentGroup>
 
-    <Feature Id="ProductFeature" Title="Moonlight" Level="1" ConfigurableDirectory="INSTALLFOLDER">
+    <Feature Id="ProductFeature" Title="Sonnenschein Client" Level="1" ConfigurableDirectory="INSTALLFOLDER">
       <ComponentRef Id="Moonlight" />
       <ComponentRef Id="MoonlightShortcuts" />
       <ComponentRef Id="MoonlightDesktopShortcutState" />

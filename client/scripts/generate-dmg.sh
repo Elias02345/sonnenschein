@@ -96,5 +96,5 @@ if [ "$NOTARY_KEYCHAIN_PROFILE" != "" ]; then
   xcrun stapler staple -v $INSTALLER_FOLDER/Moonlight.dmg || fail "Notary ticket stapling failed!"
 fi
 
-mv $INSTALLER_FOLDER/Moonlight.dmg $INSTALLER_FOLDER/Moonlight-$VERSION.dmg
+mv $INSTALLER_FOLDER/Moonlight.dmg $INSTALLER_FOLDER/Sonnenschein_Client-$VERSION.dmg
 echo Build successful
