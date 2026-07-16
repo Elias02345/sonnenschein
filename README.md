@@ -11,7 +11,7 @@
 [![Plattform](https://img.shields.io/badge/Linux-Wayland%20%7C%20X11-success?style=for-the-badge&logo=linux)](#unterst%C3%BCtzte-distros)
 [![GPUs](https://img.shields.io/badge/GPUs-NVIDIA%20%7C%20AMD%20%7C%20Intel-76b900?style=for-the-badge)](#gpu-support)
 
-[Deutsch](#deutsch) · [English](#english) · [Roadmap](docs/ROADMAP.md) · [Diskussionen](https://github.com/Elias02345/sonnenschein/discussions) · [Issues](https://github.com/Elias02345/sonnenschein/issues)
+[Deutsch](#deutsch) · [English](#english) · [Roadmap](docs/ROADMAP.md) · [Steam Deck Setup](docs/steam-deck.md) · [Diskussionen](https://github.com/Elias02345/sonnenschein/discussions) · [Issues](https://github.com/Elias02345/sonnenschein/issues)
 
 </div>
 

@@ -28,7 +28,11 @@ jobs:
         id: set-ci-version
         shell: bash
         run: |
-          CI_VERSION=`echo ${GITHUB_SHA} | cut -c1-6`
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            CI_VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            CI_VERSION=`echo ${GITHUB_SHA} | cut -c1-6`
+          fi
           echo "ci_version=${CI_VERSION}" >> "${GITHUB_OUTPUT}"
 
   build-appimage:
@@ -43,9 +47,50 @@ jobs:
     with:
       ci_version: ${{ needs.setup.outputs.ci_version }}
 
+  # Decky-Loader plugin for Steam Deck Game Mode (decky-plugin/)
+  build-decky-plugin:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up pnpm 9
+        run: npm install -g pnpm@9
+
+      - name: Build plugin frontend
+        working-directory: decky-plugin
+        run: |
+          pnpm install --no-frozen-lockfile
+          pnpm run build
+
+      - name: Assemble plugin zip
+        shell: bash
+        run: |
+          mkdir -p out/sonnenschein/dist
+          cp decky-plugin/plugin.json decky-plugin/package.json \
+             decky-plugin/main.py decky-plugin/sonnenschein-run.sh \
+             out/sonnenschein/
+          cp decky-plugin/dist/index.js out/sonnenschein/dist/
+          cp LICENSE out/sonnenschein/LICENSE
+          chmod +x out/sonnenschein/sonnenschein-run.sh
+          (cd out && zip -r "../Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}.zip" sonnenschein)
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v6
+        with:
+          name: Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}
+          path: Sonnenschein-Decky-Plugin-*.zip
+          if-no-files-found: error
+
   # On a tag push, publish the built apps as a downloadable GitHub Release.
   release:
-    needs: [build-appimage, build-windows-macos]
+    needs: [build-appimage, build-windows-macos, build-decky-plugin]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
@@ -65,6 +110,10 @@ jobs:
               cp "$d"*.AppImage release/
             elif ls "$d"*.dmg >/dev/null 2>&1; then
               cp "$d"*.dmg release/
+            elif ls "$d"*.exe >/dev/null 2>&1; then
+              cp "$d"*.exe release/
+            elif ls "$d"*.zip >/dev/null 2>&1; then
+              cp "$d"*.zip release/
             else
               ( cd "$d" && zip -qr "$OLDPWD/release/${name}.zip" . )
             fi
