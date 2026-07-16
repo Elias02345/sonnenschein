@@ -108,6 +108,27 @@ public:
     };
     Q_ENUM(CaptureSysKeysMode);
 
+    // Sonnenschein: Easy/Advanced settings split. Easy (default) derives all
+    // stream settings automatically per device (AutoConfig) on every stream
+    // launch and only exposes a quality preference, audio config and the
+    // remote-desktop switch. Advanced restores the full settings surface.
+    enum SettingsMode
+    {
+        SM_EASY,
+        SM_ADVANCED
+    };
+    Q_ENUM(SettingsMode)
+
+    // Quality preference applied on top of the auto-detected profile in
+    // Easy mode. New entries must go at the end (persisted as int).
+    enum EasyQuality
+    {
+        EQ_AUTO,        // detected profile as-is
+        EQ_QUALITY,     // native geometry, higher bitrate
+        EQ_SMOOTHNESS   // cap geometry at 1080p, full native refresh
+    };
+    Q_ENUM(EasyQuality)
+
     Q_PROPERTY(int width MEMBER width NOTIFY displayModeChanged)
     Q_PROPERTY(int height MEMBER height NOTIFY displayModeChanged)
     Q_PROPERTY(int fps MEMBER fps NOTIFY displayModeChanged)
@@ -129,6 +150,9 @@ public:
     //           displays and stream client-matched virtual display(s).
     Q_PROPERTY(bool remoteDesktopMode MEMBER remoteDesktopMode NOTIFY remoteDesktopModeChanged)
     Q_PROPERTY(bool remoteDesktopAbsolute MEMBER remoteDesktopAbsolute NOTIFY remoteDesktopModeChanged)
+    // When set, the desktop-app RD prompt is skipped and the stored
+    // remoteDesktopMode/-Absolute values are used as-is.
+    Q_PROPERTY(bool rememberRdChoice MEMBER rememberRdChoice NOTIFY remoteDesktopModeChanged)
     Q_PROPERTY(bool absoluteTouchMode MEMBER absoluteTouchMode NOTIFY absoluteTouchModeChanged)
     Q_PROPERTY(bool framePacing MEMBER framePacing NOTIFY framePacingChanged)
     Q_PROPERTY(bool connectionWarnings MEMBER connectionWarnings NOTIFY connectionWarningsChanged)
@@ -153,6 +177,8 @@ public:
     Q_PROPERTY(bool keepAwake MEMBER keepAwake NOTIFY keepAwakeChanged)
     Q_PROPERTY(CaptureSysKeysMode captureSysKeysMode MEMBER captureSysKeysMode NOTIFY captureSysKeysModeChanged)
     Q_PROPERTY(Language language MEMBER language NOTIFY languageChanged);
+    Q_PROPERTY(SettingsMode settingsMode MEMBER settingsMode NOTIFY settingsModeChanged)
+    Q_PROPERTY(EasyQuality easyQuality MEMBER easyQuality NOTIFY easyQualityChanged)
 
     Q_INVOKABLE bool retranslate();
 
@@ -172,6 +198,7 @@ public:
     bool absoluteMouseMode;
     bool remoteDesktopMode;
     bool remoteDesktopAbsolute;
+    bool rememberRdChoice;
     bool absoluteTouchMode;
     bool framePacing;
     bool connectionWarnings;
@@ -197,6 +224,8 @@ public:
     UIDisplayMode uiDisplayMode;
     Language language;
     CaptureSysKeysMode captureSysKeysMode;
+    SettingsMode settingsMode;
+    EasyQuality easyQuality;
 
 signals:
     void displayModeChanged();
@@ -235,6 +264,8 @@ signals:
     void captureSysKeysModeChanged();
     void keepAwakeChanged();
     void languageChanged();
+    void settingsModeChanged();
+    void easyQualityChanged();
 
 private:
     explicit StreamingPreferences(QQmlEngine *qmlEngine);

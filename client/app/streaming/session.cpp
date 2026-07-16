@@ -1,6 +1,7 @@
 #include "session.h"
 #include "settings/streamingpreferences.h"
 #include "streaming/streamutils.h"
+#include "backend/autoconfig.h"
 #include "backend/richpresencemanager.h"
 
 #include <Limelight.h>
@@ -584,6 +585,11 @@ Session::~Session()
 bool Session::initialize(QQuickWindow* qtWindow)
 {
     m_QtWindow = qtWindow;
+
+    // Sonnenschein Easy mode: stamp the auto-detected device profile onto the
+    // preferences (geometry, fps, bitrate, HDR) before the stream
+    // configuration below reads them.
+    AutoConfig::applyEasyMode(m_Preferences);
 
 #ifdef Q_OS_DARWIN
     if (qEnvironmentVariableIntValue("I_WANT_BUGGY_FULLSCREEN") == 0) {
