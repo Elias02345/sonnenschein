@@ -68,7 +68,13 @@
 > `api_version: 1` (Pflicht für @decky/api-callable-Dispatch, positional
 > args auf Plugin-Klasse), `"type": "module"` (ESM-Import-Pfad), Zip-Layout
 > (plugin.json auf Tiefe 1), decky-Konstanten existieren alle.
-> → Release v0.1.1-test nach CI-Grün.
+> → **✅ RELEASE v0.1.1-test LIVE** (Run 29502085858 komplett grün):
+> <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.1-test> —
+> alle 4 Apps + Debug-Symbols; **veröffentlichtes Plugin-Bundle
+> nachgeprüft** (SP_JSX ×17, kein React.createElement). v0.1.0-test als
+> Pre-Release markiert mit Hinweis auf v0.1.1-test (damit `releases/latest`
+> und der Client-Update-Check auf die gefixte Version zeigen).
+> **Testrunde des Maintainers startet mit v0.1.1-test.**
 >
 > **🔧 Client-CI-Fix im Haupt-Repo (2026-07-16, Runde 13)**: Der erste „Client
 > Build"-Run auf `dev` (nach `dff9b93`) war rot. Der Repo-Umzug `c36c20b` hatte
