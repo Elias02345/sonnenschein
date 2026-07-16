@@ -19,6 +19,34 @@
 > werden automatisch in die Steam-Bibliothek gesynct (diff-basiert,
 > Restart-Helper als Sicherheitsnetz).
 >
+> **🟡 RUNDE-2-UMSETZUNG (2026-07-16, alles auf `dev`, CI-Ergebnis offen):**
+> 1. **M1+M2 auf `dev` gemerged** (`85bfbce`) — Sichttest verlagert in die
+>    große Testrunde (Windows-Laptop).
+> 2. **M4/M5 (`1bdf189`)**: WiX-Bundle → „Sonnenschein Client" (eigene
+>    Upgrade-GUIDs, x64-only, Install nach `Program Files\Sonnenschein
+>    Client`, Registry/AppData unter Sonnenschein), Output
+>    **`SonnenscheinClientSetup-<ver>.exe`**, CI lädt Installer statt zip
+>    hoch; dmg → `Sonnenschein_Client-<ver>.dmg`; **AutoUpdateChecker →
+>    GitHub `releases/latest`** (Button zeigt direkten Plattform-Download,
+>    Windows = Installer; Versionsparser toleriert `-test`-Suffixe);
+>    **eigene Versionslinie `0.1.0`** (version.txt, war Moonlights 6.1.0).
+> 3. **M6 (`81b446a`)**: **Decky-Plugin** (`decky-plugin/`) — Python-Backend
+>    liest das Pairing der Client-App (`~/.config/Sonnenschein/…conf`:
+>    certificate/key/uniqueid/hosts, QSettings-INI-Format verifiziert) und
+>    spricht die cert-auth Moonlight-API (`/applist`, `/appasset`); Frontend
+>    (React/TS, `@decky/ui`+`@decky/api`) **auto-synct** Host-Spiele als
+>    Non-Steam-Shortcuts (diff-basiert, Boxart, Launch-Options-Env →
+>    `sonnenschein-run.sh` → Client-AppImage aus `~/Applications`); CI-Job
+>    `build-decky-plugin` (pnpm 9 + rollup) baut das Plugin-Zip. **Doku:
+>    `docs/steam-deck.md`** (2-Teile-Anleitung, im README verlinkt).
+>    Release-Job: exe/zip direkt als Assets, Tag-Name als Version.
+> 4. **Nach CI-Grün**: Tag `v0.1.0-test` → Release mit AppImage + Installer
+>    + dmg + Plugin-Zip → große Testrunde (Deck: Gaming+Plugin;
+>    Windows-Laptop: RD + Easy/Advanced + Updater).
+> **Decky-Plugin komplett ungetestet auf echter Hardware** (kein Deck-Zugriff
+> aus der Session) — SteamClient-API-Aufrufe (AddShortcut etc.) sind nach
+> MoonDeck-Vorbild implementiert, erste Fehlerrunde am Deck einplanen.
+>
 > **🔧 Client-CI-Fix im Haupt-Repo (2026-07-16, Runde 13)**: Der erste „Client
 > Build"-Run auf `dev` (nach `dff9b93`) war rot. Der Repo-Umzug `c36c20b` hatte
 > **zweierlei verschluckt**: (1) die Exec-Bits aller `client/scripts/*.sh`
