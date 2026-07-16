@@ -29,6 +29,39 @@
 > (Bedingung erfüllt: CI grün + Release im Haupt-Repo). Kosmetik-TODO: die
 > macOS-dmg heißt noch `Moonlight-<ver>.dmg` (generate-dmg.sh/Target-Name
 > nicht rebranded) — bei nächster Client-Runde mitnehmen.
+>
+> **✅ DECK-TESTS BESTANDEN (Maintainer, 2026-07-16)**: (1) Spiele-Grid mit
+> Boxart erscheint im Client (Ansatz a end-to-end inkl. Cover); (2) RD-1
+> Remote-Desktop Single-Monitor E2E funktioniert. Beide offenen Punkte aus
+> Runde 12 damit verifiziert.
+>
+> **📋 MAINTAINER-AUFTRAG (2026-07-16, verbindlich — „Client-Modernisierung")**,
+> bestätigt + erweitert die Entscheidungen vom 13.07.:
+> 1. **Client-Rebrand + moderne UI**: Moonlight-Erbe raus, durchgängig
+>    Sonnenschein, moderner Look.
+> 2. **Windows installierbare .exe** (echter Installer), die **selbst nach
+>    Updates sucht** (GitHub Releases).
+> 3. **Auto-Settings**: beste Settings pro Gerät automatisch erkennen +
+>    anwenden. **Default = Easy-Modus** (kaum Einstellmöglichkeiten, alles
+>    automatisch). **Advanced-Modus** optional, gibt alle Controls zurück.
+> 4. **RD-Abfrage**: Verbindet sich ein Nicht-Gaming-Client mit dem
+>    Desktop-Modus/der Desktop-App → Abfrage: Remote-Desktop an/aus +
+>    Absolut- oder Single-Monitor-Modus.
+> 5. **Konstanter Stream in voller Bildwiederholrate zu allen Zeiten**
+>    (immer smooth, unabhängig vom Bildinhalt).
+> 6. **Decky-Plugin als Killer-Feature**: gräbt sich tief in den Gaming Mode
+>    ein; wenn ein verbundener Host das Spiel streamen kann, ist es direkt
+>    vom Deck aus streambar (Game-Mode-nativ).
+> **Design-Entscheidungen dazu (Maintainer, 2026-07-16)**: Easy-Modus zeigt
+> **Qualitätsregler (Auto/Qualität/Flüssigkeit) + Audio-Ausgabe-Wahl**, sonst
+> nichts; Windows-Updater = **melden + 1-Klick-Install**; Decky-Plugin
+> **nutzt die installierte Client-App** für Pairing/Streaming (Plugin = reine
+> Game-Mode-UI + Bibliotheks-Integration).
+> Ausgearbeiteter Plan: **ROADMAP „Client-Modernisierung" (M1–M6)** — M1
+> Easy/Advanced + Auto-Settings, M2 RD-Abfrage, M3 konstante volle FPS, M4
+> Rebrand/moderne UI, M5 Windows-Installer+Updater, M6 Decky-Plugin.
+> Implementierung läuft ab 2026-07-16 in dieser Reihenfolge (M1–M3 PC-testbar,
+> M6 Deck-gebunden).
 > **Umgebung heute**: Session läuft direkt auf dem CachyOS-Test-Target,
 > Repo-Pfad neu **`~/Dokumente/sonnenschein`**, Deck ist verfügbar. Merke:
 > Push während laufendem Client-Build-Run cancelt den Run (Concurrency-Gruppe)
@@ -2084,22 +2117,25 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 In Reihenfolge der Priorität:
 
-### A) Client-CI im Haupt-Repo grün + erstes Release (in Arbeit 2026-07-16)
+### A) ✅ ERLEDIGT 2026-07-16: Client-CI grün + Release v0.0.3-test + Fork archiviert
 
-Exec-Bit/MSVC-Fix `577ce22` gepusht (Details im HIER-WEITERMACHEN-Block).
-Wenn grün: Test-Tag setzen → Release-Job verifizieren (AppImage + Windows-zip
-+ dmg) → alten Fork `sonnenschein-client` archivieren.
+Details im HIER-WEITERMACHEN-Block. Ebenfalls erledigt: Deck-Tests
+Spiele-Grid/Boxart ✅ + RD-1 ✅ (Maintainer bestätigt).
 
-### B) Deck-gebundene Tests (Deck ist verfügbar, mit Maintainer)
+### B) Client-Modernisierung M1–M6 (Maintainer-Auftrag 2026-07-16, in Arbeit)
 
-1. Spiele-Streaming (Ansatz a, `a9bbaef`) auf aktuellem `dev` re-verifizieren
-   + Boxart-Rendering im Client-Grid prüfen (offen aus Runde 12).
-2. RD-1: Remote-Desktop Single-Monitor E2E — Client-Profil `remoteDesktopMode`
-   (`19733c20`) live gegen den Host bestätigen.
-3. cert-auth-Zugriff auf `/api/library` für gepairte Clients entscheiden
-   (offene Architektur-Frage, Voraussetzung für die einheitliche Client-Liste).
-4. Nativer Steam-Deck-Controller (neuer inputtino-Typ mit Deck-VID/PID,
-   Trackpads/Gyro/Back-Buttons) — Recherche + Machbarkeitsskizze.
+Plan in ROADMAP „Client-Modernisierung". Reihenfolge: **M1** Easy/Advanced +
+Auto-Settings-Engine → **M2** RD-Abfrage-Dialog → **M3** konstante volle FPS
+(Host-Pacing verifizieren + Client fordert native Refresh) → **M4** Rebrand +
+moderne UI (inkl. dmg-Name) → **M5** Windows-Installer x64 + 1-Klick-Updater →
+**M6** Decky-Plugin (nutzt Client-App; Recherche-Ergebnis in Runde 13/14).
+
+### B2) Verschoben aus altem B): offene Client-Track-Punkte
+
+- cert-auth-Zugriff auf `/api/library` für gepairte Clients entscheiden
+  (offene Architektur-Frage; für M6/einheitliche Liste relevant).
+- Nativer Steam-Deck-Controller: Machbarkeitsskizze liegt vor (Runde 13);
+  nächster Schritt wäre der Standalone-uhid-PoC (`28de:1205`).
 
 ### C) Phase-1.6-Rest (kosmetisch, LOW)
 
