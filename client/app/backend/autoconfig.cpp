@@ -138,6 +138,55 @@ void AutoConfig::applyToPreferences(const DeviceProfile& profile, StreamingPrefe
     prefs->videoCodecConfig = StreamingPreferences::VCC_AUTO;
 }
 
+void AutoConfig::applyEasyMode(StreamingPreferences* prefs)
+{
+    // Detection opens a short-lived SDL test window, so probe once per
+    // process and reuse the result for every stream launch.
+    static DeviceProfile s_CachedProfile;
+    static bool s_ProbeDone = false;
+
+    if (prefs == nullptr || prefs->settingsMode != StreamingPreferences::SM_EASY) {
+        return;
+    }
+
+    if (!s_ProbeDone) {
+        s_CachedProfile = detectProfile();
+        s_ProbeDone = true;
+    }
+
+    if (!s_CachedProfile.valid) {
+        return;
+    }
+
+    DeviceProfile profile = s_CachedProfile;
+
+    switch (prefs->easyQuality) {
+    case StreamingPreferences::EQ_QUALITY:
+        profile.bitrateKbps = profile.bitrateKbps * 4 / 3;
+        break;
+    case StreamingPreferences::EQ_SMOOTHNESS:
+        // Lighter encode/decode load at full native refresh: cap the stream
+        // geometry at 1080p while preserving the display's aspect ratio.
+        if (profile.width > 1920) {
+            profile.height = qMax(2, (profile.height * 1920 / profile.width) & ~1);
+            profile.width = 1920;
+            profile.bitrateKbps = StreamingPreferences::getDefaultBitrate(
+                profile.width, profile.height, profile.fps, false);
+        }
+        break;
+    case StreamingPreferences::EQ_AUTO:
+    default:
+        break;
+    }
+
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
+                "Easy mode: applying auto profile %dx%d@%d, %d kbps, HDR %s (quality preset %d)",
+                profile.width, profile.height, profile.fps, profile.bitrateKbps,
+                profile.hdr ? "on" : "off", static_cast<int>(prefs->easyQuality));
+
+    applyToPreferences(profile, prefs);
+}
+
 QString AutoConfig::toJson(const DeviceProfile& profile)
 {
     QJsonObject root;

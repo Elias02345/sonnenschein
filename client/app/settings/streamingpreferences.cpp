@@ -33,6 +33,7 @@
 #define SER_ABSMOUSEMODE "mouseacceleration"
 #define SER_REMOTEDESKTOP "remotedesktopmode"
 #define SER_REMOTEDESKTOPABS "remotedesktopabsolute"
+#define SER_REMEMBERRDCHOICE "rememberrdchoice"
 #define SER_ABSTOUCHMODE "abstouchmode"
 #define SER_STARTWINDOWED "startwindowed"
 #define SER_FRAMEPACING "framepacing"
@@ -53,6 +54,8 @@
 #define SER_CAPTURESYSKEYS "capturesyskeys"
 #define SER_KEEPAWAKE "keepawake"
 #define SER_LANGUAGE "language"
+#define SER_SETTINGSMODE "settingsmode"
+#define SER_EASYQUALITY "easyquality"
 
 #define CURRENT_DEFAULT_VER 2
 
@@ -139,6 +142,7 @@ void StreamingPreferences::reload()
     absoluteMouseMode = settings.value(SER_ABSMOUSEMODE, false).toBool();
     remoteDesktopMode = settings.value(SER_REMOTEDESKTOP, false).toBool();
     remoteDesktopAbsolute = settings.value(SER_REMOTEDESKTOPABS, false).toBool();
+    rememberRdChoice = settings.value(SER_REMEMBERRDCHOICE, false).toBool();
     absoluteTouchMode = settings.value(SER_ABSTOUCHMODE, true).toBool();
     framePacing = settings.value(SER_FRAMEPACING, false).toBool();
     connectionWarnings = settings.value(SER_CONNWARNINGS, true).toBool();
@@ -172,6 +176,10 @@ void StreamingPreferences::reload()
                                                                                                                  : UIDisplayMode::UI_MAXIMIZED)).toInt());
     language = static_cast<Language>(settings.value(SER_LANGUAGE,
                                                     static_cast<int>(Language::LANG_AUTO)).toInt());
+    settingsMode = static_cast<SettingsMode>(settings.value(SER_SETTINGSMODE,
+                                                            static_cast<int>(SettingsMode::SM_EASY)).toInt());
+    easyQuality = static_cast<EasyQuality>(settings.value(SER_EASYQUALITY,
+                                                          static_cast<int>(EasyQuality::EQ_AUTO)).toInt());
 
 
     // Perform default settings updates as required based on last default version
@@ -339,6 +347,7 @@ void StreamingPreferences::save()
     settings.setValue(SER_ABSMOUSEMODE, absoluteMouseMode);
     settings.setValue(SER_REMOTEDESKTOP, remoteDesktopMode);
     settings.setValue(SER_REMOTEDESKTOPABS, remoteDesktopAbsolute);
+    settings.setValue(SER_REMEMBERRDCHOICE, rememberRdChoice);
     settings.setValue(SER_ABSTOUCHMODE, absoluteTouchMode);
     settings.setValue(SER_FRAMEPACING, framePacing);
     settings.setValue(SER_CONNWARNINGS, connectionWarnings);
@@ -364,6 +373,8 @@ void StreamingPreferences::save()
     settings.setValue(SER_SWAPFACEBUTTONS, swapFaceButtons);
     settings.setValue(SER_CAPTURESYSKEYS, captureSysKeysMode);
     settings.setValue(SER_KEEPAWAKE, keepAwake);
+    settings.setValue(SER_SETTINGSMODE, static_cast<int>(settingsMode));
+    settings.setValue(SER_EASYQUALITY, static_cast<int>(easyQuality));
 }
 
 int StreamingPreferences::getDefaultBitrate(int width, int height, int fps, bool yuv444)

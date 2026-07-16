@@ -5,6 +5,8 @@ import QtQuick.Controls.Material 2.2
 import AppModel 1.0
 import ComputerManager 1.0
 import SdlGamepadKeyNavigation 1.0
+import StreamingPreferences 1.0
+import SystemProperties 1.0
 
 CenteredGridView {
     property int computerIndex
@@ -24,6 +26,18 @@ CenteredGridView {
     {
         // Go back to the PC view on PC loss
         stackView.pop()
+    }
+
+    // Shared launch path for delegate clicks and the RD prompt dialog
+    function segueToApp(appIndex, appName, isResume)
+    {
+        var component = Qt.createComponent("StreamSegue.qml")
+        var segue = component.createObject(stackView, {
+                                               "appName": appName,
+                                               "session": appModel.createSessionForApp(appIndex),
+                                               "isResume": isResume
+                                           })
+        stackView.push(segue)
     }
 
     Component.onCompleted: {
@@ -218,13 +232,20 @@ CenteredGridView {
                 return
             }
 
-            var component = Qt.createComponent("StreamSegue.qml")
-            var segue = component.createObject(stackView, {
-                                                   "appName": model.name,
-                                                   "session": appModel.createSessionForApp(index),
-                                                   "isResume": runningId === model.appid
-                                               })
-            stackView.push(segue)
+            // Sonnenschein M2: when connecting to the host's desktop from a
+            // non-gaming client, ask how the user wants to use it (remote
+            // desktop single-monitor/absolute, or plain gaming stream).
+            if (model.name === "Desktop"
+                    && SystemProperties.hasDesktopEnvironment
+                    && !StreamingPreferences.rememberRdChoice) {
+                rdPromptDialog.appName = model.name
+                rdPromptDialog.appIndex = index
+                rdPromptDialog.isResume = (runningId === model.appid)
+                rdPromptDialog.open()
+                return
+            }
+
+            appGrid.segueToApp(index, model.name, runningId === model.appid)
         }
 
         onClicked: {
@@ -342,6 +363,54 @@ CenteredGridView {
             font.pointSize: 20
             verticalAlignment: Text.AlignVCenter
             wrapMode: Text.Wrap
+        }
+    }
+
+    // Sonnenschein M2: remote-desktop prompt when launching the host's
+    // desktop app from a non-gaming client.
+    NavigableDialog {
+        id: rdPromptDialog
+        property string appName: ""
+        property int appIndex: 0
+        property bool isResume: false
+
+        title: qsTr("How do you want to use the desktop?")
+        standardButtons: Dialog.Ok | Dialog.Cancel
+
+        Column {
+            spacing: 5
+
+            RadioButton {
+                id: rdSingleRadio
+                text: qsTr("Remote desktop — single monitor (windowed)")
+                checked: StreamingPreferences.remoteDesktopMode && !StreamingPreferences.remoteDesktopAbsolute
+            }
+
+            RadioButton {
+                id: rdAbsoluteRadio
+                text: qsTr("Remote desktop — absolute (take over this device)")
+                checked: StreamingPreferences.remoteDesktopMode && StreamingPreferences.remoteDesktopAbsolute
+            }
+
+            RadioButton {
+                id: rdGamingRadio
+                text: qsTr("Gaming stream (fullscreen, controller-first)")
+                checked: !StreamingPreferences.remoteDesktopMode
+            }
+
+            CheckBox {
+                id: rdRememberCheck
+                text: qsTr("Remember my choice")
+                checked: false
+            }
+        }
+
+        onAccepted: {
+            StreamingPreferences.remoteDesktopMode = !rdGamingRadio.checked
+            StreamingPreferences.remoteDesktopAbsolute = rdAbsoluteRadio.checked
+            StreamingPreferences.rememberRdChoice = rdRememberCheck.checked
+            StreamingPreferences.save()
+            appGrid.segueToApp(appIndex, appName, isResume)
         }
     }
 

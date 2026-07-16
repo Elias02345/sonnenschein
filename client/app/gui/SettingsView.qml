@@ -76,7 +76,13 @@ Flickable {
 
         // Highlight the first item if a gamepad is connected
         if (SdlGamepadKeyNavigation.getConnectedGamepads() > 0) {
-            resolutionComboBox.forceActiveFocus(Qt.TabFocus)
+            // In Easy mode the resolution combo box is not visible
+            if (basicSettingsGroupBox.visible) {
+                resolutionComboBox.forceActiveFocus(Qt.TabFocus)
+            }
+            else {
+                easyModeRadio.forceActiveFocus(Qt.TabFocus)
+            }
         }
     }
 
@@ -99,8 +105,158 @@ Flickable {
         width: settingsPage.width / 2
         spacing: 15
 
+        // Sonnenschein: Easy/Advanced settings split. Easy hides everything
+        // except a quality preference, audio and remote desktop — all stream
+        // settings are auto-detected per device on every connection.
+        GroupBox {
+            id: modeSettingsGroupBox
+            width: (parent.width - (parent.leftPadding + parent.rightPadding))
+            padding: 12
+            title: "<font color=\"skyblue\">" + qsTr("Settings Mode") + "</font>"
+            font.pointSize: 12
+
+            Column {
+                anchors.fill: parent
+                spacing: 5
+
+                Row {
+                    spacing: 5
+
+                    RadioButton {
+                        id: easyModeRadio
+                        text: qsTr("Easy (automatic)")
+                        font.pointSize: 12
+                        checked: StreamingPreferences.settingsMode === StreamingPreferences.SM_EASY
+                        onCheckedChanged: {
+                            if (checked) {
+                                StreamingPreferences.settingsMode = StreamingPreferences.SM_EASY
+                            }
+                        }
+                    }
+
+                    RadioButton {
+                        id: advancedModeRadio
+                        text: qsTr("Advanced")
+                        font.pointSize: 12
+                        checked: StreamingPreferences.settingsMode === StreamingPreferences.SM_ADVANCED
+                        onCheckedChanged: {
+                            if (checked) {
+                                StreamingPreferences.settingsMode = StreamingPreferences.SM_ADVANCED
+                            }
+                        }
+                    }
+                }
+
+                Label {
+                    width: parent.width
+                    text: qsTr("Easy mode picks perfect stream settings for this device automatically — resolution, refresh rate, codec, bitrate and HDR are detected on every connection.")
+                    font.pointSize: 9
+                    wrapMode: Text.Wrap
+                    visible: easyModeRadio.checked
+                }
+            }
+        }
+
+        GroupBox {
+            id: easySettingsGroupBox
+            visible: StreamingPreferences.settingsMode === StreamingPreferences.SM_EASY
+            width: (parent.width - (parent.leftPadding + parent.rightPadding))
+            padding: 12
+            title: "<font color=\"skyblue\">" + qsTr("Preference") + "</font>"
+            font.pointSize: 12
+
+            Column {
+                anchors.fill: parent
+                spacing: 5
+
+                Column {
+                    width: parent.width
+                    spacing: 0
+
+                    RadioButton {
+                        text: qsTr("Balanced (recommended)")
+                        font.pointSize: 12
+                        checked: StreamingPreferences.easyQuality === StreamingPreferences.EQ_AUTO
+                        onCheckedChanged: {
+                            if (checked) {
+                                StreamingPreferences.easyQuality = StreamingPreferences.EQ_AUTO
+                            }
+                        }
+                    }
+
+                    RadioButton {
+                        text: qsTr("Best picture quality")
+                        font.pointSize: 12
+                        checked: StreamingPreferences.easyQuality === StreamingPreferences.EQ_QUALITY
+                        onCheckedChanged: {
+                            if (checked) {
+                                StreamingPreferences.easyQuality = StreamingPreferences.EQ_QUALITY
+                            }
+                        }
+                    }
+
+                    RadioButton {
+                        text: qsTr("Smoothest motion")
+                        font.pointSize: 12
+                        checked: StreamingPreferences.easyQuality === StreamingPreferences.EQ_SMOOTHNESS
+                        onCheckedChanged: {
+                            if (checked) {
+                                StreamingPreferences.easyQuality = StreamingPreferences.EQ_SMOOTHNESS
+                            }
+                        }
+                    }
+                }
+
+                CheckBox {
+                    id: easyRemoteDesktopCheck
+                    width: parent.width
+                    text: qsTr("Remote desktop mode")
+                    font.pointSize: 12
+                    checked: StreamingPreferences.remoteDesktopMode
+                    onCheckedChanged: {
+                        StreamingPreferences.remoteDesktopMode = checked
+                    }
+                    ToolTip.delay: 1000
+                    ToolTip.timeout: 5000
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Use the host like a computer: window mode, absolute mouse and keyboard-first input.")
+                }
+
+                Column {
+                    width: parent.width
+                    spacing: 0
+                    visible: easyRemoteDesktopCheck.checked
+
+                    RadioButton {
+                        text: qsTr("Single monitor (windowed)")
+                        font.pointSize: 11
+                        leftPadding: 30
+                        checked: !StreamingPreferences.remoteDesktopAbsolute
+                        onCheckedChanged: {
+                            if (checked) {
+                                StreamingPreferences.remoteDesktopAbsolute = false
+                            }
+                        }
+                    }
+
+                    RadioButton {
+                        text: qsTr("Absolute (take over this device)")
+                        font.pointSize: 11
+                        leftPadding: 30
+                        checked: StreamingPreferences.remoteDesktopAbsolute
+                        onCheckedChanged: {
+                            if (checked) {
+                                StreamingPreferences.remoteDesktopAbsolute = true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         GroupBox {
             id: basicSettingsGroupBox
+            visible: StreamingPreferences.settingsMode === StreamingPreferences.SM_ADVANCED
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
             title: "<font color=\"skyblue\">" + qsTr("Basic Settings") + "</font>"
@@ -1001,6 +1157,7 @@ Flickable {
 
         GroupBox {
             id: hostSettingsGroupBox
+            visible: StreamingPreferences.settingsMode === StreamingPreferences.SM_ADVANCED
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
             title: "<font color=\"skyblue\">" + qsTr("Host Settings") + "</font>"
@@ -1041,6 +1198,7 @@ Flickable {
 
         GroupBox {
             id: uiSettingsGroupBox
+            visible: StreamingPreferences.settingsMode === StreamingPreferences.SM_ADVANCED
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
             title: "<font color=\"skyblue\">" + qsTr("UI Settings") + "</font>"
@@ -1350,6 +1508,7 @@ Flickable {
 
         GroupBox {
             id: inputSettingsGroupBox
+            visible: StreamingPreferences.settingsMode === StreamingPreferences.SM_ADVANCED
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
             title: "<font color=\"skyblue\">" + qsTr("Input Settings") + "</font>"
@@ -1498,6 +1657,7 @@ Flickable {
 
         GroupBox {
             id: gamepadSettingsGroupBox
+            visible: StreamingPreferences.settingsMode === StreamingPreferences.SM_ADVANCED
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
             title: "<font color=\"skyblue\">" + qsTr("Gamepad Settings") + "</font>"
@@ -1573,6 +1733,7 @@ Flickable {
 
         GroupBox {
             id: advancedSettingsGroupBox
+            visible: StreamingPreferences.settingsMode === StreamingPreferences.SM_ADVANCED
             width: (parent.width - (parent.leftPadding + parent.rightPadding))
             padding: 12
             title: "<font color=\"skyblue\">" + qsTr("Advanced Settings") + "</font>"

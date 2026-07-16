@@ -61,6 +61,16 @@ public:
     // pick the best codec both client and host support.
     static void applyToPreferences(const DeviceProfile& profile, StreamingPreferences* prefs);
 
+    // Easy mode: when prefs->settingsMode == SM_EASY, detect the device
+    // profile (cached for the lifetime of the process) and stamp it onto the
+    // preferences at stream launch, modulated by prefs->easyQuality:
+    //   EQ_AUTO       — detected profile as-is
+    //   EQ_QUALITY    — native geometry, ~33% higher bitrate
+    //   EQ_SMOOTHNESS — geometry capped at 1080p, full native refresh rate
+    // No-op in Advanced mode or when detection fails, so a broken probe can
+    // never make things worse than the stored preferences.
+    static void applyEasyMode(StreamingPreferences* prefs);
+
     // Render a profile as a human/machine-readable JSON object.
     static QString toJson(const DeviceProfile& profile);
 };
