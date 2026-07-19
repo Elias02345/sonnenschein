@@ -125,6 +125,24 @@
 >    — es beweist den Backend-Zustand; falls rot, liefert es den
 >    Traceback für Fehlerrunde 4.
 >
+> **🎯 DECK-FEHLERRUNDE 4 (2026-07-19) — ROOT CAUSE GEFUNDEN**: Das
+> Install-Script hat wie designed den Original-Traceback geliefert:
+> **`ModuleNotFoundError: No module named 'xml.etree'`**. Der Decky-Loader
+> shippt ein **PyInstaller-frozen Python**, das nur die vom Loader selbst
+> genutzten Stdlib-Module bündelt — `xml.etree` fehlt (darum liefen alle
+> lokalen System-Python-Tests durch!). Das war von Anfang an die Ursache
+> von „Backend antwortet nicht". Beweisbar OK sind alle anderen genutzten
+> Module (v0.1.2-Traceback: alle Imports VOR xml.etree kamen durch).
+> Zweiter Script-Bug: `~/homebrew/plugins` ist **root-owned** → unzip ohne
+> sudo scheiterte still. **Fixes (`e314f61`)**: applist/serverinfo-Parsing
+> via `re` + manuellem Entity-Unescape (kein xml-Import mehr im ganzen
+> Backend); Script nutzt sudo-unzip + Loader-Ownership-Konvention
+> (Inhalte deck, Top-Dir root), räumt alte Logs, prüft plugin.json vor
+> dem Verdikt. **Verifiziert mit Frozen-Python-Simulation** (meta_path-
+> Blocker: xml-Import wirft) — kompletter Loader-Maschinerie-Lauf inkl.
+> Live-serverinfo/applist gegen den echten Host + synthetischem
+> 200er-Parse mit Entities. → Release v0.1.4-test.
+>
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
 > veröffentlichtes Plugin-Zip nachgeprüft (Parser-Fix + Timeouts im
