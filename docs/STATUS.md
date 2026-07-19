@@ -141,7 +141,13 @@
 > dem Verdikt. **Verifiziert mit Frozen-Python-Simulation** (meta_path-
 > Blocker: xml-Import wirft) — kompletter Loader-Maschinerie-Lauf inkl.
 > Live-serverinfo/applist gegen den echten Host + synthetischem
-> 200er-Parse mit Entities. → Release v0.1.4-test.
+> 200er-Parse mit Entities. → **✅ RELEASE v0.1.4-test LIVE** (2026-07-19,
+> Run 29696225160 grün): veröffentlichtes Zip unter Frozen-Python-
+> Simulation erneut komplett verifiziert; v0.1.3 als überholt markiert.
+> **Lektion für alle künftigen Decky-Backends**: nur Stdlib-Module
+> verwenden, deren Präsenz im Loader-Python belegt ist (os, json, re,
+> ssl, http.client, urllib.parse, uuid, base64, glob, tempfile ✓;
+> xml.etree ✗) — oder Module nach MoonDeck-Art selbst bündeln.
 >
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
