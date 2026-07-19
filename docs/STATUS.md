@@ -118,7 +118,12 @@
 >    **beweist danach den Backend-Zustand**: Prozess-Check, Journal-Grep
 >    mit Traceback-Ausgabe, Plugin-Log. Ein-Zeiler in steam-deck.md
 >    (curl | bash von raw.githubusercontent). Loader-Maschinerie-Test
->    erneut grün. → Release v0.1.3-test.
+>    erneut grün. → **✅ RELEASE v0.1.3-test LIVE** (2026-07-19, Run
+>    29694763009 grün): veröffentlichtes Zip erneut durch die
+>    Loader-Maschinerie verifiziert; v0.1.2 als überholt markiert.
+>    **Maintainer-Testpfad: Install-Script im Desktop-Modus ausführen**
+>    — es beweist den Backend-Zustand; falls rot, liefert es den
+>    Traceback für Fehlerrunde 4.
 >
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
