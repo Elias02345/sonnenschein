@@ -111,11 +111,31 @@ def _read_client_conf():
     return conf
 
 
+
+def _xml_unescape(text):
+    # &amp; MUST be last
+    for entity, char in (("&lt;", "<"), ("&gt;", ">"), ("&quot;", '"'), ("&apos;", "'"), ("&amp;", "&")):
+        text = text.replace(entity, char)
+    return text
+
+
+def _check_host_status(text):
+    """Raise a clear error when the host answers with an error status_code
+    attribute (Moonlight hosts report errors inside an HTTP-200 body)."""
+    import re
+
+    m = re.search(r'status_code="(\d+)"', text)
+    if m and m.group(1) != "200":
+        mm = re.search(r'status_message="([^"]*)"', text)
+        msg = _xml_unescape(mm.group(1)) if mm else f"Host-Fehler {m.group(1)}"
+        raise RuntimeError(f"Host lehnt ab ({m.group(1)}): {msg} — ggf. Client-App neu pairen.")
+
+
 def _https_port(address, http_port):
     """Resolve the host's HTTPS port via unauthenticated HTTP /serverinfo
     (same as the client does); fall back to the Sunshine convention -5."""
     import http.client
-    import xml.etree.ElementTree as ET
+    import re
 
     try:
         conn = http.client.HTTPConnection(address, int(http_port), timeout=5)
@@ -126,10 +146,10 @@ def _https_port(address, http_port):
         finally:
             conn.close()
         if resp.status == 200:
-            root = ET.fromstring(body)
-            val = root.findtext("HttpsPort")
-            if val and val.isdigit() and int(val) > 0:
-                return int(val)
+            # NB: no xml.etree here — Decky's frozen Python doesn't bundle it
+            m = re.search(r"<HttpsPort>(\d+)</HttpsPort>", body.decode("utf-8", "replace"))
+            if m and int(m.group(1)) > 0:
+                return int(m.group(1))
     except Exception as e:
         decky.logger.info(f"serverinfo probe failed for {address}:{http_port}: {e}")
     return int(http_port) - 5
@@ -230,28 +250,26 @@ class Plugin:
         conf = _read_client_conf()
         api = _HostApi(conf)
         uid = conf["uniqueid"] or "0123456789ABCDEF"
+        import re
         import urllib.parse
         import uuid as uuidlib
-        import xml.etree.ElementTree as ET
 
         path = "/applist?uniqueid={}&uuid={}".format(
             urllib.parse.quote(uid), uuidlib.uuid4().hex
         )
         body = api.get(address, _https_port(address, port), path)
 
+        # Parsed with re instead of xml.etree: Decky's frozen Python does
+        # not bundle xml.etree (proven ModuleNotFoundError on the Deck).
+        text = body.decode("utf-8", "replace")
+        _check_host_status(text)
+
         apps = []
-        root = ET.fromstring(body)
-        # Moonlight hosts answer HTTP 200 with an error status_code attribute
-        # (e.g. 401 when the client cert isn't paired) — surface that clearly.
-        sc = root.get("status_code")
-        if sc and sc != "200":
-            msg = root.get("status_message") or f"Host-Fehler {sc}"
-            raise RuntimeError(f"Host lehnt ab ({sc}): {msg} — ggf. Client-App neu pairen.")
-        for app in root.iter("App"):
-            title = app.findtext("AppTitle")
-            app_id = app.findtext("ID")
-            if title and app_id:
-                apps.append({"id": app_id, "title": title})
+        for block in re.findall(r"<App>(.*?)</App>", text, re.S):
+            t = re.search(r"<AppTitle>([^<]*)</AppTitle>", block)
+            i = re.search(r"<ID>([^<]*)</ID>", block)
+            if t and i:
+                apps.append({"id": i.group(1).strip(), "title": _xml_unescape(t.group(1).strip())})
         return apps
 
     async def get_boxart(self, address, port, app_id):

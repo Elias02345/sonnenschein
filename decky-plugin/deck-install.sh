@@ -32,8 +32,8 @@ info "sudo is required to restart Decky Loader — you may be asked for your pas
 info "Stopping Decky Loader..."
 sudo systemctl stop plugin_loader
 
-info "Removing old plugin files..."
-sudo rm -rf "$PLUGIN_DIR"
+info "Removing old plugin files and stale logs..."
+sudo rm -rf "$PLUGIN_DIR" "$LOGS_DIR"
 
 info "Fetching latest release info..."
 ZIP_URL=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
@@ -48,15 +48,24 @@ TMPZIP=$(mktemp /tmp/sonnenschein-plugin-XXXX.zip)
 curl -fsSL -o "$TMPZIP" "$ZIP_URL"
 
 info "Installing to $PLUGIN_DIR ..."
-unzip -q -o "$TMPZIP" -d "$PLUGINS_DIR"
+# ~/homebrew/plugins is root-owned on the Deck — extraction needs sudo.
+sudo unzip -q -o "$TMPZIP" -d "$PLUGINS_DIR"
 rm -f "$TMPZIP"
 
-# Owned by deck with sane modes — Decky's own permission fixer then takes
-# over on load (it only skips fixing when the dir is root-owned).
-chown -R "$(id -un):$(id -gn)" "$PLUGIN_DIR" 2>/dev/null || sudo chown -R deck:deck "$PLUGIN_DIR"
-chmod -R u+rwX,go+rX "$PLUGIN_DIR"
-chmod +x "$PLUGIN_DIR/sonnenschein-run.sh" 2>/dev/null
-find "$PLUGIN_DIR" -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null
+if [ ! -f "$PLUGIN_DIR/plugin.json" ]; then
+    err "Installation failed — $PLUGIN_DIR/plugin.json missing after unzip."
+    sudo systemctl start plugin_loader
+    exit 1
+fi
+
+# Decky's own convention: plugin contents owned by deck, the top-level
+# plugin dir owned by root (the loader's permission fixer treats a
+# root-owned top dir as 'already correct').
+sudo chown -R "$(id -un):$(id -gn)" "$PLUGIN_DIR"
+sudo chmod -R u+rwX,go+rX "$PLUGIN_DIR"
+sudo chmod +x "$PLUGIN_DIR/sonnenschein-run.sh" 2>/dev/null
+sudo find "$PLUGIN_DIR" -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null
+sudo chown root:root "$PLUGIN_DIR"
 
 info "Starting Decky Loader..."
 sudo systemctl start plugin_loader
