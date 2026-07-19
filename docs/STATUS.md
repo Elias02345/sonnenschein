@@ -190,6 +190,11 @@
 > **Nur am Deck testbar**: Game-Page-Patch-Rendering, Titel-Matching
 > gegen echte Bibliothek, RunGame-Fokus. Sonnet-Agent musste 1× nach
 > Session-Limit per SendMessage fortgesetzt werden (Kontext blieb).
+> **✅ RELEASE v0.2.0-test LIVE** (2026-07-20, Run 29707037957 grün):
+> veröffentlichtes Zip verifiziert (Frontend-Strings + Backend durch
+> Loader-Maschinerie), v0.1.4 als überholt markiert. Maintainer-Test:
+> Install-Script → Deck-Neustart → Spieleseite eines Host-Spiels
+> (z. B. Portal) → „Stream via Sonnenschein"-Button.
 >
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
