@@ -234,13 +234,23 @@ class Plugin:
 
     async def get_status(self):
         conf = _read_client_conf()
+        client = _find_client_app()
         return {
             "clientConfFound": os.path.exists(CLIENT_CONF),
             "paired": bool(conf["certificate"]) and bool(conf["hosts"]),
-            "clientAppFound": bool(_find_client_app()),
+            "clientAppFound": bool(client),
+            "clientApp": client,
+            "appImagesFound": _list_appimages(),
             "runnerPath": RUNNER,
             "hosts": conf["hosts"],
         }
+
+    async def set_client_path(self, path):
+        """Persist a user-picked client path (from the panel file picker)."""
+        settings = _read_settings()
+        settings["client_path"] = path
+        _write_settings(settings)
+        return os.path.isfile(path)
 
     async def get_apps(self, address, port):
         """Fetch the host's app list (unified library) via mutual TLS.
@@ -293,26 +303,83 @@ class Plugin:
         return {"data": base64.b64encode(body).decode("ascii"), "ext": ext}
 
     async def get_launch_options(self, address, app_title):
-        """Launch options string encoding host + app for the runner script."""
+        """Launch options string encoding host + app (and the resolved
+        client path, so the runner never has to guess) for the runner."""
         host = address.replace("'", "")
         app = app_title.replace("'", "")
-        return f"SONNENSCHEIN_HOST='{host}' SONNENSCHEIN_APP='{app}' %command%"
+        client = _find_client_app().replace("'", "")
+        prefix = f"SONNENSCHEIN_CLIENT='{client}' " if client and client != "flatpak" else ""
+        return f"{prefix}SONNENSCHEIN_HOST='{host}' SONNENSCHEIN_APP='{app}' %command%"
+
+
+SETTINGS_FILE = os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")
+
+CLIENT_SEARCH_DIRS = (
+    "Applications", "applications", "Downloads", "Desktop", ".local/bin", ""
+)
+
+
+def _read_settings():
+    try:
+        with open(SETTINGS_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _write_settings(settings):
+    os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings, f)
 
 
 def _find_client_app():
-    """Locate the Sonnenschein Client on the Deck (AppImage or flatpak)."""
-    import glob
+    """Locate the Sonnenschein Client on the Deck.
 
-    candidates = sorted(
-        glob.glob(os.path.join(decky.DECKY_USER_HOME, "Applications", "Sonnenschein_Client*.AppImage"))
-    )
+    Order: user-picked path (settings) → case-insensitive search for a
+    Sonnenschein AppImage across common dirs → flatpak.
+    """
+    override = _read_settings().get("client_path", "")
+    if override and os.path.isfile(override):
+        return override
+
+    home = decky.DECKY_USER_HOME
+    candidates = []
+    for sub in CLIENT_SEARCH_DIRS:
+        d = os.path.join(home, sub) if sub else home
+        try:
+            for name in os.listdir(d):
+                low = name.lower()
+                if low.endswith(".appimage") and "sonnenschein" in low:
+                    candidates.append(os.path.join(d, name))
+        except OSError:
+            continue
     if candidates:
+        # Newest by mtime — usually the latest downloaded version
+        candidates.sort(key=lambda c: os.path.getmtime(c))
         return candidates[-1]
+
     import glob
-    for flatpak in ("/var/lib/flatpak", os.path.join(decky.DECKY_USER_HOME, ".local/share/flatpak")):
+    for flatpak in ("/var/lib/flatpak", os.path.join(home, ".local/share/flatpak")):
         if glob.glob(os.path.join(flatpak, "app", "io.github.elias02345.Sonnenschein*")):
             return "flatpak"
     return ""
+
+
+def _list_appimages():
+    """All AppImages in the search dirs — shown in the panel when the
+    client is not auto-detected, so the user sees what IS there."""
+    home = decky.DECKY_USER_HOME
+    found = []
+    for sub in CLIENT_SEARCH_DIRS:
+        d = os.path.join(home, sub) if sub else home
+        try:
+            for name in os.listdir(d):
+                if name.lower().endswith(".appimage"):
+                    found.append(os.path.join(d, name))
+        except OSError:
+            continue
+    return found
 
 
 decky.logger.info("Sonnenschein backend module imported OK")

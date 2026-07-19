@@ -1,8 +1,11 @@
 // Sonnenschein Decky plugin frontend.
 //
-// Shows the paired host's library in the Quick Access Menu and syncs every
-// host game into the Steam library automatically (diff-based), so games
-// stream right from Game Mode. Steam shortcut handling follows the pattern
+// Shows the paired host's library in the Quick Access Menu and syncs host
+// games into the Steam library automatically (diff-based), so games stream
+// right from Game Mode. Host games that already exist as native Steam
+// library entries get no duplicate shortcut — instead the native game page
+// receives a "Stream via Sonnenschein" button (see gamepage.tsx) backed by
+// one reusable hidden shortcut. Steam shortcut handling follows the pattern
 // proven by MoonDeck (GPL-3, https://github.com/FrogTheFrog/moondeck).
 
 import {
@@ -11,31 +14,37 @@ import {
   PanelSectionRow,
   staticClasses,
 } from "@decky/ui";
-import { callable, definePlugin, toaster } from "@decky/api";
+import {
+  callable,
+  definePlugin,
+  FileSelectionType,
+  openFilePicker,
+  routerHook,
+  toaster,
+} from "@decky/api";
 import { useEffect, useState } from "react";
 import { FaSun } from "react-icons/fa";
-
-interface HostInfo {
-  name: string;
-  uuid: string;
-  address: string;
-  port: number;
-}
+import {
+  addShortcut,
+  findLibraryAppByTitle,
+  launchGame,
+  setRunnerPath,
+  shortcutExists,
+  streamGame,
+  updateHostGameIndex,
+} from "./steamlib";
+import type { HostApp, HostInfo, SyncState } from "./steamlib";
+import { patchLibraryApp } from "./gamepage";
 
 interface Status {
   clientConfFound: boolean;
   paired: boolean;
   clientAppFound: boolean;
+  clientApp: string;
+  appImagesFound: string[];
   runnerPath: string;
   hosts: HostInfo[];
 }
-
-interface HostApp {
-  id: string;
-  title: string;
-}
-
-type SyncState = Record<string, number>; // "<hostUuid>/<appId>" -> steam appId
 
 const ping = callable<[], boolean>("ping");
 const getStatus = callable<[], Status>("get_status");
@@ -44,6 +53,7 @@ const getBoxart = callable<[string, number, string], { data: string; ext: string
 const getLaunchOptions = callable<[string, string], string>("get_launch_options");
 const getState = callable<[], SyncState>("get_state");
 const setState = callable<[SyncState], boolean>("set_state");
+const setClientPath = callable<[string], boolean>("set_client_path");
 
 // A backend that never answers must not leave the panel stuck — every
 // backend call runs against a deadline.
@@ -60,32 +70,6 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 const EXCLUDED_TITLES = new Set(["Desktop", "Steam Big Picture"]);
 
 declare const SteamClient: any;
-declare const appStore: any;
-
-async function addShortcut(name: string, exe: string): Promise<number | null> {
-  try {
-    // Newer Steam builds ignore the name argument — set it explicitly after.
-    const appId: number = await SteamClient.Apps.AddShortcut(name, exe, "", "");
-    if (typeof appId !== "number" || appId <= 0) {
-      return null;
-    }
-    try {
-      await SteamClient.Apps.SetShortcutName(appId, name);
-    } catch (_) { /* older API sets it via AddShortcut already */ }
-    return appId;
-  } catch (e) {
-    console.error("Sonnenschein: AddShortcut failed", e);
-    return null;
-  }
-}
-
-function shortcutExists(appId: number): boolean {
-  try {
-    return !!appStore.GetAppOverviewByAppID(appId);
-  } catch (_) {
-    return false;
-  }
-}
 
 async function syncHost(host: HostInfo, runnerPath: string, state: SyncState): Promise<{ added: number; removed: number; total: number }> {
   const status = { added: 0, removed: 0, total: 0 };
@@ -93,9 +77,15 @@ async function syncHost(host: HostInfo, runnerPath: string, state: SyncState): P
   const games = apps.filter((a) => !EXCLUDED_TITLES.has(a.title));
   status.total = games.length;
 
-  const wantedKeys = new Set(games.map((a) => `${host.uuid}/${a.id}`));
+  // Games that already exist as native Steam library entries get NO own
+  // shortcut — they stream via the game-page button (gamepage.tsx). Leaving
+  // them out of the wanted set also makes the diff below remove shortcuts
+  // created before the game appeared in the library.
+  const shortcutGames = games.filter((a) => findLibraryAppByTitle(a.title) === null);
+  const wantedKeys = new Set(shortcutGames.map((a) => `${host.uuid}/${a.id}`));
 
-  // Remove shortcuts for games that vanished from the host
+  // Remove shortcuts for games that vanished from the host (or are now
+  // matched to a native library entry)
   for (const key of Object.keys(state)) {
     if (key.startsWith(`${host.uuid}/`) && !wantedKeys.has(key)) {
       const appId = state[key];
@@ -112,7 +102,7 @@ async function syncHost(host: HostInfo, runnerPath: string, state: SyncState): P
   }
 
   // Add missing shortcuts
-  for (const app of games) {
+  for (const app of shortcutGames) {
     const key = `${host.uuid}/${app.id}`;
     if (state[key] && shortcutExists(state[key])) {
       continue;
@@ -148,26 +138,13 @@ async function syncHost(host: HostInfo, runnerPath: string, state: SyncState): P
   return status;
 }
 
-function launchGame(steamAppId: number) {
-  try {
-    const overview = appStore.GetAppOverviewByAppID(steamAppId);
-    const gameId = overview?.gameid ?? overview?.m_gameid;
-    if (!gameId) {
-      toaster.toast({ title: "Sonnenschein", body: "Shortcut not found — try re-syncing." });
-      return;
-    }
-    SteamClient.Apps.RunGame(gameId, "", -1, 100);
-  } catch (e) {
-    console.error("Sonnenschein: RunGame failed", e);
-  }
-}
-
 function Content() {
   const [status, setStatus] = useState<Status | null>(null);
   const [apps, setApps] = useState<HostApp[]>([]);
   const [syncState, setSyncState] = useState<SyncState>({});
   const [busy, setBusy] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const [streamingTitle, setStreamingTitle] = useState<string>("");
 
   const refresh = async (autoSync: boolean) => {
     try {
@@ -196,6 +173,7 @@ function Content() {
       setBusy("Lese Client-Konfiguration…");
       const s = await withTimeout(getStatus(), 10000, "Status");
       setStatus(s);
+      setRunnerPath(s.runnerPath);
       if (!s.paired || s.hosts.length === 0) {
         setBusy("");
         return;
@@ -216,13 +194,52 @@ function Content() {
 
       setBusy("Lade Spieleliste…");
       const hostApps = await withTimeout(getApps(host.address, host.port), 20000, "Spieleliste");
-      setApps(hostApps.filter((a) => !EXCLUDED_TITLES.has(a.title)));
+      const games = hostApps.filter((a) => !EXCLUDED_TITLES.has(a.title));
+      // Keep the game-page button's index in sync with what the panel shows.
+      updateHostGameIndex(host, games);
+      setApps(games);
       setSyncState({ ...state });
       setBusy("");
     } catch (e: any) {
       console.error("Sonnenschein: refresh failed", e);
       setBusy("");
       setError(`${e?.message ?? e}`);
+    }
+  };
+
+  const pickClientApp = async () => {
+    try {
+      const res = await openFilePicker(FileSelectionType.FILE, "/home/deck", true, false);
+      if (!res?.path) {
+        return;
+      }
+      setBusy("Speichere Client-App-Pfad…");
+      const ok = await withTimeout(setClientPath(res.path), 10000, "Client-Pfad speichern");
+      if (!ok) {
+        throw new Error("Backend hat den Pfad nicht akzeptiert.");
+      }
+      await refresh(false);
+    } catch (e: any) {
+      // A cancelled picker rejects its promise — not an error worth showing.
+      const msg = `${e?.message ?? e}`;
+      if (/cancel/i.test(msg)) {
+        return;
+      }
+      console.error("Sonnenschein: pickClientApp failed", e);
+      setBusy("");
+      setError(msg);
+    }
+  };
+
+  const startStream = async (host: HostInfo, app: HostApp) => {
+    setStreamingTitle(app.title);
+    try {
+      const ok = await streamGame(host, app.title);
+      if (!ok) {
+        toaster.toast({ title: "Sonnenschein", body: `${app.title} konnte nicht gestartet werden.` });
+      }
+    } finally {
+      setStreamingTitle("");
     }
   };
 
@@ -269,8 +286,33 @@ function Content() {
     <>
       <PanelSection title={host.name}>
         {!status.clientAppFound && (
+          <>
+            <PanelSectionRow>
+              ⚠ Client-App nicht gefunden — lege die AppImage in ~/Applications ab
+              oder wähle sie manuell aus.
+            </PanelSectionRow>
+            {status.appImagesFound.length > 0 && (
+              <PanelSectionRow>
+                <div style={{ fontSize: "0.75em", wordBreak: "break-all" }}>
+                  Gefundene AppImages:
+                  {status.appImagesFound.map((p) => (
+                    <div key={p}>{p}</div>
+                  ))}
+                </div>
+              </PanelSectionRow>
+            )}
+            <PanelSectionRow>
+              <ButtonItem layout="below" onClick={pickClientApp} disabled={!!busy}>
+                Client-App auswählen…
+              </ButtonItem>
+            </PanelSectionRow>
+          </>
+        )}
+        {status.clientAppFound && !!status.clientApp && (
           <PanelSectionRow>
-            ⚠ Client-App nicht gefunden — lege die AppImage in ~/Applications ab.
+            <div style={{ fontSize: "0.7em", opacity: 0.6, wordBreak: "break-all" }}>
+              Client-App: {status.clientApp}
+            </div>
           </PanelSectionRow>
         )}
         {busy && <PanelSectionRow>{busy}</PanelSectionRow>}
@@ -283,15 +325,25 @@ function Content() {
 
       <PanelSection title={`Spiele (${apps.length})`}>
         {apps.map((app) => {
+          // Games with a native Steam library entry stream via the shared
+          // hidden shortcut; the rest launch their own synced shortcut.
+          const libraryMatch = findLibraryAppByTitle(app.title);
           const steamAppId = syncState[`${host.uuid}/${app.id}`];
+          const canLaunch = libraryMatch !== null || !!steamAppId;
           return (
             <PanelSectionRow key={app.id}>
               <ButtonItem
                 layout="below"
-                onClick={() => steamAppId && launchGame(steamAppId)}
-                disabled={!steamAppId}
+                onClick={() => {
+                  if (libraryMatch) {
+                    startStream(host, app);
+                  } else if (steamAppId) {
+                    launchGame(steamAppId);
+                  }
+                }}
+                disabled={!canLaunch || streamingTitle === app.title}
               >
-                {app.title}
+                {streamingTitle === app.title ? `${app.title} — startet…` : app.title}
               </ButtonItem>
             </PanelSectionRow>
           );
@@ -301,12 +353,35 @@ function Content() {
   );
 }
 
+const LIBRARY_APP_ROUTE = "/library/app/:appid";
+
 export default definePlugin(() => {
+  // Game-page button on /library/app/:appid — MoonDeck-style route patch.
+  const libraryPatch = patchLibraryApp(LIBRARY_APP_ROUTE);
+
+  // Populate the host game index right at plugin load so the game-page
+  // button works before the QAM panel was ever opened.
+  (async () => {
+    try {
+      const s = await getStatus();
+      setRunnerPath(s.runnerPath);
+      if (s.paired && s.hosts.length > 0) {
+        const host = s.hosts[0];
+        const hostApps = await getApps(host.address, host.port);
+        updateHostGameIndex(host, hostApps.filter((a) => !EXCLUDED_TITLES.has(a.title)));
+      }
+    } catch (e) {
+      console.error("Sonnenschein: initial host game index load failed", e);
+    }
+  })();
+
   return {
     name: "Sonnenschein",
     titleView: <div className={staticClasses.Title}>Sonnenschein</div>,
     content: <Content />,
     icon: <FaSun />,
-    onDismount() {},
+    onDismount() {
+      routerHook.removePatch(LIBRARY_APP_ROUTE, libraryPatch);
+    },
   };
 });

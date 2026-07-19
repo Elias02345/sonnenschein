@@ -62,13 +62,18 @@ Both downloads are on the [Releases page](https://github.com/Elias02345/sonnensc
 
 ## Usage
 
-- Opening the Sonnenschein panel **automatically syncs** your host's game
-  library into the Steam library: every installed game on the host appears
-  as an entry with cover art. Launch them like any other game — the stream
-  starts through the Sonnenschein Client.
+- **Games you own on Steam** (installed on the Deck or just visible in your
+  library, e.g. Portal): their native game page gets an extra
+  **"Stream via Sonnenschein"** button next to Play/Install — no duplicate
+  entries. Press it and the game streams from your host; it feels like a
+  native launch.
+- **Host games without a Steam library entry**: the Sonnenschein panel
+  **automatically syncs** them into the Steam library as entries with cover
+  art. Launch them like any other game.
 - Games removed from the host disappear from the Deck on the next sync.
-- The panel also lists all games directly for quick launching and has a
-  manual re-sync button.
+- The panel also lists all games directly for quick launching, has a manual
+  re-sync button, and lets you pick the client AppImage manually if it is
+  not auto-detected.
 
 ## Troubleshooting
 
