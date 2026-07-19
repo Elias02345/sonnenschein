@@ -7,18 +7,18 @@ installed Steam games) and box art. Streams are launched through the
 Sonnenschein Client app itself.
 """
 
-import base64
-import glob
-import http.client
+# Import surface kept minimal on purpose: everything beyond os/json is
+# imported lazily inside the functions that need it, so an exotic Python
+# environment can never kill the whole backend at import time.
 import json
 import os
-import ssl
-import tempfile
-import urllib.parse
-import uuid as uuidlib
-import xml.etree.ElementTree as ET
 
-import decky  # type: ignore
+try:
+    import decky  # type: ignore
+except ModuleNotFoundError:
+    # Older Decky Loader releases expose the module as decky_plugin —
+    # same constants and logger.
+    import decky_plugin as decky  # type: ignore
 
 CLIENT_CONF = os.path.join(
     decky.DECKY_USER_HOME, ".config", "Sonnenschein", "sonnenschein-client.conf"
@@ -114,6 +114,9 @@ def _read_client_conf():
 def _https_port(address, http_port):
     """Resolve the host's HTTPS port via unauthenticated HTTP /serverinfo
     (same as the client does); fall back to the Sunshine convention -5."""
+    import http.client
+    import xml.etree.ElementTree as ET
+
     try:
         conn = http.client.HTTPConnection(address, int(http_port), timeout=5)
         try:
@@ -141,6 +144,9 @@ class _HostApi:
         self._tmpdir = None
 
     def _context(self):
+        import ssl
+        import tempfile
+
         if self._ctx is not None:
             return self._ctx
         if not self._conf["certificate"] or not self._conf["key"]:
@@ -163,6 +169,8 @@ class _HostApi:
         return ctx
 
     def get(self, address, port, path):
+        import http.client
+
         conn = http.client.HTTPSConnection(address, port, timeout=10, context=self._context())
         try:
             conn.request("GET", path, headers={"User-Agent": "sonnenschein-decky"})
@@ -222,6 +230,10 @@ class Plugin:
         conf = _read_client_conf()
         api = _HostApi(conf)
         uid = conf["uniqueid"] or "0123456789ABCDEF"
+        import urllib.parse
+        import uuid as uuidlib
+        import xml.etree.ElementTree as ET
+
         path = "/applist?uniqueid={}&uuid={}".format(
             urllib.parse.quote(uid), uuidlib.uuid4().hex
         )
@@ -244,6 +256,10 @@ class Plugin:
 
     async def get_boxart(self, address, port, app_id):
         """Return base64 box art for an app, or empty string if unavailable."""
+        import base64
+        import urllib.parse
+        import uuid as uuidlib
+
         conf = _read_client_conf()
         api = _HostApi(conf)
         uid = conf["uniqueid"] or "0123456789ABCDEF"
@@ -267,11 +283,14 @@ class Plugin:
 
 def _find_client_app():
     """Locate the Sonnenschein Client on the Deck (AppImage or flatpak)."""
+    import glob
+
     candidates = sorted(
         glob.glob(os.path.join(decky.DECKY_USER_HOME, "Applications", "Sonnenschein_Client*.AppImage"))
     )
     if candidates:
         return candidates[-1]
+    import glob
     for flatpak in ("/var/lib/flatpak", os.path.join(decky.DECKY_USER_HOME, ".local/share/flatpak")):
         if glob.glob(os.path.join(flatpak, "app", "io.github.elias02345.Sonnenschein*")):
             return "flatpak"

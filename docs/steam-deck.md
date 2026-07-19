@@ -40,21 +40,25 @@ Both downloads are on the [Releases page](https://github.com/Elias02345/sonnensc
 
 1. Install [Decky Loader](https://decky.xyz/) if you don't have it yet
    (Desktop Mode → download the installer from decky.xyz and run it).
-2. Download `Sonnenschein-Decky-Plugin-<version>.zip` from the latest release.
-3. Install the plugin — either way works:
-
-   **Via Decky (recommended):** In Game Mode, open the Quick Access menu
-   (… button) → plug icon → gear icon → enable **Developer mode** →
-   Developer → **Install plugin from zip file** → select the downloaded zip.
-
-   **Manually (Desktop Mode terminal):**
+2. **Recommended: the install script** (Desktop Mode → Konsole). It removes
+   old plugin versions, downloads the latest release, installs it with
+   correct permissions, restarts Decky and then **verifies the plugin
+   backend is actually running** (showing the exact error if not):
 
    ```bash
-   unzip ~/Downloads/Sonnenschein-Decky-Plugin-*.zip -d ~/homebrew/plugins/
-   sudo systemctl restart plugin_loader
+   curl -fsSL https://raw.githubusercontent.com/Elias02345/sonnenschein/dev/decky-plugin/deck-install.sh | bash
    ```
 
-4. Back in Game Mode, open the Quick Access menu → plug icon → **Sonnenschein**.
+   Alternative ways (no verification):
+   - **Via Decky:** Quick Access menu → plug icon → gear icon → enable
+     **Developer mode** → Developer → **Install plugin from zip file**.
+   - **Manually:** `unzip` the release zip into `~/homebrew/plugins/`
+     **without sudo**, then `sudo systemctl restart plugin_loader`.
+     (Unzipping with sudo leaves root-owned files that can break the
+     plugin backend — the install script cleans that up.)
+
+3. Back in Game Mode, open the Quick Access menu → plug icon → **Sonnenschein**.
+   If Steam was already running during the install, restart Steam once.
 
 ## Usage
 
@@ -70,6 +74,7 @@ Both downloads are on the [Releases page](https://github.com/Elias02345/sonnensc
 
 | Symptom | Fix |
 |---|---|
+| Panel says the plugin backend is not responding | Run the install script from Part 2 — it reinstalls cleanly and prints the exact backend error if one occurs. Most common causes: leftover files from an old version, files unzipped with sudo, or Decky not restarted. |
 | Panel says "Nicht gekoppelt" / not paired | Run the client app in Desktop Mode and pair with your host first — the plugin reuses the client's pairing. |
 | Panel warns the client app is missing | Put the AppImage in `~/Applications` and make it executable. |
 | A synced game won't start | Check that the host is awake and reachable; start the client app manually to verify the connection. |

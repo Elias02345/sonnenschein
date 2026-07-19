@@ -175,12 +175,21 @@ function Content() {
       setBusy("Verbinde mit Backend…");
 
       // Liveness first: a dead backend gets a precise message instead of a
-      // silently stuck panel.
-      try {
-        await withTimeout(ping(), 6000, "Backend-Ping");
-      } catch (e: any) {
+      // silently stuck panel. Three attempts so a backend that is still
+      // starting (fresh install, loader restart) gets a fair chance.
+      let backendAlive = false;
+      for (let attempt = 1; attempt <= 3 && !backendAlive; attempt++) {
+        try {
+          setBusy(attempt === 1 ? "Verbinde mit Backend…" : `Backend startet… (Versuch ${attempt}/3)`);
+          await withTimeout(ping(), 6000, "Backend-Ping");
+          backendAlive = true;
+        } catch (e) {
+          console.error(`Sonnenschein: ping attempt ${attempt} failed`, e);
+        }
+      }
+      if (!backendAlive) {
         throw new Error(
-          "Plugin-Backend antwortet nicht. Decky-Log prüfen: /home/deck/homebrew/logs/Sonnenschein/ — ggf. Plugin neu installieren und Steam neu starten."
+          "Plugin-Backend antwortet nicht. Lösung: Im Desktop-Modus das Install-Script aus der Anleitung (docs/steam-deck.md) ausführen — es installiert sauber neu und zeigt den genauen Fehler an. Danach das Deck neu starten."
         );
       }
 
