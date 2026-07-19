@@ -95,6 +95,31 @@
 > totes Backend von Host-Problemen, alle Calls mit Deadline, Fehler
 > inline im Panel mit Retry-Button (statt verpassbarem Toast), Backend
 > loggt Import-OK. App-Parsing zusätzlich synthetisch getestet.
+> **🔧 DECK-FEHLERRUNDE 3 (2026-07-19)**: v0.1.2 meldet sauber „Backend
+> antwortet nicht" (Frontend-Härtung wirkt) — das Python-Backend kommt auf
+> dem Deck also nie hoch. **Beweis-Arbeit dieser Runde**:
+> 1. Das veröffentlichte Plugin durch die **exakte Import-Maschinerie des
+>    Loaders** geladen (echtes decky-Modul aus dem Loader-Repo, env-
+>    Injektion, spec_from_file_location, Plugin(), Dispatch) — läuft
+>    fehlerfrei inkl. Host-Zugriff. **Der Plugin-Code ist es nicht.**
+> 2. Recherche im Loader-Quellcode (Stable v3.2.6): Backend-Startup-Crash
+>    ⇒ stilles `sys.exit(0)` vor dem Socket-Server ⇒ **alle callables
+>    hängen ewig ohne Fehler** — exakt unser Symptom. Traceback landet NUR
+>    in `journalctl -u plugin_loader`. Häufigste Real-Ursachen: Reste
+>    alter Versionen, **root-owned Files nach sudo-Unzip** (Loader-eigener
+>    Perm-Fixer überspringt root-owned Ordner!), fehlender Loader-Restart.
+>    `import decky` existiert seit v3.0.0, Flags sind egal (MoonDeck: []).
+>    **Backend-less keine Option**: Loader-fetchNoCors verifiziert TLS
+>    strikt (certifi) — selbstsignierte Host-Zertifikate scheitern.
+> 3. Fixes (`d80891e`): main.py minimale Import-Fläche (alles lazy) +
+>    decky_plugin-Fallback; Frontend pingt 3×; **neues
+>    `decky-plugin/deck-install.sh`** — sauberer Reinstall (Loader-Stop,
+>    Reste+__pycache__ weg, Latest-Release-Zip, deck-owned Perms) und
+>    **beweist danach den Backend-Zustand**: Prozess-Check, Journal-Grep
+>    mit Traceback-Ausgabe, Plugin-Log. Ein-Zeiler in steam-deck.md
+>    (curl | bash von raw.githubusercontent). Loader-Maschinerie-Test
+>    erneut grün. → Release v0.1.3-test.
+>
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
 > veröffentlichtes Plugin-Zip nachgeprüft (Parser-Fix + Timeouts im
