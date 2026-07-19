@@ -149,6 +149,48 @@
 > ssl, http.client, urllib.parse, uuid, base64, glob, tempfile ✓;
 > xml.etree ✗) — oder Module nach MoonDeck-Art selbst bündeln.
 >
+> **🎯 DECK-RUNDE 5 (2026-07-19, Maintainer-Test v0.1.4)**: **Backend läuft
+> jetzt** — Panel zeigt die Host-Spiele ✓. Zwei Befunde: (1) **Client-App
+> wird nicht gefunden** (Panel-Warnung), obwohl die AppImage in
+> ~/Applications liegt und startbar ist → die gesyncten Shortcuts sind
+> „völlig leere Platzhalter" und schließen sich sofort (Runner findet
+> keinen Client, Exit 1). (2) **Maintainer-Vision präzisiert (verbindlich)**:
+> Spiele, die in der Deck-Steam-Bibliothek **sichtbar** sind (installiert
+> ODER nur im Account/Download-Button, Beispiel Portal), bekommen auf der
+> nativen Spieleseite **einen zusätzlichen Button „Stream via Sonnenschein"**
+> neben Spielen/Installieren — kein Platzhalter-Duplikat, fühlt sich wie
+> nativer Start an. Nur Host-Spiele, die gar nicht in der Bibliothek sind,
+> werden (wie bisher) als Einträge mit Artwork angelegt.
+> **Umsetzungsplan Runde 5**: (a) Client-Discovery robust (mehr Pfade,
+> case-insensitiv, Datei-Picker via openFilePicker, Pfad in Settings +
+> `SONNENSCHEIN_CLIENT` in den Launch-Options); (b) Game-Page-Button via
+> routerHook-Patch nach MoonDeck-Vorbild (GPL-3), Matching Host-Spiel ↔
+> Deck-appid via Titel (v1; Host-seitiges SteamAppId-Feld in applist als
+> späteres Upgrade notiert); Start über EIN wiederverwendetes verstecktes
+> Stream-Shortcut (Launch-Options vor RunGame umgeschrieben);
+> (c) Shortcut-Sync nur noch für Nicht-Bibliotheks-Spiele.
+> **Ausführung: Sonnet-Subagenten implementieren, Fable orchestriert +
+> verifiziert (Maintainer-Anweisung, Kosten sparen).**
+>
+> **🟡 RUNDE 5 UMGESETZT (`0b5ae6e`, Deck-Test offen)**: (a) Backend:
+> Client-Discovery case-insensitiv über Applications/Downloads/Desktop/
+> .local/bin/HOME + manueller Pfad via Datei-Picker (persistiert in
+> Plugin-Settings) + `SONNENSCHEIN_CLIENT` in allen Launch-Options +
+> Diagnose-Liste gefundener AppImages im Panel (von mir). (b) Frontend
+> (Sonnet-Agent nach MoonDeck-Quellcode-Recherche, von mir reviewt):
+> `steamlib.ts` (Titel-Normalisierung, Bibliotheks-Matching über
+> `appStore.m_mapApps` nur app_type 1, EIN verstecktes wiederverwendetes
+> „Sonnenschein Stream"-Shortcut mit Launch-Options-Rewrite vor RunGame),
+> `gamepage.tsx` (Route-Patch `/library/app/:appid` nach MoonDeck-Rezept,
+> Button nur bei Host-Treffer), Sync erstellt nur noch Shortcuts für
+> Nicht-Bibliotheks-Spiele (Diff räumt jetzt-gematchte automatisch ab).
+> Review-Fix von mir: Guard gegen leeren runnerPath im Stream-Shortcut.
+> Verifiziert: Build grün, Bundle nur SP_JSX, Backend durch Loader-
+> Maschinerie (frozen-python) inkl. neuer Methoden end-to-end.
+> **Nur am Deck testbar**: Game-Page-Patch-Rendering, Titel-Matching
+> gegen echte Bibliothek, RunGame-Fokus. Sonnet-Agent musste 1× nach
+> Session-Limit per SendMessage fortgesetzt werden (Kontext blieb).
+>
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
 > veröffentlichtes Plugin-Zip nachgeprüft (Parser-Fix + Timeouts im
