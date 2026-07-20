@@ -19,7 +19,6 @@ import {
   definePlugin,
   FileSelectionType,
   openFilePicker,
-  routerHook,
   toaster,
 } from "@decky/api";
 import { useEffect, useState } from "react";
@@ -35,6 +34,7 @@ import {
 } from "./steamlib";
 import type { HostApp, HostInfo, SyncState } from "./steamlib";
 import { patchLibraryApp } from "./gamepage";
+import { startCapsuleBadges } from "./capsulebadge";
 
 interface Status {
   clientConfFound: boolean;
@@ -357,17 +357,24 @@ const LIBRARY_APP_ROUTE = "/library/app/:appid";
 
 export default definePlugin(() => {
   // Game-page button on /library/app/:appid — MoonDeck-style route patch.
-  const libraryPatch = patchLibraryApp(LIBRARY_APP_ROUTE);
+  // Steam UI drift must never prevent the QAM panel/backend from loading.
+  let removeLibraryPatch: (() => void) | null = null;
+  try {
+    removeLibraryPatch = patchLibraryApp(LIBRARY_APP_ROUTE);
+  } catch (e) {
+    console.error("Sonnenschein: game-page route patch failed", e);
+  }
+  const stopCapsuleBadges = startCapsuleBadges();
 
   // Populate the host game index right at plugin load so the game-page
   // button works before the QAM panel was ever opened.
   (async () => {
     try {
-      const s = await getStatus();
+      const s = await withTimeout(getStatus(), 10000, "Initialer Status");
       setRunnerPath(s.runnerPath);
       if (s.paired && s.hosts.length > 0) {
         const host = s.hosts[0];
-        const hostApps = await getApps(host.address, host.port);
+        const hostApps = await withTimeout(getApps(host.address, host.port), 20000, "Initiale Spieleliste");
         updateHostGameIndex(host, hostApps.filter((a) => !EXCLUDED_TITLES.has(a.title)));
       }
     } catch (e) {
@@ -381,7 +388,8 @@ export default definePlugin(() => {
     content: <Content />,
     icon: <FaSun />,
     onDismount() {
-      routerHook.removePatch(LIBRARY_APP_ROUTE, libraryPatch);
+      removeLibraryPatch?.();
+      stopCapsuleBadges();
     },
   };
 });

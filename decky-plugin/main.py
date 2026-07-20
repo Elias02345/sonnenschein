@@ -10,6 +10,7 @@ Sonnenschein Client app itself.
 # Import surface kept minimal on purpose: everything beyond os/json is
 # imported lazily inside the functions that need it, so an exotic Python
 # environment can never kill the whole backend at import time.
+import asyncio
 import json
 import os
 
@@ -27,6 +28,35 @@ STATE_FILE = os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "state.json")
 RUNNER = os.path.join(decky.DECKY_PLUGIN_DIR, "sonnenschein-run.sh")
 
 HTTPS_PORT = 47984
+
+
+async def _run_blocking(function, *args):
+    """Run blocking stdlib I/O without starving Decky's asyncio loop.
+
+    A tiny polling bridge is used instead of asyncio.to_thread: it needs only
+    asyncio/threading (both used by Decky Loader itself), works in the frozen
+    runtime, and avoids executor wakeup differences across Python versions.
+    """
+    import threading
+
+    result = []
+    failure = []
+    done = threading.Event()
+
+    def worker():
+        try:
+            result.append(function(*args))
+        except BaseException as exc:
+            failure.append(exc)
+        finally:
+            done.set()
+
+    threading.Thread(target=worker, daemon=True).start()
+    while not done.is_set():
+        await asyncio.sleep(0.01)
+    if failure:
+        raise failure[0]
+    return result[0]
 
 
 def _unescape_qsettings(value: str) -> str:
@@ -155,7 +185,7 @@ def _https_port(address, http_port):
     return int(http_port) - 5
 
 
-def _probe_host_state(address, port):
+def _probe_host_state(address, port, selected_app_id=""):
     """Query the host's unauthenticated /serverinfo (same endpoint/timeout/
     header pattern as _https_port) and extract <state>. Never raises — any
     failure (timeout, connection refused, malformed body, ...) just means
@@ -177,7 +207,15 @@ def _probe_host_state(address, port):
             text = body.decode("utf-8", "replace")
             m = re.search(r"<state>([^<]*)</state>", text)
             state = m.group(1).strip() if m else ""
-            return True, state == "SUNSHINE_SERVER_BUSY"
+            current = re.search(r"<currentgame>([^<]*)</currentgame>", text, re.I)
+            current_game = current.group(1).strip() if current else ""
+            host_busy = state == "SUNSHINE_SERVER_BUSY"
+            # A running session for the selected game is not an "other game".
+            # If an older host omits currentgame, stay conservative and show red.
+            busy_with_other_game = host_busy and (
+                not current_game or current_game != str(selected_app_id)
+            )
+            return True, busy_with_other_game
     except Exception as e:
         decky.logger.info(f"host state probe failed for {address}:{port}: {e}")
     return False, False
@@ -281,6 +319,13 @@ class Plugin:
         return os.path.isfile(path)
 
     async def get_apps(self, address, port):
+        # Decky's backend dispatch shares one asyncio event loop. All host
+        # access below uses blocking stdlib http.client calls, so running it
+        # directly here stalls ping/status/sync and makes the whole plugin
+        # look dead while a host is slow or offline.
+        return await _run_blocking(self._get_apps_sync, address, port)
+
+    def _get_apps_sync(self, address, port):
         """Fetch the host's app list (unified library) via mutual TLS.
 
         `port` is the stored HTTP port; the HTTPS port is resolved live.
@@ -311,6 +356,9 @@ class Plugin:
         return apps
 
     async def get_boxart(self, address, port, app_id):
+        return await _run_blocking(self._get_boxart_sync, address, port, app_id)
+
+    def _get_boxart_sync(self, address, port, app_id):
         """Return base64 box art for an app, or empty string if unavailable."""
         import base64
         import urllib.parse
@@ -330,11 +378,13 @@ class Plugin:
         ext = "png" if body[:8] == b"\x89PNG\r\n\x1a\n" else "jpg"
         return {"data": base64.b64encode(body).decode("ascii"), "ext": ext}
 
-    async def check_host_available(self, address, port):
+    async def check_host_available(self, address, port, selected_app_id=""):
         """Cheap reachability+busy probe for the game-page button's
         availability dot (frontend polls this every few seconds) — never
         raises, so a slow/dead host can never block the caller."""
-        reachable, busy = _probe_host_state(address, port)
+        reachable, busy = await _run_blocking(
+            _probe_host_state, address, port, selected_app_id
+        )
         return {"reachable": reachable, "busy": busy}
 
     async def get_launch_options(self, address, app_title):

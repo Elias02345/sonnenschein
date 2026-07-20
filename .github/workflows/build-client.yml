@@ -66,8 +66,15 @@ jobs:
       - name: Build plugin frontend
         working-directory: decky-plugin
         run: |
-          pnpm install --no-frozen-lockfile
+          pnpm install --frozen-lockfile
           pnpm run build
+
+      - name: Test plugin backend and bundle
+        run: |
+          python3 decky-plugin/tests/backend_harness.py
+          python3 -m py_compile decky-plugin/main.py decky-plugin/tests/backend_harness.py
+          test "$(grep -o 'SP_JSX' decky-plugin/dist/index.js | wc -l)" -gt 0
+          ! grep -q 'React.createElement' decky-plugin/dist/index.js
 
       - name: Assemble plugin zip
         shell: bash
@@ -119,9 +126,18 @@ jobs:
             fi
           done
           ls -la release
+      - name: Verify complete release asset set
+        shell: bash
+        run: |
+          test "$(find release -maxdepth 1 -type f -name '*.AppImage' | wc -l)" -eq 1
+          test "$(find release -maxdepth 1 -type f -name 'SonnenscheinClientSetup-*.exe' | wc -l)" -eq 1
+          test "$(find release -maxdepth 1 -type f -name 'Sonnenschein_Client-*.dmg' | wc -l)" -eq 1
+          test "$(find release -maxdepth 1 -type f -name 'Sonnenschein-Decky-Plugin-*.zip' | wc -l)" -eq 1
+          test "$(find release -maxdepth 1 -type f -name 'zDevDbgSyms-*.zip' | wc -l)" -eq 2
+          test -s release/Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}.zip
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: release/*
           generate_release_notes: true
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true

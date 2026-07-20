@@ -26,8 +26,14 @@ import {
   findInReactTree,
 } from "@decky/ui";
 import { callable, routerHook, toaster } from "@decky/api";
-import { useEffect, useState } from "react";
-import { hostGameIndex, normalizeTitle, streamGame } from "./steamlib";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import {
+  getHostGameIndexRevision,
+  hostGameIndex,
+  normalizeTitle,
+  streamGame,
+  subscribeHostGameIndex,
+} from "./steamlib";
 
 interface StreamButtonProps {
   appName: string;
@@ -38,7 +44,7 @@ interface HostStatus {
   busy: boolean;
 }
 
-const checkHostAvailable = callable<[string, number], HostStatus>("check_host_available");
+const checkHostAvailable = callable<[string, number, string], HostStatus>("check_host_available");
 
 const STREAM_BUTTON_CLASS = "sonnenschein-stream-button";
 const HOST_POLL_INTERVAL_MS = 8000;
@@ -66,10 +72,10 @@ const StreamButtonStyle = (
 );
 
 function statusDotColor(status: HostStatus): string {
-  if (!status.reachable) {
+  if (!status.reachable || status.busy) {
     return "#c9463d";
   }
-  return status.busy ? "#d29922" : "#3fb950";
+  return "#3fb950";
 }
 
 function statusDotTitle(status: HostStatus): string {
@@ -86,6 +92,13 @@ function StreamButton({ appName }: StreamButtonProps) {
   const [starting, setStarting] = useState(false);
   const [hostStatus, setHostStatus] = useState<HostStatus>({ reachable: false, busy: false });
 
+  // Rerender when the async host catalogue arrives. Without this subscription
+  // a page opened during startup rendered null once and never gained a button.
+  useSyncExternalStore(
+    subscribeHostGameIndex,
+    getHostGameIndexRevision,
+    getHostGameIndexRevision
+  );
   const entry = hostGameIndex.get(normalizeTitle(appName));
 
   // All hooks must run unconditionally (entry can be undefined on some
@@ -95,9 +108,14 @@ function StreamButton({ appName }: StreamButtonProps) {
       return;
     }
     let cancelled = false;
+    let polling = false;
     const poll = async () => {
+      if (polling) {
+        return;
+      }
+      polling = true;
       try {
-        const status = await checkHostAvailable(entry.host.address, entry.host.port);
+        const status = await checkHostAvailable(entry.host.address, entry.host.port, entry.app.id);
         if (!cancelled) {
           setHostStatus(status);
         }
@@ -106,6 +124,8 @@ function StreamButton({ appName }: StreamButtonProps) {
         if (!cancelled) {
           setHostStatus({ reachable: false, busy: false });
         }
+      } finally {
+        polling = false;
       }
     };
     poll();
@@ -114,7 +134,7 @@ function StreamButton({ appName }: StreamButtonProps) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [entry?.host.address, entry?.host.port]);
+  }, [entry?.host.address, entry?.host.port, entry?.app.id]);
 
   if (!entry) {
     // Not a game we found on the host — render nothing.
@@ -157,10 +177,13 @@ function StreamButton({ appName }: StreamButtonProps) {
   );
 }
 
-export function patchLibraryApp(route: string) {
-  return routerHook.addPatch(route, (tree: any) => {
+export function patchLibraryApp(route: string): () => void {
+  const patchedRouteProps = new WeakSet<object>();
+  const renderPatches: Array<{ unpatch?: () => void }> = [];
+  const routePatch = routerHook.addPatch(route, (tree: any) => {
     const routeProps = findInReactTree(tree, (x: any) => x?.renderFunc);
-    if (routeProps) {
+    if (routeProps && !patchedRouteProps.has(routeProps)) {
+      patchedRouteProps.add(routeProps);
       let appId: number | undefined;
       let appName: string | undefined;
 
@@ -185,6 +208,15 @@ export function patchLibraryApp(route: string) {
           },
         ],
         (_: any, ret?: any) => {
+          // Steam may reuse a rendered tree. Never wrap/splice a second
+          // Sonnenschein control into a tree we already handled.
+          const existingButton = findInReactTree(
+            ret,
+            (x: any) => x?.key === "sonnenschein-stream-button" || x?.props?.["data-sonnenschein-stream-row"]
+          );
+          if (existingButton) {
+            return ret;
+          }
           const parent = findInReactTree(
             ret,
             (x: any) =>
@@ -206,6 +238,7 @@ export function patchLibraryApp(route: string) {
             parent.props.children[appPanelIndex] = (
               <div
                 key={original?.key ?? "sonnenschein-panel-row"}
+                data-sonnenschein-stream-row
                 style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "8px" }}
               >
                 <div style={{ flex: "1 1 auto", minWidth: 0 }}>{original}</div>
@@ -226,8 +259,15 @@ export function patchLibraryApp(route: string) {
           return ret;
         }
       );
-      afterPatch(routeProps, "renderFunc", patchHandler);
+      renderPatches.push(afterPatch(routeProps, "renderFunc", patchHandler));
     }
     return tree;
   });
+
+  return () => {
+    routerHook.removePatch(route, routePatch);
+    for (const patch of renderPatches.splice(0)) {
+      patch.unpatch?.();
+    }
+  };
 }

@@ -59,15 +59,58 @@ export function setRunnerPath(path: string): void {
 // -> which host/app it came from. Populated from get_apps() results, kept
 // separate from the Steam-library lookup below (different direction).
 export const hostGameIndex = new Map<string, { host: HostInfo; app: HostApp }>();
+let hostGameIndexRevision = 0;
+const hostGameIndexListeners = new Set<() => void>();
+const hostSteamAppIds = new Set<string>();
+
+// React game-page patches may render before the asynchronous host catalogue
+// arrives. A plain Map mutation does not trigger a rerender, so expose the
+// smallest possible external-store interface around the existing index.
+export function subscribeHostGameIndex(listener: () => void): () => void {
+  hostGameIndexListeners.add(listener);
+  return () => hostGameIndexListeners.delete(listener);
+}
+
+export function getHostGameIndexRevision(): number {
+  return hostGameIndexRevision;
+}
 
 export function updateHostGameIndex(host: HostInfo, apps: HostApp[]): void {
   hostGameIndex.clear();
+  hostSteamAppIds.clear();
   for (const app of apps) {
     const key = normalizeTitle(app.title);
     if (key) {
       hostGameIndex.set(key, { host, app });
     }
+    const libraryApp = findLibraryAppByTitle(app.title);
+    if (libraryApp) {
+      hostSteamAppIds.add(String(libraryApp.appid));
+    }
   }
+  hostGameIndexRevision++;
+  for (const listener of hostGameIndexListeners) {
+    listener();
+  }
+}
+
+export function isHostStreamableAppId(appId: string): boolean {
+  if (hostSteamAppIds.has(appId)) {
+    return true;
+  }
+  // The host catalogue can arrive before Steam has populated appStore. The
+  // capsule observer retries, so resolve the title lazily once Steam is ready.
+  try {
+    const overview = appStore?.GetAppOverviewByAppID?.(Number(appId));
+    const title = overview?.display_name;
+    if (typeof title === "string" && hostGameIndex.has(normalizeTitle(title))) {
+      hostSteamAppIds.add(appId);
+      return true;
+    }
+  } catch (_) {
+    // Steam store not ready yet; the next observer scan retries.
+  }
+  return false;
 }
 
 // lowercase, trim, collapse whitespace, drop ™/®/©, drop trailing symbols —

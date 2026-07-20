@@ -12,6 +12,7 @@ Du bist eine Claude-Code-Instanz, die am Sonnenschein-Projekt arbeitet. Sonnensc
 2. **[`docs/ROADMAP.md`](docs/ROADMAP.md)** — die langfristige Phasenstruktur (öffentliche Vision; weniger detailliert als STATUS.md).
 3. **[`docs/building.md`](docs/building.md)** — Build-Anleitung pro Distro inkl. der Workarounds, die wir bereits brauchten (libva 2.22, Node 20, etc.).
 4. **[`docs/SESSION_PROMPT.md`](docs/SESSION_PROMPT.md)** — die wortwörtliche Vorlage, mit der der Maintainer eine neue Session aufmacht. Du wirst gefragt, das nachzuhalten — siehe unten.
+5. **[`docs/RELEASE_RULES.md`](docs/RELEASE_RULES.md)** — verbindlicher Ablauf für Versionierung, Tagging, Veröffentlichung und Asset-Nachprüfung.
 
 ## Was du bei jeder Antwort machen musst
 
@@ -24,6 +25,7 @@ Du bist eine Claude-Code-Instanz, die am Sonnenschein-Projekt arbeitet. Sonnensc
 ### Während der Arbeit
 - Jede vom Maintainer gegebene Antwort auf eine Frage, jede Architektur-Entscheidung, jedes "wir machen das so"-Statement: in STATUS.md unter dem passenden Abschnitt persistieren, **bevor** du den Code dafür schreibst. So geht keine Info verloren wenn der Rate-Limit zuschlägt.
 - Wenn du einen Commit pushst: gleichzeitig STATUS.md unter "Letzte Commits chronologisch" updaten + Phase-Status aktualisieren + den Commit-Hash dazuschreiben. Beides im selben PR/Commit ist okay.
+- Wenn du ein Release vorbereitest oder veröffentlichst: `docs/RELEASE_RULES.md` strikt in der dort festgelegten Reihenfolge abarbeiten. Kein Tag vor grüner `dev`-CI und keine „verifiziert"-Meldung vor Prüfung der tatsächlich veröffentlichten Assets.
 - Wenn ein Build-Fehler oder Workaround entdeckt wird: in STATUS.md unter "Bekannte Probleme & Workarounds" persistieren, möglichst mit der genauen Befehls­zeile zur Reproduktion und dem Commit, der den Fix bringt.
 
 ### Beim Sessionende oder kurz vor erwartbarem Limit

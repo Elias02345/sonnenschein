@@ -63,10 +63,12 @@ Both downloads are on the [Releases page](https://github.com/Elias02345/sonnensc
 ## Usage
 
 - **Games you own on Steam** (installed on the Deck or just visible in your
-  library, e.g. Portal): their native game page gets an extra
-  **"Stream via Sonnenschein"** button next to Play/Install — no duplicate
-  entries. Press it and the game streams from your host; it feels like a
-  native launch.
+  library, e.g. Portal): a small sun badge marks their library capsule when
+  they are available from the paired host. Their native game page gets an extra
+  **"Stream"** button next to Play/Install — no duplicate entries. Its dot is
+  green when the host is reachable and idle, and red when the host is offline
+  or already running another game. The red state is informational: pressing
+  the button still attempts to wake/connect to the host and launch the game.
 - **Host games without a Steam library entry**: the Sonnenschein panel
   **automatically syncs** them into the Steam library as entries with cover
   art. Launch them like any other game.

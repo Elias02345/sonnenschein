@@ -304,6 +304,73 @@
 > `dev` per `raw.githubusercontent.com` geladen, der Fix ist sofort
 > wirksam.
 >
+> **🔴 DECK-RUNDE 8 (2026-07-20, Regression in aktueller Testversion):**
+> Maintainer meldet nach Installation der neuesten Client-AppImage UND des
+> neuesten Decky-Plugins: Host wird nicht gefunden, Bibliothek wird nicht
+> synchronisiert, Spiele starten nicht und der zuvor vorhandene
+> „Stream via Sonnenschein"-/„Stream"-Button fehlt auf nativen
+> Steam-Spieleseiten. Auftrag: Regression vollständig gegen den letzten
+> funktionierenden Stand analysieren, beheben, auditieren und verifizieren;
+> erst danach Commit + Push + neue Testversion im bestehenden Release-Stil.
+> **Verbindliche UX-Regel:** streambare Spiele tragen bereits in der
+> Bibliothekskapsel ein kleines Sonnenschein-Symbol. Auf der Spieleseite
+> steht der Sonnenschein-Stream-Button neben Steams Play/Install/Download-
+> Element. Sein Indikator ist grün, wenn der Host erreichbar und frei ist,
+> sonst rot (offline ODER ein anderes Spiel läuft). Der rote Zustand ist
+> rein informativ und blockiert keinen manuellen Startversuch. Vor der
+> Implementierung wird außerdem der reale Release-/Update-Ablauf auditiert
+> und als dauerhafte Projektregel dokumentiert.
+>
+> **🟡 DECK-RUNDE 8 — DECKY-ROOT-CAUSE + FIX IMPLEMENTIERT (Release ausstehend):**
+> Das veröffentlichte v0.2.1-Zip wurde heruntergeladen und gegen den Tag
+> geprüft (SHA-256 `59942154…f89f9da`, `main.py` bytegleich mit Tag). Gemeinsame
+> Nachgewiesene Ursache für den zusammenhängenden Decky-Ausfall: Deckys Backend nutzt EINEN
+> asyncio-Event-Loop, unsere `async`-Methoden führten aber synchrones
+> `http.client`-I/O aus. Schon `get_apps` konnte bei offline/langsamem Host
+> ~15 s alles blockieren; v0.2.1 ergänzte zusätzlich pro Button eine
+> blockierende 5-s-Statusprobe alle 8 s. Parallel wartete das Frontend nur
+> 6 s auf `ping` → Backend wirkte tot, Katalog blieb leer. Zweiter
+> deterministischer Bug: `hostGameIndex` war eine nackte globale Map; ein
+> nachträglicher async Katalog-Load löste keinen React-Rerender aus → eine
+> früh geöffnete Spieleseite behielt dauerhaft keinen Button.
+> **Fix:** sämtliches Host-Netzwerk-I/O läuft über einen Frozen-Python-
+> kompatiblen Worker außerhalb des Loader-Loops; Availability-Polls können
+> nicht überlappen; der bestehende Spieleindex ist via `useSyncExternalStore`
+> abonnierbar; Route-Patches werden dedupliziert und beim Unload vollständig
+> entfernt; Route-Patch-Fehler können das QAM-Plugin nicht mehr abwürgen.
+> Streambare native Steam-Spiele erhalten per defensivem DOM-Observer ein
+> Sonnen-Badge. Der Spielseiten-Indikator berücksichtigt `<currentgame>`:
+> offline oder mit einem anderen Spiel beschäftigt = rot, erreichbar und frei
+> (oder bereits dasselbe Spiel aktiv) = grün; Start bleibt immer erlaubt.
+> Regression-Harness beweist parallele langsame Calls + sofortigen Ping,
+> Worker-Fehlerweitergabe und Busy-Spiel-ID unter blockiertem `xml.etree`;
+> Rollup sauber (SP_JSX, keine nackte React-
+> Referenz); echte Loader-Maschinerie importiert Backend, liest reale
+> Client-Config und erkennt Pairing/Host. Live-Host aus Sandbox nicht routbar
+> (`No route to host`) — Offlinepfad bleibt responsiv.
+> **AppImage-Audit:** Die tatsächlich veröffentlichten v0.2.0/v0.2.1-
+> AppImages wurden extrahiert und verglichen. QSettings-Identität, Host-
+> Discovery-/Pairing-Code und Paketlayout sind unverändert; der Quell-Diff
+> betrifft nur Easy-Mode-Decoderinitialisierung/Übersetzung, nicht die
+> Hostsuche. Beide Binärdateien enthalten dieselbe QSettings-/Host-Identität;
+> ein headless CLI-Lauf scheitert bei beiden bereits identisch an der fehlenden
+> Grafik-/DRM-Umgebung und kann deshalb keinen realen Hostvergleich ersetzen. Damit
+> ist eine eigenständige AppImage-Discovery-Regression derzeit **nicht
+> belegt**; ein realer Deck+Host-Test ist vor der Freigabe zwingend.
+> Dauerhafte Release-
+> Regel: `docs/RELEASE_RULES.md`; Versionsdrift behoben (Client+Plugin 0.2.2),
+> `CHANGELOG.md` angelegt, Release-Workflow verlangt vollständiges Asset-Set.
+> **Noch vor Tag:** unabhängiges Code-Audit + kompletter lokaler Paket-/Loader-
+> Audit, danach echter Deck+Host-Test. Erst bei vollständig grünem Ergebnis:
+> Commit/Push, grüne `dev`-CI und Tag `v0.2.2-test`.
+> **Release-Entscheidung 2026-07-20:** Der Maintainer hat ausdrücklich die
+> Veröffentlichung als Testbuild angefordert, damit genau dieser fehlende
+> Deck+Host-E2E durchgeführt werden kann. `v0.2.2-test` bleibt daher bis zur
+> Hardware-Rückmeldung unbestätigt. Mangels lokal konfiguriertem Signing-Key
+> wird dieser Test-Tag auf explizite Anweisung im bisherigen leichtgewichtigen,
+> unsignierten Tag-Stil veröffentlicht; stabile Releases bleiben davon
+> unberührt.
+>
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
 > veröffentlichtes Plugin-Zip nachgeprüft (Parser-Fix + Timeouts im
