@@ -2349,6 +2349,10 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+249afec — fix(deck): restore host sync and add streaming indicators — 2026-07-20 (v0.2.2-test candidate)
+9d9bc07 — docs(status): round 7 — install script rate-limit fix, verified — 2026-07-20
+cd58f54 — fix(deck): handle GitHub API rate limits in install script — 2026-07-20
+1cf323d — docs(status): v0.2.1-test live — round 6 complete and verified — 2026-07-20
 <this commit> — feat(library): Steam artwork endpoint + docs — 2026-07-12
 6b82593 — docs(status): round 10 — Phase 6 done, Steam library API, scope decisions — 2026-07-12
 a5d8686 — feat: update-state + branch selector + Steam library API — 2026-07-12
