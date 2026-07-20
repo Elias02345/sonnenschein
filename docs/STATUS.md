@@ -284,6 +284,26 @@
 > C++/QML-kritischer Teil (Session::initialize, AutoConfig) von Fable
 > selbst umgesetzt.
 >
+> **🔧 DECK-RUNDE 7 (2026-07-20): `deck-install.sh` zeigte irreführenden
+> Fehler beim Update.** Maintainer-Report: „Could not find the plugin
+> zip in the latest release". **Root Cause sofort reproduziert** (von
+> mir, ein einzelner unauthentifizierter curl-Call): die unauthenti-
+> fizierte GitHub-API erlaubt nur 60 Requests/Stunde pro IP — bei
+> Erschöpfung antwortet `api.github.com` mit HTTP 403 + Rate-Limit-JSON,
+> das der alte Code ungeprüft in den `browser_download_url`-Grep
+> pipete → leeres Ergebnis → irreführende generische Meldung statt der
+> echten Ursache. **Fix von Codex-Subagent (GPT-5.6, `cd58f54`)**: HTTP-
+> Status + Body getrennt erfasst, bis zu 4 Versuche mit 15/30/60s
+> Backoff, optionaler `GITHUB_TOKEN`-Header für höheres Limit (5000/h),
+> bei endgültigem Fehlschlag echter HTTP-Status + Body-Ausschnitt statt
+> der generischen Meldung. **Von mir verifiziert**: isolierte Stub-Tests
+> für Rate-Limit-dann-Erfolg UND permanenten Fehlschlag (beide korrekt),
+> plus ein echter authentifizierter Call gegen die reale GitHub-API mit
+> der neuen Logik (Status 200, `v0.2.1-test` + Plugin-Zip korrekt
+> erkannt). **Kein neues Release nötig** — das Script wird live von
+> `dev` per `raw.githubusercontent.com` geladen, der Fix ist sofort
+> wirksam.
+>
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
 > veröffentlichtes Plugin-Zip nachgeprüft (Parser-Fix + Timeouts im
