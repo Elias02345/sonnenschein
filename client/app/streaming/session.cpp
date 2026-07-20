@@ -3,6 +3,7 @@
 #include "streaming/streamutils.h"
 #include "backend/autoconfig.h"
 #include "backend/richpresencemanager.h"
+#include "path.h"
 
 #include <Limelight.h>
 #include "SDL_compat.h"
@@ -509,6 +510,11 @@ bool Session::populateDecoderProperties(SDL_Window* window)
                        m_StreamConfig.height,
                        m_StreamConfig.fps,
                        false, false, true, decoder)) {
+        // Sonnenschein: this used to fail completely silently — with
+        // quitAfter (CLI/Steam-shortcut launches) that meant the app just
+        // vanished with zero indication anything went wrong.
+        emit displayLaunchError(tr("Failed to initialize the video decoder for streaming. "
+                                   "Check the log file in %1 for details.").arg(Path::getLogDir()));
         return false;
     }
 
@@ -637,6 +643,9 @@ bool Session::initialize(QQuickWindow* qtWindow)
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                      "SDL_InitSubSystem(SDL_INIT_VIDEO) failed: %s",
                      SDL_GetError());
+        emit displayLaunchError(tr("Failed to initialize the display subsystem: %1. "
+                                   "Check the log file in %2 for details.")
+                                .arg(SDL_GetError()).arg(Path::getLogDir()));
         return false;
     }
 
@@ -659,6 +668,9 @@ bool Session::initialize(QQuickWindow* qtWindow)
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                      "Failed to create window for hardware decode test: %s",
                      SDL_GetError());
+        emit displayLaunchError(tr("Failed to create a window for streaming: %1. "
+                                   "Check the log file in %2 for details.")
+                                .arg(SDL_GetError()).arg(Path::getLogDir()));
         SDL_QuitSubSystem(SDL_INIT_VIDEO);
         return false;
     }

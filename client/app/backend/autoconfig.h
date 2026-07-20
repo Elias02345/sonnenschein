@@ -53,8 +53,18 @@ public:
     };
 
     // Detect the profile. Initializes/tears down its own SDL video subsystem
-    // and test window, so it is safe to call before the GUI starts.
+    // and test window, so it is safe to call before the GUI starts. Includes
+    // a full hardware-decoder probe (~9 decoder create/destroy cycles) — use
+    // only for the standalone `detect-profile` diagnostic command, never on
+    // the hot path of starting a stream (see detectProfileCheap).
     static DeviceProfile detectProfile();
+
+    // Display-geometry-only variant with no decoder probing at all — used by
+    // applyEasyMode() so Easy Mode doesn't run a second full decoder-context
+    // teardown/recreate cycle immediately before Session::initialize()'s own
+    // (necessary) one. Codec/HDR fields are left at their defaults; codec
+    // selection stays on AUTO regardless.
+    static DeviceProfile detectProfileCheap();
 
     // Apply a detected profile to a StreamingPreferences instance (resolution,
     // fps, bitrate, HDR). Codec is left on VCC_AUTO so stream negotiation can
