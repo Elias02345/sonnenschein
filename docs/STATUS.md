@@ -276,6 +276,14 @@
 > **Bekanntes Risiko (nur am Deck prüfbar)**: das Flex-Row-Wrapping des
 > App-Panels ist rein visuell nur auf echter Hardware verifizierbar.
 >
+> **✅ RELEASE v0.2.1-test LIVE** (2026-07-20, Run 29726550816 grün):
+> veröffentlichtes Zip verifiziert (Bundle enthält alle Fixes, Backend
+> durch Loader-Maschinerie), v0.2.0 als überholt markiert.
+> **Arbeitsweise dieser Runde (Maintainer-Vorgabe)**: Fable analysiert/
+> orchestriert/verifiziert, Sonnet-Subagent implementiert Frontend;
+> C++/QML-kritischer Teil (Session::initialize, AutoConfig) von Fable
+> selbst umgesetzt.
+>
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
 > veröffentlichtes Plugin-Zip nachgeprüft (Parser-Fix + Timeouts im
