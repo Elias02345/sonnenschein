@@ -530,203 +530,218 @@
 <context>
     <name>Session</name>
     <message>
-        <location filename="../streaming/session.cpp" line="105" />
+        <location filename="../streaming/session.cpp" line="106" />
         <source>No video received from host.</source>
         <translation>Kein Video vom Host empfangen.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="106" />
+        <location filename="../streaming/session.cpp" line="107" />
         <source>Check your firewall and port forwarding rules for port(s): %1</source>
         <translation>Prüfen Sie die Host-Firewall und Port-Weiterleitungsregeln für die Ports: %1</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="111" />
+        <location filename="../streaming/session.cpp" line="112" />
         <source>Your network connection isn't performing well. Reduce your video bitrate setting or try a faster connection.</source>
         <translation>Ihre Netzwerkverbindung ist nicht gut genug. Reduzieren Sie die Video Bitrate oder wechseln Sie zu einer schnelleren Verbindung.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="117" />
+        <location filename="../streaming/session.cpp" line="118" />
         <source>Something went wrong on your host PC when starting the stream.</source>
         <translation>Beim Starten des Streams ist auf Ihrem Host-PC etwas schiefgelaufen.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="118" />
+        <location filename="../streaming/session.cpp" line="119" />
         <source>Make sure you don't have any DRM-protected content open on your host PC. You can also try restarting your host PC.</source>
         <translation>Stellen Sie sicher, dass Sie keine DRM-geschützten Inhalte auf Ihrem Host-PC geöffnet haben. Sie können auch versuchen, Ihren Host-PC neu zu starten.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="123" />
+        <location filename="../streaming/session.cpp" line="124" />
         <source>The host PC reported a fatal video encoding error.</source>
         <translation>Der Host-PC hat einen schwerwiegenden Videokodierungsfehler gemeldet.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="124" />
+        <location filename="../streaming/session.cpp" line="125" />
         <source>Try disabling HDR mode, changing the streaming resolution, or changing your host PC's display resolution.</source>
         <translation>Versuchen Sie, den HDR-Modus zu deaktivieren, die Streaming-Auflösung zu ändern oder die Bildschirmauflösung des Host-PCs zu ändern.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="132" />
+        <location filename="../streaming/session.cpp" line="133" />
         <source>Connection terminated</source>
         <translation>Verbindung getrennt</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="133" />
+        <location filename="../streaming/session.cpp" line="134" />
         <source>Error code: %1</source>
         <translation>Fehlercode: %1</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="966" />
+        <location filename="../streaming/session.cpp" line="978" />
         <source>The version of GeForce Experience on %1 is not supported by this build of Moonlight. You must update Moonlight to stream from %1.</source>
         <translation>Diese Version von GeForce Experience auf %1 wird von diesem Build von Moonlight nicht unterstützt. Sie müssen Moonlight aktualisieren, um von %1 zu streamen.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="971" />
+        <location filename="../streaming/session.cpp" line="983" />
         <source>Your selection to enable remote desktop mouse mode may cause problems in games.</source>
         <translation>Die Auswahl des Remote Desktop Maus Modus kann in Spielen zu Problemen führen.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="975" />
+        <location filename="../streaming/session.cpp" line="987" />
         <source>Your settings selection to force software decoding may cause poor streaming performance.</source>
         <translation>Software Dekodierung kann zu schlechter Streaming Leitung führen.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1011" />
+        <location filename="../streaming/session.cpp" line="1023" />
         <source>Your host PC doesn't support encoding HEVC.</source>
         <translation>Ihr Host-PC unterstützt die HEVC-Kodierung nicht.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1029" />
+        <location filename="../streaming/session.cpp" line="1041" />
         <source>Using software decoding due to your selection to force HEVC without GPU support. This may cause poor streaming performance.</source>
         <translation>Da Ihre Grafikkarte keine HEVC Decodierung unterstützt wird Software Dekodierung benutzt. Dies kann zu einer schlechten Streaming-Leistung führen.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="981" />
+        <location filename="../streaming/session.cpp" line="993" />
         <source>Your host software or GPU doesn't support encoding AV1.</source>
         <translation>Ihre Host-Software oder Ihre GPU unterstützt die AV1-Kodierung nicht.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="999" />
+        <location filename="../streaming/session.cpp" line="1011" />
         <source>Using software decoding due to your selection to force AV1 without GPU support. This may cause poor streaming performance.</source>
         <translation>Nutze Software-Dekodierung wegen der Auswahl, AV1 ohne GPU-Unterstützung zu erzwingen. Dies kann eine schlechte Streaming-Leistung verursachen.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1076" />
+        <location filename="../streaming/session.cpp" line="1088" />
         <source>Your host PC doesn't support HDR streaming.</source>
         <translation>Ihr Host-PC unterstützt kein HDR-Streaming.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1068" />
+        <location filename="../streaming/session.cpp" line="1080" />
         <source>HDR is not supported using the H.264 codec.</source>
         <translation>Der h.264 Codec unterstützt kein HDR.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1091" />
+        <location filename="../streaming/session.cpp" line="1103" />
         <source>This PC's GPU doesn't support AV1 Main10 decoding for HDR streaming.</source>
         <translation>Die GPU des Client-PCs unterstützt keine HEVC Main10 Dekodierung für HDR Streaming.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1072" />
+        <location filename="../streaming/session.cpp" line="1084" />
         <source>This PC's GPU doesn't support 10-bit HEVC or AV1 decoding for HDR streaming.</source>
         <translation>Die GPU des Client-PCs unterstützt keine 10-Bit HEVC oder AV1 Dekodierung für HDR Streaming.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1124" />
+        <location filename="../streaming/session.cpp" line="1136" />
         <source>Your host PC and client PC don't support the same HDR video codecs.</source>
         <translation>Ihr Host-PC und Ihr Client-PC unterstützen nicht die gleichen HDR-Videocodecs.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1217" />
+        <location filename="../streaming/session.cpp" line="1229" />
         <source>Video resolutions over 4K are not supported by the H.264 codec.</source>
         <translation>Videoauflösungen über 4K werden vom H.264 Codec nicht unterstützt.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1614" />
+        <location filename="../streaming/session.cpp" line="1626" />
         <source>Host returned error: %1</source>
         <translation>Host hat einen Fehler zurückgegeben: %1</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1048" />
+        <location filename="../streaming/session.cpp" line="1060" />
         <source>Using software decoding due to your selection to force H.264 without GPU support. This may cause poor streaming performance.</source>
         <translation>Verwendung der Software-Decodierung aufgrund Ihrer Auswahl, H.264 ohne GPU-Unterstützung zu erzwingen. Dies kann zu einer schlechten Streaming-Leistung führen.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1058" />
+        <location filename="../streaming/session.cpp" line="516" />
+        <source>Failed to initialize the video decoder for streaming. Check the log file in %1 for details.</source>
+        <translation>Der Video-Decoder für das Streaming konnte nicht initialisiert werden. Details in der Logdatei unter %1.</translation>
+    </message>
+    <message>
+        <location filename="../streaming/session.cpp" line="646" />
+        <source>Failed to initialize the display subsystem: %1. Check the log file in %2 for details.</source>
+        <translation>Das Anzeige-Subsystem konnte nicht initialisiert werden: %1. Details in der Logdatei unter %2.</translation>
+    </message>
+    <message>
+        <location filename="../streaming/session.cpp" line="671" />
+        <source>Failed to create a window for streaming: %1. Check the log file in %2 for details.</source>
+        <translation>Es konnte kein Fenster für das Streaming erstellt werden: %1. Details in der Logdatei unter %2.</translation>
+    </message>
+    <message>
+        <location filename="../streaming/session.cpp" line="1070" />
         <source>Your host PC and client PC don't support the same video codecs. This may cause poor streaming performance.</source>
         <translation>Ihr Host-PC und Client-PC unterstützen nicht die gleichen Videocodecs. Dies kann zu einer schlechten Streaming-Leistung führen.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1061" />
+        <location filename="../streaming/session.cpp" line="1073" />
         <source>Your client GPU doesn't support H.264 decoding. This may cause poor streaming performance.</source>
         <translation>Ihr Client-GPU unterstützt die H.264-Dekodierung nicht. Dies kann zu einer schlechten Streaming-Leistung führen.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1097" />
-        <location filename="../streaming/session.cpp" line="1115" />
+        <location filename="../streaming/session.cpp" line="1109" />
+        <location filename="../streaming/session.cpp" line="1127" />
         <source>Using software decoding due to your selection to force HDR without GPU support. This may cause poor streaming performance.</source>
         <translation>Verwendung der Software-Decodierung aufgrund Ihrer Auswahl, HDR ohne GPU-Unterstützung zu erzwingen. Dies kann zu einer schlechten Streaming-Leistung führen.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1109" />
+        <location filename="../streaming/session.cpp" line="1121" />
         <source>This PC's GPU doesn't support HEVC Main10 decoding for HDR streaming.</source>
         <translation>Die Grafikkarte des PCs unterstützt keine HEVC Main10 Dekodierung für HDR Streaming.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1131" />
+        <location filename="../streaming/session.cpp" line="1143" />
         <source>Your host PC doesn't support YUV 4:4:4 streaming.</source>
         <translation>Ihr Host-PC unterstützt kein YUV 4:4:4 streaming.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1139" />
+        <location filename="../streaming/session.cpp" line="1151" />
         <source>Your host PC doesn't support YUV 4:4:4 streaming for selected video codec.</source>
         <translation>Ihr Host-PC unterstützt kein YUV 4:4:4 streaming für den gewählten Video-Codec.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1154" />
+        <location filename="../streaming/session.cpp" line="1166" />
         <source>Using software decoding due to your selection to force YUV 4:4:4 without GPU support. This may cause poor streaming performance.</source>
         <translation>YUV 4:4:4 ausgewählt, aber nicht von der GPU unterstützt. Softwaredekodierung wird verwendet. Dies kann zu schlechter Streaming-Leistung führen.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1160" />
+        <location filename="../streaming/session.cpp" line="1172" />
         <source>This PC's GPU doesn't support YUV 4:4:4 decoding for selected video codec.</source>
         <translation>Die GPU dieses PCs unterstützt für den ausgewählten Video-Codec keine YUV 4:4:4-Dekodierung.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1169" />
+        <location filename="../streaming/session.cpp" line="1181" />
         <source>GeForce Experience 3.0 or higher is required for 4K streaming.</source>
         <translation>Für 4K Streaming wird mindestens GeForce Experience 3.0 benötigt.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1184" />
+        <location filename="../streaming/session.cpp" line="1196" />
         <source>Your selected surround sound setting is not supported by the current audio device.</source>
         <translation>Ihre ausgewählte Surround Sound Einstellung wird von dem momentanen Audiogerät nicht unterstützt.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1190" />
+        <location filename="../streaming/session.cpp" line="1202" />
         <source>Failed to open audio device. Audio will be unavailable during this session.</source>
         <translation>Zugriff auf das Audiogerät fehlgeschlagen. Es wird kein Ton für diese Session verfügbar sein.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1195" />
+        <location filename="../streaming/session.cpp" line="1207" />
         <source>An attached gamepad has no mapping and won't be usable. Visit the Moonlight help to resolve this.</source>
         <translation>Ein angeschlossener Controller hat keine Tastenbelegung und ist somit nicht nutzbar. Besuchen Sie bitte die Moonlight Hilfe um dies zu lösen.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1213" />
+        <location filename="../streaming/session.cpp" line="1225" />
         <source>Your host PC's GPU doesn't support streaming video resolutions over 4K.</source>
         <translation>Die GPU Ihres Host-PCs unterstützt keine Streaming-Videoauflösungen über 4K.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1231" />
+        <location filename="../streaming/session.cpp" line="1243" />
         <source>Your selection to force hardware decoding cannot be satisfied due to missing hardware decoding support on this PC's GPU.</source>
         <translation>Erzwungene Hardware Dekodierung kann nicht ausgewählt werden, da der PC keine Hardware Decodierung unterstützt.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="1234" />
+        <location filename="../streaming/session.cpp" line="1246" />
         <source>Your codec selection and force hardware decoding setting are not compatible. This PC's GPU lacks support for decoding your chosen codec.</source>
         <translation>Erzwungene Hardware Dekodierung ist nicht mit deinem ausgewähltem Codec kompatibel, da die Grafikkarte des PCs den ausgewählten Codec nicht unterstützt.</translation>
     </message>
     <message>
-        <location filename="../streaming/session.cpp" line="2212" />
+        <location filename="../streaming/session.cpp" line="2224" />
         <source>Unable to initialize video decoder. Please check your streaming settings and try again.</source>
         <translation>Videodecoder konnte nicht initialisiert werden. Bitte prüfen Sie Ihre Streaming-Einstellungen und versuchen Sie es erneut.</translation>
     </message>

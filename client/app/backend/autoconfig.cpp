@@ -18,15 +18,17 @@ static bool probeHw(SDL_Window* window, int videoFormat, int w, int h, int fps)
            == Session::DecoderAvailability::Hardware;
 }
 
-AutoConfig::DeviceProfile AutoConfig::detectProfile()
+// Shared setup: open the video subsystem, create a throwaway test window,
+// and read native display geometry into the profile. Returns the test
+// window (caller must destroy it and quit the video subsystem), or nullptr
+// on failure (profile left invalid).
+static SDL_Window* detectDisplayGeometry(AutoConfig::DeviceProfile& p)
 {
-    DeviceProfile p;
-
     if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                      "AutoConfig: SDL_InitSubSystem(SDL_INIT_VIDEO) failed: %s",
                      SDL_GetError());
-        return p;
+        return nullptr;
     }
 
     SDL_Window* testWindow = StreamUtils::createTestWindow();
@@ -34,7 +36,7 @@ AutoConfig::DeviceProfile AutoConfig::detectProfile()
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                      "AutoConfig: failed to create test window: %s", SDL_GetError());
         SDL_QuitSubSystem(SDL_INIT_VIDEO);
-        return p;
+        return nullptr;
     }
 
     // --- Native display geometry (display 0) --------------------------------
@@ -70,6 +72,18 @@ AutoConfig::DeviceProfile AutoConfig::detectProfile()
     p.width = p.nativeWidth > 0 ? p.nativeWidth : 1920;
     p.height = p.nativeHeight > 0 ? p.nativeHeight : 1080;
     p.fps = p.nativeRefreshRate > 0 ? p.nativeRefreshRate : 60;
+
+    return testWindow;
+}
+
+AutoConfig::DeviceProfile AutoConfig::detectProfile()
+{
+    DeviceProfile p;
+
+    SDL_Window* testWindow = detectDisplayGeometry(p);
+    if (!testWindow) {
+        return p;
+    }
 
     // --- General decoder capabilities (HW accel, HDR, max resolution) -------
     bool hasHwAccel = false;
@@ -123,6 +137,40 @@ AutoConfig::DeviceProfile AutoConfig::detectProfile()
     return p;
 }
 
+AutoConfig::DeviceProfile AutoConfig::detectProfileCheap()
+{
+    // Easy Mode runs this at the top of Session::initialize(), i.e.
+    // immediately before that same function does its own full hardware
+    // decoder probe (creating/tearing down real VAAPI/EGL/DRM decoder
+    // contexts) for the actual stream. Doing a SECOND full probe cycle here
+    // — as detectProfile() does for the standalone `detect-profile`
+    // diagnostic command — means back-to-back GPU/decoder context
+    // teardown+recreate in the same process, right at the most sensitive
+    // moment of stream startup. On a fresh CLI-launched process (e.g. every
+    // Steam Deck / Decky stream launch) this is *the only* stream that
+    // process will ever start, so it always pays the full cost right
+    // before it matters most.
+    //
+    // This cheap variant only queries display geometry (resolution/refresh
+    // rate) — no decoder is ever created. Codec choice stays on AUTO
+    // (negotiated for real by Session::initialize() right after), and HDR
+    // eligibility is left to the real negotiation rather than guessed here.
+    DeviceProfile p;
+
+    SDL_Window* testWindow = detectDisplayGeometry(p);
+    if (!testWindow) {
+        return p;
+    }
+
+    p.bitrateKbps = StreamingPreferences::getDefaultBitrate(p.width, p.height, p.fps, false);
+
+    SDL_DestroyWindow(testWindow);
+    SDL_QuitSubSystem(SDL_INIT_VIDEO);
+
+    p.valid = true;
+    return p;
+}
+
 void AutoConfig::applyToPreferences(const DeviceProfile& profile, StreamingPreferences* prefs)
 {
     if (!profile.valid || prefs == nullptr) {
@@ -150,7 +198,7 @@ void AutoConfig::applyEasyMode(StreamingPreferences* prefs)
     }
 
     if (!s_ProbeDone) {
-        s_CachedProfile = detectProfile();
+        s_CachedProfile = detectProfileCheap();
         s_ProbeDone = true;
     }
 
