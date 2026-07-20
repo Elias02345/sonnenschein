@@ -196,6 +196,60 @@
 > Install-Script → Deck-Neustart → Spieleseite eines Host-Spiels
 > (z. B. Portal) → „Stream via Sonnenschein"-Button.
 >
+> **🎯 DECK-RUNDE 6 (2026-07-20) — echter Deck-Test, 3 Befunde + Root-Cause
+> gefunden.** Maintainer-Report: Button zu groß/UI kaputt; Klick öffnet
+> Client, zeigt „Starting Portal", schließt sofort ohne zu streamen,
+> UND legt ein leeres Platzhalterspiel „Sonnenschein Stream" an;
+> außerdem Wunsch nach Verfügbarkeits-LED am Button. **Auf Maintainer-
+> Anweisung: Fable als Opus-Rolle orchestriert + verifiziert, Sonnet-
+> Subagenten implementieren (Kostenersparnis).**
+>
+> **Vollständige Code-Analyse (von mir, C++/QML kritisch):**
+> 1. **Root Cause „schließt sofort, kein Fehler"**: `AutoConfig::
+>    applyEasyMode()` (M1, Easy-Mode-Default) lief bei JEDEM frischen
+>    CLI-Prozess — jeder Decky-Stream-Start ist einer — eine VOLLSTÄNDIGE
+>    Hardware-Decoder-Sondierung (bis zu 9 Decoder-Erstellen/Zerstören-
+>    Zyklen über ein Wegwerf-Testfenster), UNMITTELBAR gefolgt von
+>    `Session::initialize()`s EIGENER, ebenfalls vollständiger Decoder-
+>    Initialisierung mit einem ZWEITEN Testfenster — doppelter GPU-/
+>    Decoder-Auf-/Abbau im selben Prozess, direkt hintereinander, genau
+>    beim heikelsten Moment des Stream-Starts. Auf dem PC nie aufgefallen
+>    (Prozess läuft über mehrere manuelle Starts weiter, Sondierung ist
+>    einmalig gecacht) — CLI/Decky erzwingt hingegen jedes Mal einen
+>    frischen Prozess. **Unabhängig davon**: alle drei Fehlerpfade in
+>    `Session::initialize()` (SDL-Video-Init, Testfenster-Erstellung,
+>    Decoder-Eigenschaften-Population via `populateDecoderProperties`)
+>    haben NIE das existierende `displayLaunchError`-Signal gefeuert —
+>    zusammen mit `quitAfter=true` (CLI-Start) macht das JEDEN Fehler zu
+>    100% unsichtbar: die App beendet sich ohne jede Anzeige. Das erklärt
+>    exakt das gemeldete Symptom.
+> 2. **Root Cause „Platzhalterspiel Sonnenschein Stream"**: Das
+>    gemeinsame, wiederverwendete Shortcut hat nie einen Namen/Artwork
+>    des Zielspiels — Steams eigener „App wird gestartet"-Übergangsbild-
+>    schirm zeigt daher zwangsläufig den generischen Platzhalter.
+> 3. **Button-Styling**: Sonnet-Agent hatte generischen `DialogButton`
+>    mit eigenem Markup gesplict statt Steam-eigene Klassen/Größe zu
+>    nutzen wie MoonDeck.
+>
+> **Fixes (`776cd7d`, `feature/client-stream-fixes`, von mir selbst
+> gemacht — C++/QML-kritisch):**
+> - Neue `AutoConfig::detectProfileCheap()`: nur Display-Geometrie
+>   (Auflösung/Refresh), KEINE Decoder-Erstellung. Easy Mode ruft jetzt
+>   diese statt der vollen `detectProfile()`. Volle Sondierung bleibt
+>   exklusiv dem eigenständigen `detect-profile`-Diagnosebefehl
+>   vorbehalten (verifiziert unverändert: läuft weiterhin die volle
+>   Multi-Codec-Sondierung, ~30 s auf dieser Dev-Maschine ohne echte
+>   Deck-GPU-Decoder).
+> - Alle drei stillen Fehlerpfade in `Session::initialize()` feuern jetzt
+>   `displayLaunchError` mit Log-Verzeichnis-Hinweis.
+> - DE-Übersetzung ergänzt (278/278).
+> - Verifiziert: Client-Rebuild sauber, `detect-profile`-CLI-Befehl
+>   unverändert voll funktional.
+>
+> **Frontend-Fixes (Sonnet-Agent, Button-Styling + Rename + LED,
+> Ergebnis/Report ausstehend beim Schreiben dieser Zeile — siehe
+> nächster Eintrag nach Review).**
+>
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
 > veröffentlichtes Plugin-Zip nachgeprüft (Parser-Fix + Timeouts im
