@@ -36,7 +36,38 @@ info "Removing old plugin files and stale logs..."
 sudo rm -rf "$PLUGIN_DIR" "$LOGS_DIR"
 
 info "Fetching latest release info..."
-ZIP_URL=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
+CURL_ARGS=(-sS -w $'\n%{http_code}')
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+    CURL_ARGS+=(-H "Authorization: Bearer $GITHUB_TOKEN")
+fi
+
+RELEASE_BODY=""
+HTTP_STATUS="000"
+for RETRY_DELAY in 0 15 30 60; do
+    if [ "$RETRY_DELAY" -gt 0 ]; then
+        sleep "$RETRY_DELAY"
+    fi
+
+    RELEASE_RESPONSE=$(curl "${CURL_ARGS[@]}" "https://api.github.com/repos/$REPO/releases/latest" 2>&1)
+    HTTP_STATUS=${RELEASE_RESPONSE##*$'\n'}
+    RELEASE_BODY=${RELEASE_RESPONSE%$'\n'*}
+
+    if [ "$HTTP_STATUS" = "200" ] && printf '%s' "$RELEASE_BODY" | python3 -c 'import json, sys; json.load(sys.stdin)' 2>/dev/null; then
+        break
+    fi
+
+    if printf '%s' "$RELEASE_BODY" | grep -qi "rate limit exceeded" && [ "$RETRY_DELAY" -lt 60 ]; then
+        info "GitHub API rate limit reached for this IP (60 requests/hour, unauthenticated). Retrying with backoff..."
+    fi
+done
+
+if [ "$HTTP_STATUS" != "200" ] || ! printf '%s' "$RELEASE_BODY" | python3 -c 'import json, sys; json.load(sys.stdin)' 2>/dev/null; then
+    ERROR_BODY=$(printf '%s' "$RELEASE_BODY" | head -c 200)
+    err "GitHub API request failed (HTTP $HTTP_STATUS): $ERROR_BODY"
+    exit 1
+fi
+
+ZIP_URL=$(printf '%s' "$RELEASE_BODY" \
     | grep -o '"browser_download_url": *"[^"]*Sonnenschein-Decky-Plugin[^"]*\.zip"' \
     | head -1 | sed 's/.*"\(https[^"]*\)"/\1/')
 if [ -z "$ZIP_URL" ]; then
