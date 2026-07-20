@@ -246,9 +246,35 @@
 > - Verifiziert: Client-Rebuild sauber, `detect-profile`-CLI-Befehl
 >   unverändert voll funktional.
 >
-> **Frontend-Fixes (Sonnet-Agent, Button-Styling + Rename + LED,
-> Ergebnis/Report ausstehend beim Schreiben dieser Zeile — siehe
-> nächster Eintrag nach Review).**
+> **Frontend-Fixes (`cb5ab29`, Sonnet-Agent, von mir reviewt + selbst
+> verifiziert):**
+> - **Button**: MoonDeck nutzt für die Größe/Platzierung einen
+>   MutationObserver-Mechanismus (zu riskant zum 1:1-Portieren); daraus
+>   übernommen: (1) Steams eigenes `DialogButton`-CSS gewinnt gegen
+>   Inline-Styles → gescopte `!important`-Style-Klasse fixiert Höhe
+>   (40px)/Padding/Margin, (2) Button wird als Geschwister-Element NEBEN
+>   dem bestehenden Play/Install-Panel gerendert (das App-Panel-Element
+>   wird in eine Flex-Row mit unserem Button gewrappt) statt als
+>   zusätzliche volle Zeile drunter gesplict — Splice-Fallback bleibt
+>   für den Fall, dass Steam-UI-Drift das App-Panel nicht mehr findet.
+>   Label auf „Stream" gekürzt (analog „Play"/„Install"). Nebenbei einen
+>   Rules-of-Hooks-Bug gefixt (früher `return null` vor einem Hook).
+> - **Rename**: `streamGame()` ruft jetzt `SetShortcutName(appId, title)`
+>   direkt vor `SetAppLaunchOptions` — Steams Start-Übergangsbildschirm
+>   zeigt „Portal" statt „Sonnenschein Stream".
+> - **Verfügbarkeits-LED**: neue Backend-Methode
+>   `check_host_available(address, port)` (unauth `/serverinfo`-Probe,
+>   gleiches Muster wie `_https_port`, kein `xml.etree`), Frontend pollt
+>   alle 8s: grüner Punkt (erreichbar+frei), orange (erreichbar+
+>   beschäftigt), rot (nicht erreichbar).
+> - **Verifiziert von mir**: Build grün, Bundle nur SP_JSX, Backend durch
+>   Loader-Maschinerie inkl. `check_host_available` live gegen den
+>   echten Host UND gegen eine unerreichbare Adresse getestet — beide
+>   Fälle korrekt.
+> **Beide Feature-Branches gemerged auf `dev`** (`57bab50` Client,
+> `cad173f` Decky). Nach CI-Grün → Release v0.2.1-test.
+> **Bekanntes Risiko (nur am Deck prüfbar)**: das Flex-Row-Wrapping des
+> App-Panels ist rein visuell nur auf echter Hardware verifizierbar.
 >
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
