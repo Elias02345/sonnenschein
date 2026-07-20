@@ -193,6 +193,17 @@ export async function streamGame(host: HostInfo, title: string): Promise<boolean
       return false;
     }
 
+    // Rename the shared shortcut to the real game title before every start
+    // so Steam's own launch-transition screen shows "Portal" instead of the
+    // generic "Sonnenschein Stream" placeholder. Resetting it back after the
+    // stream ends is not necessary — the next streamGame() call (of any
+    // game) overwrites it again, and the shortcut stays hidden either way.
+    try {
+      await SteamClient.Apps.SetShortcutName(appId, title);
+    } catch (e) {
+      console.error("Sonnenschein: SetShortcutName failed", e);
+    }
+
     const launchOptions = await getLaunchOptions(host.address, title);
     await SteamClient.Apps.SetAppLaunchOptions(appId, launchOptions);
 

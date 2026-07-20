@@ -155,6 +155,34 @@ def _https_port(address, http_port):
     return int(http_port) - 5
 
 
+def _probe_host_state(address, port):
+    """Query the host's unauthenticated /serverinfo (same endpoint/timeout/
+    header pattern as _https_port) and extract <state>. Never raises — any
+    failure (timeout, connection refused, malformed body, ...) just means
+    "not reachable", so callers never have to guard this with their own
+    try/except."""
+    import http.client
+    import re
+
+    try:
+        conn = http.client.HTTPConnection(address, int(port), timeout=5)
+        try:
+            conn.request("GET", "/serverinfo", headers={"User-Agent": "sonnenschein-decky"})
+            resp = conn.getresponse()
+            body = resp.read()
+        finally:
+            conn.close()
+        if resp.status == 200:
+            # NB: no xml.etree here either — see _https_port above.
+            text = body.decode("utf-8", "replace")
+            m = re.search(r"<state>([^<]*)</state>", text)
+            state = m.group(1).strip() if m else ""
+            return True, state == "SUNSHINE_SERVER_BUSY"
+    except Exception as e:
+        decky.logger.info(f"host state probe failed for {address}:{port}: {e}")
+    return False, False
+
+
 class _HostApi:
     """Minimal mutual-TLS client for the Moonlight HTTPS API."""
 
@@ -301,6 +329,13 @@ class Plugin:
             return {"data": "", "ext": ""}
         ext = "png" if body[:8] == b"\x89PNG\r\n\x1a\n" else "jpg"
         return {"data": base64.b64encode(body).decode("ascii"), "ext": ext}
+
+    async def check_host_available(self, address, port):
+        """Cheap reachability+busy probe for the game-page button's
+        availability dot (frontend polls this every few seconds) — never
+        raises, so a slow/dead host can never block the caller."""
+        reachable, busy = _probe_host_state(address, port)
+        return {"reachable": reachable, "busy": busy}
 
     async def get_launch_options(self, address, app_title):
         """Launch options string encoding host + app (and the resolved
