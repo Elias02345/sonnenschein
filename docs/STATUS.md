@@ -555,6 +555,11 @@
 > echter Button/Fokus, `systemd-run` und Statusaufnahme nach Loader-Restart am
 > Deck. Bei Plugin-Rollback bleibt die zusätzliche neue versionsbenannte
 > AppImage liegen; die alte bleibt ebenfalls erhalten, daher ist Retry sicher.
+> **CI-Nachbesserung:** Erster Lint-Run zu `c5e1c9f` fand ausschließlich
+> ShellCheck SC2034 im neuen Harness (`LOG_FILE` nach dem root-owned-State-
+> Umbau unbenutzt). Die tote Testvariable wurde entfernt; kein Runtime-Code
+> betroffen. Reproduktion: ShellCheck 0.11 mit Severity `warning` auf
+> `decky-plugin/tests/update_harness.sh`.
 > Das versionierte One-Shot-Script ist ein eigenes unveränderliches Release-
 > Asset; die rolling Anleitung nutzt `releases/latest/download`, der Release-
 > Text verweist reproduzierbar auf sein eigenes Tag-Asset. Verifikationsclaims

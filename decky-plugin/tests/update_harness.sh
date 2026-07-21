@@ -84,7 +84,6 @@ EOF
 chmod +x "$TEST_ROOT/bin/curl" "$TEST_ROOT/bin/systemctl" "$TEST_ROOT/bin/chown"
 
 STATUS_FILE="$TEST_ROOT/test-update-state/status.json"
-LOG_FILE="$TEST_ROOT/test-update-state/update.log"
 uid="$(id -u)"
 gid="$(id -g)"
 PATH="$TEST_ROOT/bin:$PATH" \
