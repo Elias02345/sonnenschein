@@ -2377,6 +2377,7 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+41a6abe — ci(release): validate downloaded artifact count — 2026-07-21 (v0.2.5-test candidate)
 9493ce3 — ci(release): validate exact artifact inventory — 2026-07-21 (v0.2.4-test candidate)
 fe8f09a — feat(deck): install client and plugin in one step — 2026-07-21 (v0.2.4-test candidate)
 fbddd4e — ci(release): fix asset gate for test packages — 2026-07-21 (v0.2.3-test candidate)
