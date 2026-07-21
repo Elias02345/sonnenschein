@@ -12,18 +12,18 @@ fi
 
 # Locate the Sonnenschein Client: user override, newest AppImage, flatpak.
 if [ -n "$SONNENSCHEIN_CLIENT" ] && [ -x "$SONNENSCHEIN_CLIENT" ]; then
-    exec "$SONNENSCHEIN_CLIENT" stream "$SONNENSCHEIN_HOST" "$SONNENSCHEIN_APP"
+    exec "$SONNENSCHEIN_CLIENT" stream "$SONNENSCHEIN_HOST" "$SONNENSCHEIN_APP" --quit-after
 fi
 
 for c in "$HOME"/Applications/Sonnenschein_Client*.AppImage; do
     [ -e "$c" ] && CLIENT="$c"
 done
 if [ -n "$CLIENT" ] && [ -x "$CLIENT" ]; then
-    exec "$CLIENT" stream "$SONNENSCHEIN_HOST" "$SONNENSCHEIN_APP"
+    exec "$CLIENT" stream "$SONNENSCHEIN_HOST" "$SONNENSCHEIN_APP" --quit-after
 fi
 
 if command -v flatpak >/dev/null 2>&1 && flatpak info io.github.elias02345.Sonnenschein >/dev/null 2>&1; then
-    exec flatpak run io.github.elias02345.Sonnenschein stream "$SONNENSCHEIN_HOST" "$SONNENSCHEIN_APP"
+    exec flatpak run io.github.elias02345.Sonnenschein stream "$SONNENSCHEIN_HOST" "$SONNENSCHEIN_APP" --quit-after
 fi
 
 echo "Sonnenschein Client not found (put the AppImage in ~/Applications)" >&2

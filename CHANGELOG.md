@@ -2,6 +2,38 @@
 
 All notable user-facing changes to Sonnenschein are documented here.
 
+## 0.2.8-test — 2026-07-21
+
+### Fixed
+
+- Restored the **Stream with Sonnenschein** control directly on matching
+  native Steam game pages using Steam's current controller-focusable button
+  structure without re-parenting the Play/Install panel.
+- Replaced the mutable shared streaming shortcut with one stable, hidden
+  runtime entry per host game. Streams no longer create repeated placeholder
+  apps, and every title keeps a consistent Steam running identity, overlay,
+  focus target, and Steam Input profile.
+- Serialized shortcut-state mutations so automatic library sync and a stream
+  launch cannot overwrite each other or create duplicate runtime entries.
+- Normal stream shutdown now also closes the game on the streaming PC and
+  tears down the session and virtual display. Unexpected network loss or a
+  client crash intentionally keeps the host game alive for safe reconnects.
+
+### Changed
+
+- Native Steam app IDs are indexed directly when matching the host catalogue,
+  avoiding ambiguous or localized title-only matches on the game page.
+- Steam Deck release notes now include a curated change summary, platform
+  download table, verified one-shot installer, and setup-guide link.
+
+### Controller support
+
+- Steam tracks a stable per-game streaming process for controller focus and
+  per-title Steam Input configuration. The client continues to forward the
+  Steam Deck controller through the native SDL/Limelight gamepad endpoint,
+  including buttons, axes, rumble, motion, battery, and supported extended
+  controller events.
+
 ## 0.2.5-test — 2026-07-21
 
 ### Fixed

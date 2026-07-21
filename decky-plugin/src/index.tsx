@@ -27,8 +27,11 @@ import {
   addShortcut,
   findLibraryAppByTitle,
   launchGame,
+  mutateSyncState,
+  removeLegacyStreamShortcut,
   setRunnerPath,
   shortcutExists,
+  storedShortcutIsUsable,
   streamGame,
   updateHostGameIndex,
 } from "./steamlib";
@@ -52,7 +55,6 @@ const getApps = callable<[string, number], HostApp[]>("get_apps");
 const getBoxart = callable<[string, number, string], { data: string; ext: string }>("get_boxart");
 const getLaunchOptions = callable<[string, string], string>("get_launch_options");
 const getState = callable<[], SyncState>("get_state");
-const setState = callable<[SyncState], boolean>("set_state");
 const setClientPath = callable<[string], boolean>("set_client_path");
 
 // A backend that never answers must not leave the panel stuck — every
@@ -71,7 +73,7 @@ const EXCLUDED_TITLES = new Set(["Desktop", "Steam Big Picture"]);
 
 declare const SteamClient: any;
 
-async function syncHost(host: HostInfo, runnerPath: string, state: SyncState): Promise<{ added: number; removed: number; total: number }> {
+async function syncHost(host: HostInfo, runnerPath: string): Promise<{ added: number; removed: number; total: number }> {
   const status = { added: 0, removed: 0, total: 0 };
   const apps = await withTimeout(getApps(host.address, host.port), 20000, "Spieleliste");
   const games = apps.filter((a) => !EXCLUDED_TITLES.has(a.title));
@@ -84,57 +86,77 @@ async function syncHost(host: HostInfo, runnerPath: string, state: SyncState): P
   const shortcutGames = games.filter((a) => findLibraryAppByTitle(a.title) === null);
   const wantedKeys = new Set(shortcutGames.map((a) => `${host.uuid}/${a.id}`));
 
-  // Remove shortcuts for games that vanished from the host (or are now
-  // matched to a native library entry)
-  for (const key of Object.keys(state)) {
+  await mutateSyncState(removeLegacyStreamShortcut);
+
+  // Snapshot only determines candidates. Every short mutation below reloads
+  // and rechecks current state, so a page launch can interleave between games
+  // instead of waiting behind all box-art downloads.
+  const stateSnapshot = await getState();
+  for (const key of Object.keys(stateSnapshot)) {
     if (key.startsWith(`${host.uuid}/`) && !wantedKeys.has(key)) {
-      const appId = state[key];
-      try {
-        if (shortcutExists(appId)) {
-          await SteamClient.Apps.RemoveShortcut(appId);
+      await mutateSyncState(async (state) => {
+        if (typeof state[key] !== "number" || wantedKeys.has(key)) {
+          return;
         }
-      } catch (e) {
-        console.error("Sonnenschein: RemoveShortcut failed", e);
-      }
-      delete state[key];
-      status.removed++;
+        const appId = state[key];
+        // Steam publishes non-Steam shortcuts asynchronously. Keep the
+        // mapping while the app store is still warming up so a later sync can
+        // remove the actual shortcut instead of leaving an orphan behind.
+        if (!shortcutExists(appId)) {
+          return;
+        }
+        try {
+          await SteamClient.Apps.RemoveShortcut(appId);
+        } catch (e) {
+          console.error("Sonnenschein: RemoveShortcut failed", e);
+          return;
+        }
+        delete state[key];
+        status.removed++;
+      });
     }
   }
 
-  // Add missing shortcuts
+  // Add missing host-only shortcuts. Fetch network artwork outside the state
+  // queue; only the identity-critical Steam operations and state commit are
+  // serialized.
   for (const app of shortcutGames) {
     const key = `${host.uuid}/${app.id}`;
-    if (state[key] && shortcutExists(state[key])) {
-      continue;
-    }
-
-    const appId = await addShortcut(app.title, runnerPath);
-    if (appId === null) {
-      continue;
-    }
-
-    const launchOptions = await getLaunchOptions(host.address, app.title);
+    let art: { data: string; ext: string } | null = null;
     try {
-      await SteamClient.Apps.SetAppLaunchOptions(appId, launchOptions);
+      art = await withTimeout(getBoxart(host.address, host.port, app.id), 15000, "Boxart");
     } catch (e) {
-      console.error("Sonnenschein: SetAppLaunchOptions failed", e);
+      console.error("Sonnenschein: get_boxart failed", e);
     }
 
-    // Box art (portrait grid) from the host's Steam cache
-    try {
-      const art = await withTimeout(getBoxart(host.address, host.port, app.id), 15000, "Boxart");
-      if (art.data) {
-        await SteamClient.Apps.SetCustomArtworkForApp(appId, art.data, art.ext, 0);
+    await mutateSyncState(async (state) => {
+      if (state[key] && storedShortcutIsUsable(state[key])) {
+        return;
       }
-    } catch (e) {
-      console.error("Sonnenschein: SetCustomArtworkForApp failed", e);
-    }
+      const appId = await addShortcut(app.title, runnerPath);
+      if (appId === null) {
+        return;
+      }
 
-    state[key] = appId;
-    status.added++;
+      const launchOptions = await getLaunchOptions(host.address, app.title);
+      try {
+        await SteamClient.Apps.SetAppLaunchOptions(appId, launchOptions);
+      } catch (e) {
+        console.error("Sonnenschein: SetAppLaunchOptions failed", e);
+      }
+
+      try {
+        if (art?.data) {
+          await SteamClient.Apps.SetCustomArtworkForApp(appId, art.data, art.ext, 0);
+        }
+      } catch (e) {
+        console.error("Sonnenschein: SetCustomArtworkForApp failed", e);
+      }
+
+      state[key] = appId;
+      status.added++;
+    });
   }
-
-  await setState(state);
   return status;
 }
 
@@ -179,11 +201,9 @@ function Content() {
         return;
       }
       const host = s.hosts[0];
-      const state = await withTimeout(getState(), 10000, "Sync-Status");
-
       if (autoSync) {
         setBusy("Synchronisiere Bibliothek…");
-        const result = await syncHost(host, s.runnerPath, state);
+        const result = await syncHost(host, s.runnerPath);
         if (result.added || result.removed) {
           toaster.toast({
             title: "Sonnenschein",
@@ -198,7 +218,7 @@ function Content() {
       // Keep the game-page button's index in sync with what the panel shows.
       updateHostGameIndex(host, games);
       setApps(games);
-      setSyncState({ ...state });
+      setSyncState({ ...(await withTimeout(getState(), 10000, "Sync-Status aktualisieren")) });
       setBusy("");
     } catch (e: any) {
       console.error("Sonnenschein: refresh failed", e);
@@ -234,7 +254,7 @@ function Content() {
   const startStream = async (host: HostInfo, app: HostApp) => {
     setStreamingTitle(app.title);
     try {
-      const ok = await streamGame(host, app.title);
+      const ok = await streamGame(host, app);
       if (!ok) {
         toaster.toast({ title: "Sonnenschein", body: `${app.title} konnte nicht gestartet werden.` });
       }
@@ -325,8 +345,8 @@ function Content() {
 
       <PanelSection title={`Spiele (${apps.length})`}>
         {apps.map((app) => {
-          // Games with a native Steam library entry stream via the shared
-          // hidden shortcut; the rest launch their own synced shortcut.
+          // Native library matches use their stable hidden per-game runtime;
+          // host-only games launch their visible synced shortcut.
           const libraryMatch = findLibraryAppByTitle(app.title);
           const steamAppId = syncState[`${host.uuid}/${app.id}`];
           const canLaunch = libraryMatch !== null || !!steamAppId;

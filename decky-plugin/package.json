@@ -1,6 +1,6 @@
 {
   "name": "sonnenschein",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Sonnenschein host library integration for Steam Deck Game Mode",
   "type": "module",
   "scripts": {

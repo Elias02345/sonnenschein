@@ -72,9 +72,11 @@ jobs:
       - name: Test plugin backend and bundle
         run: |
           python3 decky-plugin/tests/backend_harness.py
-          python3 -m py_compile decky-plugin/main.py decky-plugin/tests/backend_harness.py
+          python3 decky-plugin/tests/frontend_contract.py
+          python3 -m py_compile decky-plugin/main.py decky-plugin/tests/backend_harness.py decky-plugin/tests/frontend_contract.py
           bash -n decky-plugin/deck-install.sh decky-plugin/sonnenschein-run.sh
           bash decky-plugin/tests/install_harness.sh
+          bash decky-plugin/tests/runner_harness.sh
           test "$(grep -o 'SP_JSX' decky-plugin/dist/index.js | wc -l)" -gt 0
           ! grep -q 'React.createElement' decky-plugin/dist/index.js
 
@@ -105,6 +107,8 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout release metadata
+        uses: actions/checkout@v5
       - name: Download all build artifacts
         uses: actions/download-artifact@v6
         with:
@@ -128,19 +132,33 @@ jobs:
               ( cd "$d" && zip -qr "$OLDPWD/release/${name}.zip" . )
             fi
           done
+          cp decky-plugin/deck-install.sh release/Sonnenschein-Deck-Installer.sh
+          chmod +x release/Sonnenschein-Deck-Installer.sh
           ls -la release
       - name: Verify complete release asset set
         shell: bash
         run: |
-          test "$(find release -maxdepth 1 -type f | wc -l)" -ge 6
+          test "$(find release -maxdepth 1 -type f | wc -l)" -eq 7
           test -z "$(find release -maxdepth 1 -type f -empty -print -quit)"
           test -s release/Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}.zip
-          compgen -G 'release/*.AppImage' >/dev/null
-          compgen -G 'release/*.exe' >/dev/null
-          compgen -G 'release/*.dmg' >/dev/null
+          test -s release/Sonnenschein_Client-${{ needs.setup.outputs.ci_version }}-x86_64.AppImage
+          test -s release/SonnenscheinClientSetup-${{ needs.setup.outputs.ci_version }}.exe
+          test -s release/Sonnenschein_Client-${{ needs.setup.outputs.ci_version }}.dmg
+          test -s release/zDevDbgSyms-macOS-${{ needs.setup.outputs.ci_version }}.zip
+          test -s release/zDevDbgSyms-Windows-${{ needs.setup.outputs.ci_version }}.zip
+          test -x release/Sonnenschein-Deck-Installer.sh
+      - name: Generate curated release description
+        run: |
+          bash scripts/generate-client-release-notes.sh \
+            '${{ needs.setup.outputs.ci_version }}' release-notes.md
+          test -s release-notes.md
+          grep -q 'Steam Deck setup and troubleshooting guide' release-notes.md
+          grep -q 'releases/download/v${{ needs.setup.outputs.ci_version }}/Sonnenschein-Deck-Installer.sh' release-notes.md
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: Sonnenschein v${{ needs.setup.outputs.ci_version }}
+          body_path: release-notes.md
           files: release/*
           generate_release_notes: true
           fail_on_unmatched_files: true

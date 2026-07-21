@@ -23,7 +23,7 @@ Both downloads are on the [Releases page](https://github.com/Elias02345/sonnensc
    plugin from the same release:
 
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/Elias02345/sonnenschein/dev/decky-plugin/deck-install.sh | bash
+   curl -fsSL https://github.com/Elias02345/sonnenschein/releases/latest/download/Sonnenschein-Deck-Installer.sh | bash
    ```
 
 3. Start the client once (double-click the AppImage), select your host and
@@ -41,7 +41,7 @@ Both downloads are on the [Releases page](https://github.com/Elias02345/sonnensc
    to update or repair both components:
 
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/Elias02345/sonnenschein/dev/decky-plugin/deck-install.sh | bash
+   curl -fsSL https://github.com/Elias02345/sonnenschein/releases/latest/download/Sonnenschein-Deck-Installer.sh | bash
    ```
 
    Alternative ways (no verification):
@@ -60,14 +60,21 @@ Both downloads are on the [Releases page](https://github.com/Elias02345/sonnensc
 - **Games you own on Steam** (installed on the Deck or just visible in your
   library, e.g. Portal): a small sun badge marks their library capsule when
   they are available from the paired host. Their native game page gets an extra
-  **"Stream"** button next to Play/Install — no duplicate entries. Its dot is
+  **"Stream with Sonnenschein"** button in Steam's native controller-focusable
+  action area next to Play/Install — no visible duplicate entries. Its dot is
   green when the host is reachable and idle, and red when the host is offline
   or already running another game. The red state is informational: pressing
   the button still attempts to wake/connect to the host and launch the game.
+  Steam keeps one stable, hidden runtime identity per title, so repeated
+  streams do not create new placeholder apps and each game retains its own
+  Steam Input profile and overlay/focus context.
 - **Host games without a Steam library entry**: the Sonnenschein panel
   **automatically syncs** them into the Steam library as entries with cover
   art. Launch them like any other game.
 - Games removed from the host disappear from the Deck on the next sync.
+- Leaving a stream normally also closes the streamed game on the host and
+  removes the virtual display. If the network drops or the client crashes,
+  the host game intentionally remains open so you can reconnect safely.
 - The panel also lists all games directly for quick launching, has a manual
   re-sync button, and lets you pick the client AppImage manually if it is
   not auto-detected.

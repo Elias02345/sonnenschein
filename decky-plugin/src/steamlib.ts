@@ -24,15 +24,11 @@ export interface LibraryApp {
   display_name: string;
 }
 
-// "<hostUuid>/<appId>" -> steam appId, plus the special key below.
+// "<hostUuid>/<appId>" -> steam appId, plus hidden runtime entries below.
 export type SyncState = Record<string, number>;
 
-// Special key in the shared sync-state blob for the one reusable, hidden
-// non-Steam shortcut used to stream library games (games that already have
-// a native Steam library entry get no per-game shortcut — see
-// ensureStreamShortcut).
-const STREAM_SHORTCUT_STATE_KEY = "_streamShortcut";
-const STREAM_SHORTCUT_NAME = "Sonnenschein Stream";
+const LEGACY_STREAM_SHORTCUT_STATE_KEY = "_streamShortcut";
+const STREAM_SHORTCUT_STATE_PREFIX = "_nativeStream/";
 
 // Non-Steam shortcuts report this app_type — excluded from library matching
 // so our own auto-synced/stream shortcuts never match themselves.
@@ -59,6 +55,7 @@ export function setRunnerPath(path: string): void {
 // -> which host/app it came from. Populated from get_apps() results, kept
 // separate from the Steam-library lookup below (different direction).
 export const hostGameIndex = new Map<string, { host: HostInfo; app: HostApp }>();
+const hostSteamGameIndex = new Map<number, { host: HostInfo; app: HostApp }>();
 let hostGameIndexRevision = 0;
 const hostGameIndexListeners = new Set<() => void>();
 const hostSteamAppIds = new Set<string>();
@@ -77,6 +74,7 @@ export function getHostGameIndexRevision(): number {
 
 export function updateHostGameIndex(host: HostInfo, apps: HostApp[]): void {
   hostGameIndex.clear();
+  hostSteamGameIndex.clear();
   hostSteamAppIds.clear();
   for (const app of apps) {
     const key = normalizeTitle(app.title);
@@ -86,12 +84,20 @@ export function updateHostGameIndex(host: HostInfo, apps: HostApp[]): void {
     const libraryApp = findLibraryAppByTitle(app.title);
     if (libraryApp) {
       hostSteamAppIds.add(String(libraryApp.appid));
+      hostSteamGameIndex.set(libraryApp.appid, { host, app });
     }
   }
   hostGameIndexRevision++;
   for (const listener of hostGameIndexListeners) {
     listener();
   }
+}
+
+export function getHostGameForSteamApp(
+  appId: number,
+  appName: string
+): { host: HostInfo; app: HostApp } | undefined {
+  return hostSteamGameIndex.get(appId) ?? hostGameIndex.get(normalizeTitle(appName));
 }
 
 export function isHostStreamableAppId(appId: string): boolean {
@@ -103,8 +109,14 @@ export function isHostStreamableAppId(appId: string): boolean {
   try {
     const overview = appStore?.GetAppOverviewByAppID?.(Number(appId));
     const title = overview?.display_name;
-    if (typeof title === "string" && hostGameIndex.has(normalizeTitle(title))) {
+    const entry = typeof title === "string" ? hostGameIndex.get(normalizeTitle(title)) : undefined;
+    if (entry) {
       hostSteamAppIds.add(appId);
+      hostSteamGameIndex.set(Number(appId), entry);
+      hostGameIndexRevision++;
+      for (const listener of hostGameIndexListeners) {
+        listener();
+      }
       return true;
     }
   } catch (_) {
@@ -162,6 +174,46 @@ export function shortcutExists(appId: number): boolean {
   }
 }
 
+export function storedShortcutIsUsable(appId: number): boolean {
+  // Steam has no proven "all non-Steam shortcuts loaded" signal. Even when
+  // m_mapApps already contains native games, shortcuts may still be warming
+  // up. Persisted identity therefore wins; bounded launch-time lookup reports
+  // a genuinely missing shortcut without ever creating a duplicate.
+  return Number.isFinite(appId) && appId > 0;
+}
+
+async function waitForShortcutGameId(appId: number, timeoutMs = 6000): Promise<any | null> {
+  const deadline = Date.now() + timeoutMs;
+  do {
+    const overview = appStore?.GetAppOverviewByAppID?.(appId);
+    const gameId = overview?.gameid ?? overview?.m_gameid;
+    if (gameId) {
+      return gameId;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  } while (Date.now() < deadline);
+  return null;
+}
+
+// All frontend code that changes the persisted shortcut map uses this queue.
+// Decky can refresh the library while a game-page click is creating its
+// runtime entry; serializing the complete read/modify/write cycle prevents
+// either operation from overwriting the other's freshly written keys.
+let stateMutationQueue: Promise<void> = Promise.resolve();
+
+export function mutateSyncState<T>(
+  mutation: (state: SyncState) => Promise<T> | T
+): Promise<T> {
+  const operation = stateMutationQueue.then(async () => {
+    const state = await getState();
+    const result = await mutation(state);
+    await setState(state);
+    return result;
+  });
+  stateMutationQueue = operation.then(() => undefined, () => undefined);
+  return operation;
+}
+
 export async function addShortcut(name: string, exe: string): Promise<number | null> {
   try {
     // Newer Steam builds ignore the name argument — set it explicitly after.
@@ -192,23 +244,41 @@ export function launchGame(steamAppId: number): void {
   }
 }
 
-// One reusable, hidden non-Steam shortcut for streaming games that already
-// have a native library entry — never a per-game shortcut for these.
-export async function ensureStreamShortcut(): Promise<number | null> {
-  try {
+const streamShortcutPromises = new Map<string, Promise<number | null>>();
+
+function streamShortcutKey(host: HostInfo, app: HostApp): string {
+  return `${STREAM_SHORTCUT_STATE_PREFIX}${host.uuid}/${app.id}`;
+}
+
+// A native library page needs an external process, but Steam cannot attach an
+// arbitrary AppImage to an uninstalled Store app safely. Keep exactly one
+// hidden runtime shortcut per title instead. Its stable appId gives every game
+// its own running state, overlay and Steam Input profile without a visible
+// duplicate in the library.
+export function ensureStreamShortcut(host: HostInfo, app: HostApp): Promise<number | null> {
+  const key = streamShortcutKey(host, app);
+  const pending = streamShortcutPromises.get(key);
+  if (pending) {
+    return pending;
+  }
+
+  const operation = mutateSyncState(async (state) => {
     if (!cachedRunnerPath) {
-      // Runner path unknown (initial status load failed) — a shortcut with
-      // an empty exe would be permanently broken.
       console.error("Sonnenschein: runner path not loaded yet");
       return null;
     }
-    const state = await getState();
-    const existingId = state[STREAM_SHORTCUT_STATE_KEY];
-    if (typeof existingId === "number" && shortcutExists(existingId)) {
-      return existingId;
+
+    const existingId = state[key];
+    if (typeof existingId === "number") {
+      // Always trust persisted identity. Steam exposes no reliable distinction
+      // between "deleted" and "not published to appStore yet" here.
+      if (storedShortcutIsUsable(existingId)) {
+        return existingId;
+      }
+      delete state[key];
     }
 
-    const appId = await addShortcut(STREAM_SHORTCUT_NAME, cachedRunnerPath);
+    const appId = await addShortcut(app.title, cachedRunnerPath);
     if (appId === null) {
       return null;
     }
@@ -217,41 +287,42 @@ export async function ensureStreamShortcut(): Promise<number | null> {
     } catch (e) {
       console.error("Sonnenschein: hiding stream shortcut failed", e);
     }
-
-    state[STREAM_SHORTCUT_STATE_KEY] = appId;
-    await setState(state);
+    state[key] = appId;
     return appId;
-  } catch (e) {
+  }).catch((e) => {
     console.error("Sonnenschein: ensureStreamShortcut failed", e);
     return null;
-  }
+  }).finally(() => {
+    streamShortcutPromises.delete(key);
+  });
+
+  streamShortcutPromises.set(key, operation);
+  return operation;
 }
 
-// Starts `title` on `host` through the shared stream shortcut. Used both by
-// the game-details-page button and by the panel's list for library matches.
-export async function streamGame(host: HostInfo, title: string): Promise<boolean> {
+export async function removeLegacyStreamShortcut(state: SyncState): Promise<void> {
+  // Never remove the old shortcut automatically: it may still be Steam's
+  // tracked process for a stream started on v0.2.7. Dropping only our mapping
+  // makes migration race-free; the already-hidden orphan is harmless.
+  delete state[LEGACY_STREAM_SHORTCUT_STATE_KEY];
+}
+
+// Starts a host app through its stable hidden per-game runtime. Used both by
+// the native game-details-page button and the panel's library matches.
+export async function streamGame(host: HostInfo, app: HostApp): Promise<boolean> {
   try {
-    const appId = await ensureStreamShortcut();
+    const appId = await ensureStreamShortcut(host, app);
     if (appId === null) {
       return false;
     }
 
-    // Rename the shared shortcut to the real game title before every start
-    // so Steam's own launch-transition screen shows "Portal" instead of the
-    // generic "Sonnenschein Stream" placeholder. Resetting it back after the
-    // stream ends is not necessary — the next streamGame() call (of any
-    // game) overwrites it again, and the shortcut stays hidden either way.
-    try {
-      await SteamClient.Apps.SetShortcutName(appId, title);
-    } catch (e) {
-      console.error("Sonnenschein: SetShortcutName failed", e);
-    }
-
-    const launchOptions = await getLaunchOptions(host.address, title);
+    const launchOptions = await getLaunchOptions(host.address, app.title);
     await SteamClient.Apps.SetAppLaunchOptions(appId, launchOptions);
 
-    const overview = appStore.GetAppOverviewByAppID(appId);
-    const gameId = overview?.gameid ?? overview?.m_gameid;
+    // AddShortcut resolves before Steam necessarily publishes the new entry
+    // to appStore. Wait with a strict deadline so first launch succeeds
+    // without ever creating a second shortcut.
+    const gameId = await waitForShortcutGameId(appId);
     if (!gameId) {
       return false;
     }

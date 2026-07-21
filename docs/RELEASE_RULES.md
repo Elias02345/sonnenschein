@@ -41,17 +41,23 @@ Sie ergänzen `UPDATE_RULES.md`; der tagesaktuelle Arbeitsstand bleibt in
 1. Der Tag-Workflow muss vollständig grün sein und mindestens AppImage,
    nativen Windows-Installer, macOS-DMG, Decky-Plugin-Zip und die vorgesehenen
    Debug-Symbole veröffentlichen.
-2. Nicht nur CI-Artefakte prüfen: die tatsächlich veröffentlichten GitHub-
+2. Die Release-Seite erhält vor dem Upload eine kuratierte englische
+   Beschreibung aus dem passenden `CHANGELOG.md`-Abschnitt: kurze Testbuild-
+   Warnung, nutzersichtbare Änderungen, Downloadtabelle für AppImage, Decky,
+   Windows und macOS, Link auf `docs/steam-deck.md`, verifizierter One-Shot-
+   Installationsbefehl und Test-/Auditstand. Automatisch generierte Commit-
+   Notizen dürfen ergänzen, ersetzen diese Beschreibung aber nicht.
+3. Nicht nur CI-Artefakte prüfen: die tatsächlich veröffentlichten GitHub-
    Release-Assets herunterladen, Dateinamen/Größe/Version/Zip-Struktur und
    Prüfsummen kontrollieren. Das veröffentlichte Decky-Zip erneut durch Bundle-
    Audit und Loader-/Frozen-Python-Harness laufen lassen.
-3. Genau das neue getestete Release muss `releases/latest` sein, weil
+4. Genau das neue getestete Release muss `releases/latest` sein, weil
    `deck-install.sh` und der Client-Updater davon abhängen. Den direkten
    Plattformdownload des Client-Updaters und die Plugin-Zip-Auflösung des
    Installers prüfen.
-4. Erst nach erfolgreicher Asset-Prüfung das vorherige Test-Release als
+5. Erst nach erfolgreicher Asset-Prüfung das vorherige Test-Release als
    Pre-Release/überholt markieren und auf das neue Release verweisen.
-5. Abschließend `STATUS.md` mit Release-URL, Actions-Run-ID, Commit/Tag,
+6. Abschließend `STATUS.md` mit Release-URL, Actions-Run-ID, Commit/Tag,
    Prüfsummen bzw. Prüfergebnissen und dem verbleibenden Hardware-Teststand
    aktualisieren und auf `dev` pushen.
 

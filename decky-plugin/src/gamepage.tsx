@@ -21,21 +21,25 @@
 import {
   afterPatch,
   appDetailsClasses,
+  basicAppDetailsSectionStylerClasses,
+  Button,
   createReactTreePatcher,
-  DialogButton,
   findInReactTree,
+  Focusable,
+  joinClassNames,
+  playSectionClasses,
 } from "@decky/ui";
 import { callable, routerHook, toaster } from "@decky/api";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   getHostGameIndexRevision,
-  hostGameIndex,
-  normalizeTitle,
+  getHostGameForSteamApp,
   streamGame,
   subscribeHostGameIndex,
 } from "./steamlib";
 
 interface StreamButtonProps {
+  appId: number;
   appName: string;
 }
 
@@ -57,10 +61,9 @@ const StreamButtonStyle = (
     {`
       .${STREAM_BUTTON_CLASS} {
         margin: 0 !important;
-        min-width: 0 !important;
-        min-height: 0 !important;
-        height: 40px !important;
-        padding: 0 16px !important;
+        width: auto !important;
+        min-width: 148px !important;
+        padding: 0 14px !important;
         display: inline-flex !important;
         align-items: center !important;
         gap: 8px !important;
@@ -85,7 +88,7 @@ function statusDotTitle(status: HostStatus): string {
   return status.busy ? "Host ist mit einem anderen Spiel beschäftigt" : "Host verfügbar";
 }
 
-function StreamButton({ appName }: StreamButtonProps) {
+function StreamButton({ appId, appName }: StreamButtonProps) {
   // "starting" = this click's launch is in flight; "hostStatus" = periodic
   // reachability/busy probe of the host itself — kept separate so one
   // doesn't get overwritten by the other's setState.
@@ -99,7 +102,7 @@ function StreamButton({ appName }: StreamButtonProps) {
     getHostGameIndexRevision,
     getHostGameIndexRevision
   );
-  const entry = hostGameIndex.get(normalizeTitle(appName));
+  const entry = getHostGameForSteamApp(appId, appName);
 
   // All hooks must run unconditionally (entry can be undefined on some
   // renders) — the early `return null` below happens only after this.
@@ -144,7 +147,7 @@ function StreamButton({ appName }: StreamButtonProps) {
   const onClick = async () => {
     setStarting(true);
     try {
-      const ok = await streamGame(entry.host, entry.app.title);
+      const ok = await streamGame(entry.host, entry.app);
       if (!ok) {
         toaster.toast({
           title: "Sonnenschein",
@@ -157,9 +160,19 @@ function StreamButton({ appName }: StreamButtonProps) {
   };
 
   return (
-    <>
+    <Focusable
+      className={joinClassNames(
+        basicAppDetailsSectionStylerClasses.AppButtons,
+        "sonnenschein-stream-container"
+      )}
+    >
       {StreamButtonStyle}
-      <DialogButton className={STREAM_BUTTON_CLASS} disabled={starting} onClick={onClick}>
+      <Focusable>
+        <Button
+          className={joinClassNames(playSectionClasses.MenuButton, STREAM_BUTTON_CLASS)}
+          disabled={starting}
+          onClick={onClick}
+        >
         <span
           title={statusDotTitle(hostStatus)}
           style={{
@@ -171,9 +184,10 @@ function StreamButton({ appName }: StreamButtonProps) {
             flexShrink: 0,
           }}
         />
-        {starting ? "Startet…" : "Stream"}
-      </DialogButton>
-    </>
+          {starting ? "Startet…" : "Stream with Sonnenschein"}
+        </Button>
+      </Focusable>
+    </Focusable>
   );
 }
 
@@ -231,30 +245,25 @@ export function patchLibraryApp(route: string): () => void {
           );
 
           if (appPanelIndex >= 0) {
-            // Wrap the existing app-panel element (Play/Install button row)
-            // together with ours in a flex row, so our button sits BESIDE it
-            // instead of below it as an extra full-width row.
-            const original = parent.props.children[appPanelIndex];
-            parent.props.children[appPanelIndex] = (
-              <div
-                key={original?.key ?? "sonnenschein-panel-row"}
-                data-sonnenschein-stream-row
-                style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "8px" }}
-              >
-                <div style={{ flex: "1 1 auto", minWidth: 0 }}>{original}</div>
-                <StreamButton appName={appName} key="sonnenschein-stream-button" />
-              </div>
+            // Current MoonDeck pattern: inject a native AppButtons/MenuButton
+            // focus group immediately before Steam's own Play/Install panel.
+            // Do not re-parent the Steam panel; doing so breaks focus traversal
+            // and is why the previous button disappeared on some Steam builds.
+            parent.props.children.splice(
+              appPanelIndex,
+              0,
+              <StreamButton appId={appId} appName={appName} key="sonnenschein-stream-button" />
             );
             return ret;
           }
 
           // Fallback (app panel not found, e.g. future Steam UI drift):
           // still show the button somewhere rather than nowhere at all.
-          const hltbIndex = parent.props.children.findIndex((x: any) => x.props.id === "hltb-for-deck");
+          const hltbIndex = parent.props.children.findIndex((x: any) => x?.props?.id === "hltb-for-deck");
           parent.props.children.splice(
             hltbIndex < 0 ? -1 : hltbIndex,
             0,
-            <StreamButton appName={appName} key="sonnenschein-stream-button" />
+            <StreamButton appId={appId} appName={appName} key="sonnenschein-stream-button" />
           );
           return ret;
         }

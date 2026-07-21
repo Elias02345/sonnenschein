@@ -427,6 +427,75 @@
 > `dev` ist bytegleich mit dem lokal getesteten Installer. Offen bleibt nur
 > der echte Steam-Deck+Host-E2E durch den Maintainer.
 >
+> **🟡 DECK-RUNDE 9 (2026-07-21) — Native Spielseite/Lifecycle in Arbeit:**
+> Maintainer bestätigt, dass v0.2.7 installiert funktioniert, meldet aber:
+> Der Stream-Button fehlt weiterhin auf nativen Steam-Spielseiten; der
+> gemeinsame Stream-Shortcut erzeugt eine unnatürliche/teils wiederholt neue
+> Laufzeit-App; Steam soll den Stream pro Spiel sauber als laufend verfolgen,
+> Deck-Controller sollen vollständig durchgereicht werden und ein normales
+> Beenden am Deck soll auch das Host-Spiel beenden. Danach neues Testrelease
+> mit kuratierter Beschreibung, Downloadlinks und Steam-Deck-Anleitung im
+> bisherigen Claude/Fable-Stil.
+> **Verifizierte Architekturentscheidung vor Code:** Eine beliebige externe
+> AppImage kann insbesondere für nicht installierte Spiele nicht sicher unter
+> der echten Steam-Store-App-ID gestartet werden; das würde undokumentierte,
+> persistente Eingriffe in nutzereigene Launch-Optionen erfordern und ist
+> nicht akzeptabel. Root Cause der wiederholten Hilfs-Apps ist stattdessen der
+> eine umbenannte Shared-Shortcut plus ein Read/Modify/Write-Race zwischen
+> Auto-Sync und Start sowie verzögerte Steam-AppStore-Sichtbarkeit. Ziel:
+> exakt eine dauerhaft versteckte Laufzeit-App pro Host-Spiel, race-freier
+> State und stabile App-ID/Steam-Input-Konfiguration pro Titel; sie erscheint
+> nicht als Bibliotheksduplikat. Die echte native Seite bleibt der sichtbare
+> Einstieg. Der Clientpfad überträgt Gamepad bereits nativ via SDL/Limelight
+> (inkl. Rumble/Motion/Controllerereignissen). Der Runner aktiviert zusätzlich
+> `--quit-after`, sodass ein normales Streamende per authentifiziertem
+> `/cancel` Host-Spiel, Session und Virtual Display beendet. Absichtliche
+> Sicherheitssemantik bleibt: bei Crash/Netzverlust wird das Host-Spiel nicht
+> automatisch abgeschossen, damit Reconnect/weitere Clients nicht zerstört
+> werden. Echte Steam-UI-/Controller-/Lifecycle-Verifikation bleibt Hardware-
+> E2E auf Stable und Beta.
+> **Implementiert für v0.2.8-test:** Native Spielseiten-Injektion nutzt nun
+> wie aktuelles MoonDeck Steams eigene `AppButtons`-/`MenuButton`-Fokusgruppe
+> unmittelbar vor dem Play/Install-Panel, ohne dieses Panel umzuhängen; Null-
+> sichere UI-Drift-Fallbacks und direkter Steam-App-ID→Host-App-Index ersetzen
+> das fragile reine Titel-Rematching. Der gemeinsame `_streamShortcut` wurde
+> durch `_nativeStream/<hostUuid>/<hostAppId>` ersetzt. Eine globale
+> State-Mutationsqueue serialisiert Auto-Sync und Start; pro Key verhindert
+> ein In-flight-Promise doppelte Erzeugung; gespeicherte IDs werden während
+> Steam-AppStore-Warmup nicht mehr fälschlich als gelöscht interpretiert; der
+> alte Shared-Shortcut wird beim Sync entfernt. Der Runner nutzt in allen drei
+> Clientpfaden `--quit-after`; eigener Harness beweist die exakte Argument-
+> weitergabe. Release-Workflow erzeugt aus `CHANGELOG.md` eine kuratierte
+> englische Beschreibung mit Plattform-Downloadtabelle, versionsgebundener
+> Steam-Deck-Anleitung, One-Shot-Befehl und Verifikationsabschnitt; diese Form
+> ist jetzt verbindlich in `docs/RELEASE_RULES.md`. Lokal grün: Rollup/SP_JSX,
+> Backend-Harness, One-Shot-Installer-Harness, Runner-Lifecycle-Harness,
+> Release-Notes-Generator und `git diff --check`. Noch ausstehend: unabhängiges
+> Patch-Audit, dev-CI, Tag-Workflow, Live-Asset-/Release-Text-Audit und echter
+> Deck+Host-E2E.
+> **Audit-Nachbesserungen:** First-launch wartet jetzt begrenzt auf Steams
+> asynchrone AppStore-Veröffentlichung statt einen zweiten Shortcut zu erzeugen;
+> der Lazy-Warmup-Pfad repariert auch den direkten App-ID-Index und benachrichtigt
+> React. Die globale State-Queue umfasst keine Boxart-Netzwerkzeiten mehr,
+> sondern nur kurze, pro Eintrag erneut validierte Identitätsmutationen. Der
+> alte v0.2.7-Shortcut wird während einer möglicherweise noch laufenden Session
+> nie entfernt, nur seine veraltete Zuordnung vergessen. Verwaiste versteckte
+> Per-Game-Identitäten werden absichtlich nicht ohne nachgewiesene Running-State-
+> API gelöscht, um aktive Streams/Controllerprofile nicht zu beschädigen.
+> Release-Links werden vor Publish gegen alle exakten sieben Dateinamen geprüft.
+> **Abschluss-Audit vor Commit:** Der Cleanup-State bleibt nun auch bei
+> Steam-AppStore-Warmup und bei fehlgeschlagenem `RemoveShortcut` erhalten und
+> wird erst nach bestätigter Entfernung gelöscht; der Frontend-Contract fixiert
+> diese Reihenfolge. Ein unabhängiger Read-only-Diff-Audit meldet keine
+> statisch nachweisbaren Release-Blocker. Rollup/SP_JSX, Backend-, Frontend-,
+> Installer- und Runner-Harness, Shell-/Python-Syntax, kuratierte Release-Notes
+> und `git diff --check` sind lokal grün. Offen sind nur dev-/Tag-CI,
+> Live-Asset-Audit und der ausdrücklich nachgelagerte Hardware-E2E.
+> Das versionierte One-Shot-Script ist ein eigenes unveränderliches Release-
+> Asset; die rolling Anleitung nutzt `releases/latest/download`, der Release-
+> Text verweist reproduzierbar auf sein eigenes Tag-Asset. Verifikationsclaims
+> sind bis zum tatsächlichen Post-Publish-Audit ausdrücklich zukünftig formuliert.
+>
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
 > veröffentlichtes Plugin-Zip nachgeprüft (Parser-Fix + Timeouts im
