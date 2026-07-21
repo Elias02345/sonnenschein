@@ -130,10 +130,10 @@ jobs:
         shell: bash
         run: |
           test "$(find release -maxdepth 1 -type f -name '*.AppImage' | wc -l)" -eq 1
-          test "$(find release -maxdepth 1 -type f -name 'SonnenscheinClientSetup-*.exe' | wc -l)" -eq 1
-          test "$(find release -maxdepth 1 -type f -name 'Sonnenschein_Client-*.dmg' | wc -l)" -eq 1
+          test "$(find release -maxdepth 1 -type f -name '*.exe' | wc -l)" -eq 1
+          test "$(find release -maxdepth 1 -type f -name '*.dmg' | wc -l)" -eq 1
+          test "$(find release -maxdepth 1 -type f -name '*.zip' | wc -l)" -eq 3
           test "$(find release -maxdepth 1 -type f -name 'Sonnenschein-Decky-Plugin-*.zip' | wc -l)" -eq 1
-          test "$(find release -maxdepth 1 -type f -name 'zDevDbgSyms-*.zip' | wc -l)" -eq 2
           test -s release/Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}.zip
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

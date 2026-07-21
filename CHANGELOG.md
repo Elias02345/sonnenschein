@@ -2,7 +2,7 @@
 
 All notable user-facing changes to Sonnenschein are documented here.
 
-## 0.2.2-test — 2026-07-20
+## 0.2.3-test — 2026-07-21
 
 ### Fixed
 

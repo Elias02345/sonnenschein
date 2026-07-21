@@ -362,14 +362,21 @@
 > `CHANGELOG.md` angelegt, Release-Workflow verlangt vollständiges Asset-Set.
 > **Noch vor Tag:** unabhängiges Code-Audit + kompletter lokaler Paket-/Loader-
 > Audit, danach echter Deck+Host-Test. Erst bei vollständig grünem Ergebnis:
-> Commit/Push, grüne `dev`-CI und Tag `v0.2.2-test`.
+> Commit/Push, grüne `dev`-CI und Test-Tag.
 > **Release-Entscheidung 2026-07-20:** Der Maintainer hat ausdrücklich die
 > Veröffentlichung als Testbuild angefordert, damit genau dieser fehlende
-> Deck+Host-E2E durchgeführt werden kann. `v0.2.2-test` bleibt daher bis zur
+> Deck+Host-E2E durchgeführt werden kann. Der Testbuild bleibt daher bis zur
 > Hardware-Rückmeldung unbestätigt. Mangels lokal konfiguriertem Signing-Key
 > wird dieser Test-Tag auf explizite Anweisung im bisherigen leichtgewichtigen,
 > unsignierten Tag-Stil veröffentlicht; stabile Releases bleiben davon
 > unberührt.
+> **Release-Gate-Ergebnis 2026-07-21:** `v0.2.2-test` baute AppImage,
+> Win/macOS und Decky erfolgreich, veröffentlichte aber absichtlich nichts:
+> die neu eingeführte Asset-Gate-Prüfung war bei einem Debugsymbol-Präfix zu
+> eng. Der Tag bleibt unverändert als fehlgeschlagener Kandidat. Die
+> korrigierte Prüfung verlangt weiterhin exakt 1 AppImage + 1 EXE + 1 DMG +
+> 3 ZIPs (davon exakt ein versionsrichtiges Decky-Zip); neuer Kandidat ist
+> `v0.2.3-test`.
 >
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
