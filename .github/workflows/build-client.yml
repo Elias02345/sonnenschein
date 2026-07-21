@@ -132,9 +132,12 @@ jobs:
       - name: Verify complete release asset set
         shell: bash
         run: |
-          test "$(find release -maxdepth 1 -type f | wc -l)" -eq 6
+          test "$(find release -maxdepth 1 -type f | wc -l)" -ge 6
           test -z "$(find release -maxdepth 1 -type f -empty -print -quit)"
           test -s release/Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}.zip
+          compgen -G 'release/*.AppImage' >/dev/null
+          compgen -G 'release/*.exe' >/dev/null
+          compgen -G 'release/*.dmg' >/dev/null
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:

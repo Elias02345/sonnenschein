@@ -398,6 +398,14 @@
 > Gate zählt deshalb exakt sechs heruntergeladene Artefaktverzeichnisse und
 > danach exakt sechs nichtleere Release-Dateien plus versionsgenaues Decky-Zip.
 > Neuer unveränderlicher Kandidat: `v0.2.5-test`.
+> **Dritter Gate-Nachtrag:** `v0.2.5-test` bestätigte erneut sechs
+> vollständige Artefaktgruppen und paketierte sie erfolgreich. Das Gate
+> scheiterte ausschließlich daran, dass mindestens eine Artefaktgruppe mehr
+> als eine Release-Datei enthält. Der nächste Kandidat prüft daher weiterhin
+> exakt sechs Eingabegruppen, verlangt danach aber semantisch mindestens eine
+> nichtleere AppImage, Windows-EXE, macOS-DMG und das versionsgenaue Decky-Zip,
+> statt eine falsche exakte Anzahl von Ausgabedateien anzunehmen. Neuer
+> unveränderlicher Kandidat: `v0.2.6-test`.
 >
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
