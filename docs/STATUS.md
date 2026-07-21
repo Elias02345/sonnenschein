@@ -385,6 +385,13 @@
 > müssen fehlschlagssicher sein; eine vorhandene Client-Config und damit das
 > Pairing werden nicht verändert. Wegen unveränderlicher Test-Tags ist der
 > erste Kandidat mit diesem Verhalten `v0.2.4-test`.
+> **Asset-Gate-Nachtrag:** Die Actions-API für `v0.2.3-test` bestätigt sechs
+> vollständige, korrekt benannte Buildartefakte; trotzdem scheiterte die
+> nachträgliche Dateiendungszählung an der entpackten Artefaktstruktur. Das
+> Gate prüft für `v0.2.4-test` deshalb die sechs exakten Artefaktverzeichnisse,
+> anschließend exakt sechs nichtleere Release-Dateien und separat das
+> versionsgenaue Decky-Zip. Dies prüft Vollständigkeit ohne Annahmen über die
+> interne Symbolpaket-Struktur.
 >
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —

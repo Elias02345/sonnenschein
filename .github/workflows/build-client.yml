@@ -112,6 +112,15 @@ jobs:
       - name: Package artifacts into single files
         shell: bash
         run: |
+          for expected in \
+            "SonnenscheinClient-LinuxAppImage-${{ needs.setup.outputs.ci_version }}" \
+            "SonnenscheinClientSetup-${{ needs.setup.outputs.ci_version }}" \
+            "Sonnenschein-macOS-${{ needs.setup.outputs.ci_version }}" \
+            "zDevDbgSyms-macOS-${{ needs.setup.outputs.ci_version }}" \
+            "zDevDbgSyms-Windows-${{ needs.setup.outputs.ci_version }}" \
+            "Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}"; do
+            test -d "artifacts/$expected"
+          done
           mkdir -p release
           for d in artifacts/*/; do
             name="$(basename "$d")"
@@ -131,11 +140,8 @@ jobs:
       - name: Verify complete release asset set
         shell: bash
         run: |
-          test "$(find release -maxdepth 1 -type f -name '*.AppImage' | wc -l)" -eq 1
-          test "$(find release -maxdepth 1 -type f -name '*.exe' | wc -l)" -eq 1
-          test "$(find release -maxdepth 1 -type f -name '*.dmg' | wc -l)" -eq 1
-          test "$(find release -maxdepth 1 -type f -name '*.zip' | wc -l)" -eq 3
-          test "$(find release -maxdepth 1 -type f -name 'Sonnenschein-Decky-Plugin-*.zip' | wc -l)" -eq 1
+          test "$(find release -maxdepth 1 -type f | wc -l)" -eq 6
+          test -z "$(find release -maxdepth 1 -type f -empty -print -quit)"
           test -s release/Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}.zip
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
