@@ -427,7 +427,7 @@
 > `dev` ist bytegleich mit dem lokal getesteten Installer. Offen bleibt nur
 > der echte Steam-Deck+Host-E2E durch den Maintainer.
 >
-> **🟡 DECK-RUNDE 9 (2026-07-21) — Native Spielseite/Lifecycle in Arbeit:**
+> **✅ DECK-RUNDE 9 (2026-07-21) — v0.2.8-test veröffentlicht:**
 > Maintainer bestätigt, dass v0.2.7 installiert funktioniert, meldet aber:
 > Der Stream-Button fehlt weiterhin auf nativen Steam-Spielseiten; der
 > gemeinsame Stream-Shortcut erzeugt eine unnatürliche/teils wiederholt neue
@@ -489,8 +489,25 @@
 > diese Reihenfolge. Ein unabhängiger Read-only-Diff-Audit meldet keine
 > statisch nachweisbaren Release-Blocker. Rollup/SP_JSX, Backend-, Frontend-,
 > Installer- und Runner-Harness, Shell-/Python-Syntax, kuratierte Release-Notes
-> und `git diff --check` sind lokal grün. Offen sind nur dev-/Tag-CI,
-> Live-Asset-Audit und der ausdrücklich nachgelagerte Hardware-E2E.
+> und `git diff --check` sind lokal grün. Zu diesem Zeitpunkt waren dev-/Tag-
+> CI und Live-Asset-Audit noch offen; deren Abschluss ist direkt nachfolgend
+> dokumentiert.
+> **✅ RELEASE v0.2.8-test LIVE:**
+> <https://github.com/Elias02345/sonnenschein/releases/tag/v0.2.8-test>
+> — Tag `v0.2.8-test` zeigt unveränderlich auf `6ef9772`; dev-Gates
+> Client Build `29845199780`, Linux `29845199606` und Lint `29845199576`
+> sind grün, ebenso der vollständige Tag-/Release-Run `29846093478`.
+> Die öffentliche Release-Seite enthält die kuratierte Beschreibung,
+> Plattform-Downloadtabelle, getaggte Steam-Deck-Anleitung und den One-Shot-
+> Befehl. Genau sieben Assets wurden veröffentlicht. Öffentlicher Download-
+> Audit: Installer `85d771d4a62a446031d72439c862f0de40c420e1e37b836c655161dea710235e`,
+> Decky-Zip `437f8961b58a9a1e438742cd6b94669c9f73fd61485baf960d0ddca1cccc53f8`,
+> AppImage `92d81d4965b00192aa40227146520c55e6166fb36118c5138eaf3be018b8cfef`
+> (jeweils SHA-256). Installer ist bytegleich mit dem Tag; Zip besteht CRC,
+> Layout, Version, SP_JSX-/React- und Frozen-Python-Backendprüfung; AppImage
+> ist gültig extrahierbar und enthält 0.2.8. `releases/latest` sowie der
+> latest-Installer-Asset-Link zeigen auf v0.2.8-test. Ausschließlich offen:
+> echter Game-Mode-/Steam-Input-/Host-Lifecycle-E2E durch den Maintainer.
 > Das versionierte One-Shot-Script ist ein eigenes unveränderliches Release-
 > Asset; die rolling Anleitung nutzt `releases/latest/download`, der Release-
 > Text verweist reproduzierbar auf sein eigenes Tag-Asset. Verifikationsclaims
@@ -2474,6 +2491,7 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+6ef9772 — docs(status): record native Deck lifecycle fix — 2026-07-21 (v0.2.8-test live)
 a8e346d — fix(deck): stabilize native game streaming lifecycle — 2026-07-21 (v0.2.8-test candidate)
 ef88899 — ci(release): expose version to release job — 2026-07-21 (v0.2.7-test live)
 621841a — ci(release): validate required platform assets — 2026-07-21 (v0.2.6-test candidate)
