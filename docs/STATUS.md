@@ -2356,6 +2356,7 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+fbddd4e — ci(release): fix asset gate for test packages — 2026-07-21 (v0.2.3-test candidate)
 249afec — fix(deck): restore host sync and add streaming indicators — 2026-07-20 (v0.2.2-test candidate)
 9d9bc07 — docs(status): round 7 — install script rate-limit fix, verified — 2026-07-20
 cd58f54 — fix(deck): handle GitHub API rate limits in install script — 2026-07-20
