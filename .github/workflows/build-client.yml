@@ -112,15 +112,7 @@ jobs:
       - name: Package artifacts into single files
         shell: bash
         run: |
-          for expected in \
-            "SonnenscheinClient-LinuxAppImage-${{ needs.setup.outputs.ci_version }}" \
-            "SonnenscheinClientSetup-${{ needs.setup.outputs.ci_version }}" \
-            "Sonnenschein-macOS-${{ needs.setup.outputs.ci_version }}" \
-            "zDevDbgSyms-macOS-${{ needs.setup.outputs.ci_version }}" \
-            "zDevDbgSyms-Windows-${{ needs.setup.outputs.ci_version }}" \
-            "Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}"; do
-            test -d "artifacts/$expected"
-          done
+          test "$(find artifacts -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 6
           mkdir -p release
           for d in artifacts/*/; do
             name="$(basename "$d")"

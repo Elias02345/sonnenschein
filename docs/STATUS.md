@@ -392,6 +392,12 @@
 > anschließend exakt sechs nichtleere Release-Dateien und separat das
 > versionsgenaue Decky-Zip. Dies prüft Vollständigkeit ohne Annahmen über die
 > interne Symbolpaket-Struktur.
+> **Zweiter Gate-Nachtrag:** `v0.2.4-test` scheiterte bereits vor dem Packen an
+> einer redundanten Annahme über die von `download-artifact` erzeugten
+> Verzeichnisnamen. Alle sechs vorgelagerten Buildjobs waren grün. Das finale
+> Gate zählt deshalb exakt sechs heruntergeladene Artefaktverzeichnisse und
+> danach exakt sechs nichtleere Release-Dateien plus versionsgenaues Decky-Zip.
+> Neuer unveränderlicher Kandidat: `v0.2.5-test`.
 >
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
