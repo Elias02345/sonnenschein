@@ -2538,6 +2538,7 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+c5e1c9f — fix(deck): anchor native streaming and add safe updates — 2026-07-21 (v0.2.9-test candidate)
 6ef9772 — docs(status): record native Deck lifecycle fix — 2026-07-21 (v0.2.8-test live)
 a8e346d — fix(deck): stabilize native game streaming lifecycle — 2026-07-21 (v0.2.8-test candidate)
 ef88899 — ci(release): expose version to release job — 2026-07-21 (v0.2.7-test live)
