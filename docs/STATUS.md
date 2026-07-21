@@ -413,6 +413,19 @@
 > deshalb leer und prüfte fälschlich auf `Sonnenschein-Decky-Plugin-.zip`.
 > Der Release-Job erhält nun die fehlende explizite Setup-Abhängigkeit; neuer
 > unveränderlicher Kandidat ist `v0.2.7-test`.
+> **✅ TEST-RELEASE LIVE UND ARTEFAKT-AUDITIERT (2026-07-21):**
+> `v0.2.7-test` wurde durch Client-Build-Run `29816448620` mit allen acht
+> Jobs erfolgreich veröffentlicht:
+> <https://github.com/Elias02345/sonnenschein/releases/tag/v0.2.7-test>.
+> Alle sechs Release-Dateien sind vorhanden. Das veröffentlichte Decky-Zip
+> (`SHA-256 d36d717e8e19db045ed40756ccce103a028d882e46d4b399844d14171ff84611`)
+> besteht ZIP-, Layout-, Versions-, Bundle- und Backend-Regressionsprüfung.
+> Die veröffentlichte x86_64-AppImage
+> (`SHA-256 1306cc35ed6290bc32b05750cb0ba9e459dc820f8168af0c4d03583be99716cc`)
+> ist ein gültiges extrahierbares AppImage und enthält Client-Version 0.2.7.
+> `releases/latest` zeigt auf diesen Release; das Raw-One-Shot-Script auf
+> `dev` ist bytegleich mit dem lokal getesteten Installer. Offen bleibt nur
+> der echte Steam-Deck+Host-E2E durch den Maintainer.
 >
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
@@ -2392,6 +2405,8 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+ef88899 — ci(release): expose version to release job — 2026-07-21 (v0.2.7-test live)
+621841a — ci(release): validate required platform assets — 2026-07-21 (v0.2.6-test candidate)
 41a6abe — ci(release): validate downloaded artifact count — 2026-07-21 (v0.2.5-test candidate)
 9493ce3 — ci(release): validate exact artifact inventory — 2026-07-21 (v0.2.4-test candidate)
 fe8f09a — feat(deck): install client and plugin in one step — 2026-07-21 (v0.2.4-test candidate)
