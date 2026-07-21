@@ -406,6 +406,13 @@
 > nichtleere AppImage, Windows-EXE, macOS-DMG und das versionsgenaue Decky-Zip,
 > statt eine falsche exakte Anzahl von Ausgabedateien anzunehmen. Neuer
 > unveränderlicher Kandidat: `v0.2.6-test`.
+> **Root Cause des Release-Gates:** `v0.2.6-test` bewies, dass auch die
+> semantische Dateiprüfung am versionsgenauen Decky-Zip scheiterte. Der
+> Release-Job referenzierte `needs.setup.outputs.ci_version`, führte `setup`
+> aber nicht in seiner `needs`-Liste. GitHub Actions setzte die Version dort
+> deshalb leer und prüfte fälschlich auf `Sonnenschein-Decky-Plugin-.zip`.
+> Der Release-Job erhält nun die fehlende explizite Setup-Abhängigkeit; neuer
+> unveränderlicher Kandidat ist `v0.2.7-test`.
 >
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
