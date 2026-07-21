@@ -2474,6 +2474,7 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+a8e346d — fix(deck): stabilize native game streaming lifecycle — 2026-07-21 (v0.2.8-test candidate)
 ef88899 — ci(release): expose version to release job — 2026-07-21 (v0.2.7-test live)
 621841a — ci(release): validate required platform assets — 2026-07-21 (v0.2.6-test candidate)
 41a6abe — ci(release): validate downloaded artifact count — 2026-07-21 (v0.2.5-test candidate)
