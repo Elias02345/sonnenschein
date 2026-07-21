@@ -15,35 +15,30 @@ Both downloads are on the [Releases page](https://github.com/Elias02345/sonnensc
 
 ---
 
-## Part 1 — Install the Sonnenschein Client
+## One-shot install, then pair the client
 
 1. Switch to **Desktop Mode** (Steam button → Power → Switch to Desktop).
-2. Download `Sonnenschein_Client-<version>-x86_64.AppImage` from the latest
-   release.
-3. Move it to `~/Applications` (create the folder if it doesn't exist) and
-   make it executable:
+2. Run the installer. It downloads the latest client AppImage to
+   `~/Applications`, makes it executable, and installs the matching Decky
+   plugin from the same release:
 
    ```bash
-   mkdir -p ~/Applications
-   mv ~/Downloads/Sonnenschein_Client-*.AppImage ~/Applications/
-   chmod +x ~/Applications/Sonnenschein_Client-*.AppImage
+   curl -fsSL https://raw.githubusercontent.com/Elias02345/sonnenschein/dev/decky-plugin/deck-install.sh | bash
    ```
 
-   > The Decky plugin looks for the client in `~/Applications` — keep it there.
-
-4. Start the client once (double-click the AppImage), select your host and
+3. Start the client once (double-click the AppImage), select your host and
    **pair** it (enter the PIN in the host's web UI). Your host must be
    running Sonnenschein and be reachable on the local network.
-5. Optional: start a test stream from the client to confirm everything works.
+4. Optional: start a test stream from the client to confirm everything works.
 
 ## Part 2 — Install the Decky plugin
 
 1. Install [Decky Loader](https://decky.xyz/) if you don't have it yet
    (Desktop Mode → download the installer from decky.xyz and run it).
-2. **Recommended: the install script** (Desktop Mode → Konsole). It removes
-   old plugin versions, downloads the latest release, installs it with
-   correct permissions, restarts Decky and then **verifies the plugin
-   backend is actually running** (showing the exact error if not):
+2. The one-shot command above already removes old plugin versions, installs
+   the latest matching client and plugin, restarts Decky and then **verifies
+   the plugin backend is actually running**. Run it again whenever you want
+   to update or repair both components:
 
    ```bash
    curl -fsSL https://raw.githubusercontent.com/Elias02345/sonnenschein/dev/decky-plugin/deck-install.sh | bash

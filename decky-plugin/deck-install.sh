@@ -6,7 +6,7 @@
 #
 # What it does: stops Decky, removes any old Sonnenschein plugin remains
 # (including stale __pycache__/root-owned files from sudo-unzips), fetches
-# the latest release zip, installs it with correct ownership, restarts
+# the latest release zip and client AppImage, installs both, restarts
 # Decky, and then PROVES whether the backend is running — showing the
 # exact Python traceback from the Decky log if it is not.
 set -uo pipefail
@@ -15,6 +15,18 @@ REPO="Elias02345/sonnenschein"
 PLUGINS_DIR="$HOME/homebrew/plugins"
 PLUGIN_DIR="$PLUGINS_DIR/sonnenschein"
 LOGS_DIR="$HOME/homebrew/logs/sonnenschein"
+DECKY_STOPPED=0
+TMPZIP=""
+TMPAPPIMAGE=""
+
+cleanup() {
+    [ -z "$TMPZIP" ] || rm -f "$TMPZIP"
+    [ -z "$TMPAPPIMAGE" ] || rm -f "$TMPAPPIMAGE"
+    if [ "$DECKY_STOPPED" -eq 1 ]; then
+        sudo systemctl start plugin_loader >/dev/null 2>&1 || true
+    fi
+}
+trap cleanup EXIT
 
 bold() { printf '\033[1m%s\033[0m\n' "$*"; }
 ok()   { printf '\033[32m[OK]\033[0m %s\n' "$*"; }
@@ -28,12 +40,6 @@ fi
 
 bold "== Sonnenschein Decky plugin: clean install =="
 info "sudo is required to restart Decky Loader — you may be asked for your password."
-
-info "Stopping Decky Loader..."
-sudo systemctl stop plugin_loader
-
-info "Removing old plugin files and stale logs..."
-sudo rm -rf "$PLUGIN_DIR" "$LOGS_DIR"
 
 info "Fetching latest release info..."
 CURL_ARGS=(-sS -w $'\n%{http_code}')
@@ -74,14 +80,50 @@ if [ -z "$ZIP_URL" ]; then
     err "Could not find the plugin zip in the latest release."
     exit 1
 fi
+APPIMAGE_URL=$(printf '%s' "$RELEASE_BODY" \
+    | grep -o '"browser_download_url": *"[^"]*Sonnenschein_Client-[^"]*x86_64\.AppImage"' \
+    | head -1 | sed 's/.*"\(https[^"]*\)"/\1/')
+if [ -z "$APPIMAGE_URL" ]; then
+    err "Could not find the x86_64 client AppImage in the latest release."
+    exit 1
+fi
 info "Downloading $ZIP_URL"
 TMPZIP=$(mktemp /tmp/sonnenschein-plugin-XXXX.zip)
-curl -fsSL -o "$TMPZIP" "$ZIP_URL"
+TMPAPPIMAGE=$(mktemp /tmp/sonnenschein-client-XXXX.AppImage)
+if ! curl -fsSL -o "$TMPZIP" "$ZIP_URL"; then
+    err "Plugin download failed."
+    exit 1
+fi
+info "Downloading $APPIMAGE_URL"
+if ! curl -fsSL -o "$TMPAPPIMAGE" "$APPIMAGE_URL"; then
+    err "Client AppImage download failed."
+    exit 1
+fi
+if [ ! -s "$TMPZIP" ] || [ ! -s "$TMPAPPIMAGE" ]; then
+    err "A downloaded release asset is empty."
+    exit 1
+fi
+if ! unzip -tq "$TMPZIP" >/dev/null; then
+    err "Downloaded plugin zip is corrupt. The existing installation was not changed."
+    exit 1
+fi
+
+APPLICATIONS_DIR="$HOME/Applications"
+APPIMAGE_NAME=${APPIMAGE_URL##*/}
+mkdir -p "$APPLICATIONS_DIR"
+install -m 0755 "$TMPAPPIMAGE" "$APPLICATIONS_DIR/$APPIMAGE_NAME"
+ok "Client AppImage installed and executable: $APPLICATIONS_DIR/$APPIMAGE_NAME"
+
+info "Stopping Decky Loader..."
+sudo systemctl stop plugin_loader
+DECKY_STOPPED=1
+
+info "Removing old plugin files and stale logs..."
+sudo rm -rf "$PLUGIN_DIR" "$LOGS_DIR"
 
 info "Installing to $PLUGIN_DIR ..."
 # ~/homebrew/plugins is root-owned on the Deck — extraction needs sudo.
 sudo unzip -q -o "$TMPZIP" -d "$PLUGINS_DIR"
-rm -f "$TMPZIP"
 
 if [ ! -f "$PLUGIN_DIR/plugin.json" ]; then
     err "Installation failed — $PLUGIN_DIR/plugin.json missing after unzip."
@@ -100,6 +142,7 @@ sudo chown root:root "$PLUGIN_DIR"
 
 info "Starting Decky Loader..."
 sudo systemctl start plugin_loader
+DECKY_STOPPED=0
 
 info "Waiting 10s for the plugin backend to come up..."
 sleep 10
@@ -137,7 +180,9 @@ fi
 
 echo
 if [ "$FAIL" -eq 0 ]; then
-    bold "RESULT: Installation looks GOOD. Switch to Game Mode and open the Sonnenschein panel."
+    bold "RESULT: Plugin + client installation looks GOOD."
+    ok "Client: $APPLICATIONS_DIR/$APPIMAGE_NAME"
+    info "Start the client once in Desktop Mode to pair it, then switch to Game Mode."
     info "If Steam was running during install, restart Steam once (Game Mode: Steam > Power > Restart)."
 else
     bold "RESULT: Backend problem found — please share the output above."

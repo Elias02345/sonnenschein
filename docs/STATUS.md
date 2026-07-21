@@ -377,6 +377,14 @@
 > korrigierte Prüfung verlangt weiterhin exakt 1 AppImage + 1 EXE + 1 DMG +
 > 3 ZIPs (davon exakt ein versionsrichtiges Decky-Zip); neuer Kandidat ist
 > `v0.2.3-test`.
+> **Maintainer-Entscheidung 2026-07-21 (Deck-One-Shot):** Das bestehende
+> `deck-install.sh` installiert ab sofort nicht nur das neueste Decky-Plugin,
+> sondern lädt aus demselben `releases/latest`-Datensatz auch die neueste
+> x86_64-AppImage nach `~/Applications` (auf Steam Deck
+> `/home/deck/Applications`) und setzt sie ausführbar. Download/Installation
+> müssen fehlschlagssicher sein; eine vorhandene Client-Config und damit das
+> Pairing werden nicht verändert. Wegen unveränderlicher Test-Tags ist der
+> erste Kandidat mit diesem Verhalten `v0.2.4-test`.
 >
 > → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
 > <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —

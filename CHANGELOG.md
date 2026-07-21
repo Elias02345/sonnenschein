@@ -2,7 +2,7 @@
 
 All notable user-facing changes to Sonnenschein are documented here.
 
-## 0.2.3-test — 2026-07-21
+## 0.2.4-test — 2026-07-21
 
 ### Fixed
 
@@ -19,6 +19,12 @@ All notable user-facing changes to Sonnenschein are documented here.
   never prevents a manual launch attempt.
 - Client and Decky package versions now follow the release version instead of
   remaining at `0.1.0`.
+
+### Changed
+
+- The Steam Deck installer now installs or updates both the Decky plugin and
+  the latest x86_64 client AppImage in `~/Applications`, including executable
+  permissions, from the same GitHub release.
 
 ### Project maintenance
 

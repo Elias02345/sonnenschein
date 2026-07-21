@@ -73,6 +73,8 @@ jobs:
         run: |
           python3 decky-plugin/tests/backend_harness.py
           python3 -m py_compile decky-plugin/main.py decky-plugin/tests/backend_harness.py
+          bash -n decky-plugin/deck-install.sh decky-plugin/sonnenschein-run.sh
+          bash decky-plugin/tests/install_harness.sh
           test "$(grep -o 'SP_JSX' decky-plugin/dist/index.js | wc -l)" -gt 0
           ! grep -q 'React.createElement' decky-plugin/dist/index.js
 
