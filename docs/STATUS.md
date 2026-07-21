@@ -509,7 +509,7 @@
 > latest-Installer-Asset-Link zeigen auf v0.2.8-test. Ausschließlich offen:
 > echter Game-Mode-/Steam-Input-/Host-Lifecycle-E2E durch den Maintainer.
 >
-> **🟡 DECK-RUNDE 10 (2026-07-21) — Button-Fix + Plugin-Updater:**
+> **✅ DECK-RUNDE 10 (2026-07-21) — v0.2.9-test veröffentlicht:**
 > Maintainer-Test von v0.2.8 bestätigt: Der native „Stream with
 > Sonnenschein"-Button erscheint weiterhin nicht. Vergleich mit aktuellem
 > MoonDeck-Quellstand belegt die Abweichung: Unser Router-Patch injiziert die
@@ -560,6 +560,21 @@
 > Umbau unbenutzt). Die tote Testvariable wurde entfernt; kein Runtime-Code
 > betroffen. Reproduktion: ShellCheck 0.11 mit Severity `warning` auf
 > `decky-plugin/tests/update_harness.sh`.
+> **✅ RELEASE v0.2.9-test LIVE:**
+> <https://github.com/Elias02345/sonnenschein/releases/tag/v0.2.9-test>
+> — unveränderlicher Tag auf `73ea599`; dev-Gates Client Build
+> `29857152284`, Linux `29857151079` und Lint `29857151082` grün; Tag-/Release-
+> Run `29857919235` vollständig grün. Kuratierter Release-Text, getaggte Deck-
+> Anleitung und genau sieben Assets sind öffentlich. Rückdownload-Audit:
+> Installer SHA-256 `1998b70bcf83e2d2845b80b62071921398f7667ca8d4f4aa2071b432ac6a07b6`,
+> Decky-Zip `ff4354b9ae67c533f7ed2cd43197466f7dc773970b01d8c648a48e9e06fbc4f9`,
+> AppImage `43c154490d16bbfe550a8eb84b1c2f972f6d802bf58c9717f66e163ca301324a`.
+> Installer ist bytegleich mit dem Tag; Zip besteht CRC, exaktes Layout,
+> Helper-Exec-Bits/-Gleichheit, Version, SP_JSX/React und veröffentlichtes
+> Frozen-Python-Backend-Harness; AppImage ist extrahierbar und enthält 0.2.9.
+> Update-Integrity/Rollback-Harness erneut grün. `releases/latest` und der
+> rolling Installer zeigen auf v0.2.9-test. Offen ausschließlich: echter
+> Steam-Deck-Test des Buttons/Fokus und der ersten `systemd-run`-Aktualisierung.
 > Das versionierte One-Shot-Script ist ein eigenes unveränderliches Release-
 > Asset; die rolling Anleitung nutzt `releases/latest/download`, der Release-
 > Text verweist reproduzierbar auf sein eigenes Tag-Asset. Verifikationsclaims
@@ -2543,6 +2558,7 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+73ea599 — test(deck): satisfy updater shellcheck — 2026-07-21 (v0.2.9-test live)
 c5e1c9f — fix(deck): anchor native streaming and add safe updates — 2026-07-21 (v0.2.9-test candidate)
 6ef9772 — docs(status): record native Deck lifecycle fix — 2026-07-21 (v0.2.8-test live)
 a8e346d — fix(deck): stabilize native game streaming lifecycle — 2026-07-21 (v0.2.8-test candidate)
