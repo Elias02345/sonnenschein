@@ -74,9 +74,10 @@ jobs:
           python3 decky-plugin/tests/backend_harness.py
           python3 decky-plugin/tests/frontend_contract.py
           python3 -m py_compile decky-plugin/main.py decky-plugin/tests/backend_harness.py decky-plugin/tests/frontend_contract.py
-          bash -n decky-plugin/deck-install.sh decky-plugin/sonnenschein-run.sh
+          bash -n decky-plugin/deck-install.sh decky-plugin/sonnenschein-run.sh decky-plugin/sonnenschein-update.sh
           bash decky-plugin/tests/install_harness.sh
           bash decky-plugin/tests/runner_harness.sh
+          bash decky-plugin/tests/update_harness.sh
           test "$(grep -o 'SP_JSX' decky-plugin/dist/index.js | wc -l)" -gt 0
           ! grep -q 'React.createElement' decky-plugin/dist/index.js
 
@@ -86,11 +87,29 @@ jobs:
           mkdir -p out/sonnenschein/dist
           cp decky-plugin/plugin.json decky-plugin/package.json \
              decky-plugin/main.py decky-plugin/sonnenschein-run.sh \
+             decky-plugin/sonnenschein-update.sh \
              out/sonnenschein/
           cp decky-plugin/dist/index.js out/sonnenschein/dist/
           cp LICENSE out/sonnenschein/LICENSE
           chmod +x out/sonnenschein/sonnenschein-run.sh
+          chmod +x out/sonnenschein/sonnenschein-update.sh
           (cd out && zip -r "../Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}.zip" sonnenschein)
+          printf '%s\n' \
+            sonnenschein/ \
+            sonnenschein/LICENSE \
+            sonnenschein/dist/ \
+            sonnenschein/dist/index.js \
+            sonnenschein/main.py \
+            sonnenschein/package.json \
+            sonnenschein/plugin.json \
+            sonnenschein/sonnenschein-run.sh \
+            sonnenschein/sonnenschein-update.sh | sort > expected-zip.txt
+          unzip -Z1 "Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}.zip" | sort > actual-zip.txt
+          cmp -s expected-zip.txt actual-zip.txt
+          mkdir -p zip-audit
+          unzip -q "Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}.zip" -d zip-audit
+          test -x zip-audit/sonnenschein/sonnenschein-run.sh
+          test -x zip-audit/sonnenschein/sonnenschein-update.sh
 
       - name: Upload plugin
         uses: actions/upload-artifact@v6

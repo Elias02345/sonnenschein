@@ -13,6 +13,7 @@ import {
   PanelSection,
   PanelSectionRow,
   staticClasses,
+  TextField,
 } from "@decky/ui";
 import {
   callable,
@@ -49,6 +50,18 @@ interface Status {
   hosts: HostInfo[];
 }
 
+interface UpdateInfo {
+  current: string;
+  latest: string;
+  updateAvailable: boolean;
+  releaseUrl: string;
+}
+
+interface UpdateStatus {
+  state: "idle" | "starting" | "authorizing" | "installing" | "success" | "error";
+  message: string;
+}
+
 const ping = callable<[], boolean>("ping");
 const getStatus = callable<[], Status>("get_status");
 const getApps = callable<[string, number], HostApp[]>("get_apps");
@@ -56,6 +69,9 @@ const getBoxart = callable<[string, number, string], { data: string; ext: string
 const getLaunchOptions = callable<[string, string], string>("get_launch_options");
 const getState = callable<[], SyncState>("get_state");
 const setClientPath = callable<[string], boolean>("set_client_path");
+const checkForUpdates = callable<[], UpdateInfo>("check_for_updates");
+const getUpdateStatus = callable<[], UpdateStatus>("get_update_status");
+const installUpdate = callable<[string], { started: boolean }>("install_update");
 
 // A backend that never answers must not leave the panel stuck — every
 // backend call runs against a deadline.
@@ -167,6 +183,10 @@ function Content() {
   const [busy, setBusy] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [streamingTitle, setStreamingTitle] = useState<string>("");
+  const [sudoPassword, setSudoPassword] = useState("deck");
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
 
   const refresh = async (autoSync: boolean) => {
     try {
@@ -263,21 +283,114 @@ function Content() {
     }
   };
 
+  const refreshUpdate = async () => {
+    setUpdateBusy(true);
+    try {
+      const [info, state] = await Promise.all([
+        withTimeout(checkForUpdates(), 20000, "Update-Suche"),
+        withTimeout(getUpdateStatus(), 10000, "Update-Status"),
+      ]);
+      setUpdateInfo(info);
+      setUpdateStatus(state);
+    } catch (e: any) {
+      setUpdateStatus({ state: "error", message: `${e?.message ?? e}` });
+    } finally {
+      setUpdateBusy(false);
+    }
+  };
+
+  const runUpdate = async () => {
+    setUpdateBusy(true);
+    try {
+      await withTimeout(installUpdate(sudoPassword), 10000, "Update-Start");
+      // Remove the secret from React memory as soon as it crossed the pipe.
+      setSudoPassword("");
+      setUpdateStatus({ state: "starting", message: "Update wurde gestartet…" });
+    } catch (e: any) {
+      setUpdateStatus({ state: "error", message: `${e?.message ?? e}` });
+      setUpdateBusy(false);
+    }
+  };
+
   useEffect(() => {
     // Auto-sync on panel open (maintainer decision: full auto sync)
     refresh(true);
+    refreshUpdate();
   }, []);
+
+  useEffect(() => {
+    if (!updateStatus || !["starting", "authorizing", "installing"].includes(updateStatus.state)) {
+      return;
+    }
+    const interval = setInterval(async () => {
+      try {
+        const state = await getUpdateStatus();
+        setUpdateStatus(state);
+        if (state.state === "success" || state.state === "error") {
+          setUpdateBusy(false);
+        }
+      } catch (_) {
+        // Decky Loader intentionally restarts during installation. Polling
+        // resumes when the newly installed plugin mounts again.
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [updateStatus?.state]);
+
+  const updatePanel = (
+    <PanelSection title="Updates">
+      <PanelSectionRow>
+        <div style={{ fontSize: "0.8em" }}>
+          {updateInfo
+            ? `Installiert: ${updateInfo.current} · Verfügbar: ${updateInfo.latest}`
+            : "Versionsstand wird geprüft…"}
+        </div>
+      </PanelSectionRow>
+      {updateStatus && <PanelSectionRow>{updateStatus.message}</PanelSectionRow>}
+      <PanelSectionRow>
+        <ButtonItem layout="below" onClick={refreshUpdate} disabled={updateBusy}>
+          Nach Updates suchen
+        </ButtonItem>
+      </PanelSectionRow>
+      {updateInfo?.updateAvailable && (
+        <>
+          <PanelSectionRow>
+            <TextField
+              label="sudo-Passwort"
+              description="Nur für diesen Update-Vorgang; wird nicht gespeichert."
+              bIsPassword
+              value={sudoPassword}
+              disabled={updateBusy}
+              onChange={(event) => setSudoPassword(event.target.value)}
+            />
+          </PanelSectionRow>
+          <PanelSectionRow>
+            <ButtonItem
+              layout="below"
+              onClick={runUpdate}
+              disabled={updateBusy || sudoPassword.length === 0}
+            >
+              Update automatisch installieren
+            </ButtonItem>
+          </PanelSectionRow>
+        </>
+      )}
+    </PanelSection>
+  );
 
   if (error) {
     return (
-      <PanelSection title="Fehler">
-        <PanelSectionRow>{error}</PanelSectionRow>
-        <PanelSectionRow>
-          <ButtonItem layout="below" onClick={() => refresh(true)}>
-            Erneut versuchen
-          </ButtonItem>
-        </PanelSectionRow>
-      </PanelSection>
+      <>
+        <PanelSection title="Fehler">
+          <PanelSectionRow>{error}</PanelSectionRow>
+          <PanelSectionRow>
+            <ButtonItem layout="below" onClick={() => refresh(true)}>
+              Erneut versuchen
+            </ButtonItem>
+          </PanelSectionRow>
+        </PanelSection>
+        {updatePanel}
+      </>
     );
   }
 
@@ -291,12 +404,15 @@ function Content() {
 
   if (!status.paired) {
     return (
-      <PanelSection title="Nicht gekoppelt">
-        <PanelSectionRow>
-          Installiere die Sonnenschein-Client-App und kopple sie im Desktop-Modus
-          mit deinem Host. Das Plugin übernimmt das Pairing automatisch.
-        </PanelSectionRow>
-      </PanelSection>
+      <>
+        <PanelSection title="Nicht gekoppelt">
+          <PanelSectionRow>
+            Installiere die Sonnenschein-Client-App und kopple sie im Desktop-Modus
+            mit deinem Host. Das Plugin übernimmt das Pairing automatisch.
+          </PanelSectionRow>
+        </PanelSection>
+        {updatePanel}
+      </>
     );
   }
 
@@ -369,6 +485,8 @@ function Content() {
           );
         })}
       </PanelSection>
+
+      {updatePanel}
     </>
   );
 }

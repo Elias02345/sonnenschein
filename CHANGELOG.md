@@ -2,6 +2,29 @@
 
 All notable user-facing changes to Sonnenschein are documented here.
 
+## 0.2.9-test — 2026-07-21
+
+### Fixed
+
+- The native **Stream with Sonnenschein** game-page control now uses the full
+  proven MoonDeck anchor model: a zero-height anchor in Steam's header context,
+  absolute native focus-group positioning, and TopCapsule visibility tracking.
+  This fixes the v0.2.8 node being injected but clipped outside the visible
+  Game Mode layout.
+- Added explicit Game Mode diagnostics for route target discovery and the
+  final anchor insertion point.
+
+### Added
+
+- The Decky panel can check GitHub Releases for a newer Sonnenschein test
+  build and install it automatically, updating both the plugin and AppImage.
+- The updater includes a masked, changeable sudo password field initialized
+  to `deck`. The password exists only in memory for that update, is passed via
+  an anonymous stdin pipe, and is never saved in settings, logs, environment
+  variables, or command arguments.
+- Update progress survives the intentional Decky Loader restart and is shown
+  again when the updated plugin mounts.
+
 ## 0.2.8-test — 2026-07-21
 
 ### Fixed

@@ -26,6 +26,10 @@ CLIENT_CONF = os.path.join(
 )
 STATE_FILE = os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "state.json")
 RUNNER = os.path.join(decky.DECKY_PLUGIN_DIR, "sonnenschein-run.sh")
+UPDATE_HELPER = os.path.join(decky.DECKY_PLUGIN_DIR, "sonnenschein-update.sh")
+UPDATE_STATE_DIR = "/var/lib/sonnenschein-decky-update"
+UPDATE_STATUS_FILE = os.path.join(UPDATE_STATE_DIR, "status.json")
+UPDATE_LOG_FILE = os.path.join(UPDATE_STATE_DIR, "update.log")
 
 HTTPS_PORT = 47984
 
@@ -57,6 +61,30 @@ async def _run_blocking(function, *args):
     if failure:
         raise failure[0]
     return result[0]
+
+
+def _start_update_unit(password, release_tag):
+    """Authenticate once and move the updater outside plugin_loader's cgroup."""
+    import subprocess
+
+    unit = f"sonnenschein-update-{os.getpid()}"
+    command = [
+        "sudo", "-S", "-p", "", "systemd-run",
+        "--quiet", "--collect", f"--unit={unit}",
+        "bash", UPDATE_HELPER, release_tag, decky.DECKY_USER_HOME,
+        str(os.getuid()), str(os.getgid()),
+    ]
+    completed = subprocess.run(
+        command,
+        input=password + "\n",
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError("sudo-Passwort abgelehnt oder Update-Dienst konnte nicht gestartet werden.")
 
 
 def _unescape_qsettings(value: str) -> str:
@@ -278,6 +306,41 @@ class Plugin:
         apart from host/network problems."""
         return True
 
+    # ---- plugin/client self-update ----
+
+    async def check_for_updates(self):
+        return await _run_blocking(_check_for_updates_sync)
+
+    async def get_update_status(self):
+        try:
+            with open(UPDATE_STATUS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {"state": "idle", "message": "Noch kein Update gestartet."}
+
+    async def install_update(self, sudo_password):
+        """Start the tagged one-shot installer outside Decky Loader.
+
+        The password is accepted only as an in-memory RPC value and written to
+        the helper's anonymous stdin pipe. It never enters settings, argv,
+        environment or logs.
+        """
+        if not isinstance(sudo_password, str) or not sudo_password:
+            raise RuntimeError("Ein sudo-Passwort ist erforderlich.")
+        if not os.path.isfile(UPDATE_HELPER):
+            raise RuntimeError("Update-Helper fehlt; Plugin bitte einmal neu installieren.")
+
+        release = await _run_blocking(_check_for_updates_sync)
+        release_tag = release.get("tag", "")
+        if not release_tag or not release.get("updateAvailable"):
+            raise RuntimeError("Es ist kein neuerer Release verfügbar.")
+
+        try:
+            await _run_blocking(_start_update_unit, sudo_password, release_tag)
+        except Exception:
+            raise
+        return {"started": True}
+
     async def _unload(self):
         decky.logger.info("Sonnenschein plugin unloaded")
 
@@ -416,6 +479,52 @@ def _write_settings(settings):
     os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
     with open(SETTINGS_FILE, "w") as f:
         json.dump(settings, f)
+
+
+def _version_tuple(value):
+    import re
+
+    match = re.search(r"(\d+)\.(\d+)\.(\d+)", str(value))
+    return tuple(int(part) for part in match.groups()) if match else (0, 0, 0)
+
+
+def _check_for_updates_sync():
+    """Compare the packaged plugin version with GitHub's latest release."""
+    import http.client
+    import ssl
+
+    package_file = os.path.join(decky.DECKY_PLUGIN_DIR, "package.json")
+    with open(package_file, "r", encoding="utf-8") as f:
+        current = json.load(f).get("version", "0.0.0")
+
+    context = ssl.create_default_context()
+    conn = http.client.HTTPSConnection("api.github.com", 443, timeout=15, context=context)
+    try:
+        conn.request(
+            "GET",
+            "/repos/Elias02345/sonnenschein/releases/latest",
+            headers={
+                "User-Agent": "sonnenschein-decky-updater",
+                "Accept": "application/vnd.github+json",
+            },
+        )
+        response = conn.getresponse()
+        body = response.read()
+        if response.status != 200:
+            raise RuntimeError(f"GitHub antwortete mit HTTP {response.status}.")
+        release = json.loads(body.decode("utf-8"))
+    finally:
+        conn.close()
+
+    tag = str(release.get("tag_name", ""))
+    latest = tag.removeprefix("v")
+    return {
+        "current": current,
+        "latest": latest,
+        "tag": tag,
+        "updateAvailable": _version_tuple(latest) > _version_tuple(current),
+        "releaseUrl": str(release.get("html_url", "")),
+    }
 
 
 def _find_client_app():

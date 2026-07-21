@@ -55,6 +55,18 @@ Both downloads are on the [Releases page](https://github.com/Elias02345/sonnensc
 3. Back in Game Mode, open the Quick Access menu → plug icon → **Sonnenschein**.
    If Steam was already running during the install, restart Steam once.
 
+### Update directly from Game Mode
+
+Open **Decky → Sonnenschein → Updates**. The panel shows the installed and
+latest release versions. Select **Nach Updates suchen** and, when a newer test
+build is available, **Update automatisch installieren**.
+
+The sudo field is masked and initially contains `deck`; replace it if your
+Deck uses another password. The password is used only for that single update
+and is never saved in plugin settings, logs, environment variables, or process
+arguments. During installation Decky Loader restarts intentionally. Reopen the
+plugin afterwards to see the final update status.
+
 ## Usage
 
 - **Games you own on Steam** (installed on the Deck or just visible in your
@@ -92,7 +104,7 @@ Both downloads are on the [Releases page](https://github.com/Elias02345/sonnensc
 
 ## Notes
 
-- The plugin never talks to the internet — it only talks to your paired host
-  on the local network, using the client certificate created during pairing.
+- Streaming and library synchronization only talk to your paired host on the
+  local network. The optional update checker contacts GitHub Releases.
 - Shortcut handling follows the pattern established by
   [MoonDeck](https://github.com/FrogTheFrog/moondeck) (GPL-3). Thanks!

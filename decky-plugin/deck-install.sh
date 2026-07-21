@@ -12,6 +12,8 @@
 set -uo pipefail
 
 REPO="Elias02345/sonnenschein"
+INSTALL_USER="${SONNENSCHEIN_DECK_USER:-$(id -un)}"
+INSTALL_GROUP="${SONNENSCHEIN_DECK_GROUP:-$(id -gn)}"
 PLUGINS_DIR="$HOME/homebrew/plugins"
 PLUGIN_DIR="$PLUGINS_DIR/sonnenschein"
 LOGS_DIR="$HOME/homebrew/logs/sonnenschein"
@@ -41,7 +43,17 @@ fi
 bold "== Sonnenschein Decky plugin: clean install =="
 info "sudo is required to restart Decky Loader — you may be asked for your password."
 
-info "Fetching latest release info..."
+if [ -n "${SONNENSCHEIN_RELEASE_TAG:-}" ]; then
+    case "$SONNENSCHEIN_RELEASE_TAG" in
+        v[0-9]*.[0-9]*.[0-9]*-test) ;;
+        *) err "Invalid SONNENSCHEIN_RELEASE_TAG."; exit 1 ;;
+    esac
+    RELEASE_API_PATH="releases/tags/$SONNENSCHEIN_RELEASE_TAG"
+    info "Fetching pinned release $SONNENSCHEIN_RELEASE_TAG..."
+else
+    RELEASE_API_PATH="releases/latest"
+    info "Fetching latest release info..."
+fi
 CURL_ARGS=(-sS -w $'\n%{http_code}')
 if [ -n "${GITHUB_TOKEN:-}" ]; then
     CURL_ARGS+=(-H "Authorization: Bearer $GITHUB_TOKEN")
@@ -54,7 +66,7 @@ for RETRY_DELAY in 0 15 30 60; do
         sleep "$RETRY_DELAY"
     fi
 
-    RELEASE_RESPONSE=$(curl "${CURL_ARGS[@]}" "https://api.github.com/repos/$REPO/releases/latest" 2>&1)
+    RELEASE_RESPONSE=$(curl "${CURL_ARGS[@]}" "https://api.github.com/repos/$REPO/$RELEASE_API_PATH" 2>&1)
     HTTP_STATUS=${RELEASE_RESPONSE##*$'\n'}
     RELEASE_BODY=${RELEASE_RESPONSE%$'\n'*}
 
@@ -134,7 +146,7 @@ fi
 # Decky's own convention: plugin contents owned by deck, the top-level
 # plugin dir owned by root (the loader's permission fixer treats a
 # root-owned top dir as 'already correct').
-sudo chown -R "$(id -un):$(id -gn)" "$PLUGIN_DIR"
+sudo chown -R "$INSTALL_USER:$INSTALL_GROUP" "$PLUGIN_DIR"
 sudo chmod -R u+rwX,go+rX "$PLUGIN_DIR"
 sudo chmod +x "$PLUGIN_DIR/sonnenschein-run.sh" 2>/dev/null
 sudo find "$PLUGIN_DIR" -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null

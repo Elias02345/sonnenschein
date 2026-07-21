@@ -21,6 +21,7 @@
 import {
   afterPatch,
   appDetailsClasses,
+  appDetailsHeaderClasses,
   basicAppDetailsSectionStylerClasses,
   Button,
   createReactTreePatcher,
@@ -30,7 +31,7 @@ import {
   playSectionClasses,
 } from "@decky/ui";
 import { callable, routerHook, toaster } from "@decky/api";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { CSSProperties, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   getHostGameIndexRevision,
   getHostGameForSteamApp,
@@ -70,6 +71,12 @@ const StreamButtonStyle = (
         white-space: nowrap !important;
         font-size: 14px !important;
       }
+      .sonnenschein-stream-container {
+        position: absolute !important;
+        z-index: 10 !important;
+        right: 2.8vw !important;
+        bottom: 16px !important;
+      }
     `}
   </style>
 );
@@ -79,6 +86,67 @@ function statusDotColor(status: HostStatus): string {
     return "#c9463d";
   }
   return "#3fb950";
+}
+
+function findTopCapsuleParent(ref: HTMLDivElement | null): Element | null {
+  const siblings = ref?.parentElement?.children;
+  if (!siblings) {
+    return null;
+  }
+  for (const sibling of siblings) {
+    if (!sibling.className?.includes?.(appDetailsClasses.Header)) {
+      continue;
+    }
+    for (const child of sibling.children) {
+      if (child.className?.includes?.(appDetailsHeaderClasses.TopCapsule)) {
+        return child;
+      }
+    }
+  }
+  return null;
+}
+
+function StreamButtonAnchor(props: StreamButtonProps) {
+  const [visible, setVisible] = useState(true);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const topCapsule = findTopCapsuleParent(ref.current);
+    if (!topCapsule) {
+      // The button stays visible by default. This log makes Steam UI drift
+      // diagnosable without turning a missing animation target into a failure.
+      console.error("Sonnenschein: TopCapsule container not found; keeping stream button visible");
+      return;
+    }
+    const observer = new MutationObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.type !== "attributes" || entry.attributeName !== "class") {
+          continue;
+        }
+        const className = (entry.target as Element).className;
+        const transitioning =
+          className.includes(appDetailsHeaderClasses.FullscreenEnterStart) ||
+          className.includes(appDetailsHeaderClasses.FullscreenEnterActive) ||
+          className.includes(appDetailsHeaderClasses.FullscreenEnterDone) ||
+          className.includes(appDetailsHeaderClasses.FullscreenExitStart) ||
+          className.includes(appDetailsHeaderClasses.FullscreenExitActive);
+        const exited = className.includes(appDetailsHeaderClasses.FullscreenExitDone);
+        setVisible(!transitioning || exited);
+      }
+    });
+    observer.observe(topCapsule, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      data-sonnenschein-stream-anchor
+      style={{ position: "relative", height: 0 } as CSSProperties}
+    >
+      {visible && <StreamButton {...props} />}
+    </div>
+  );
 }
 
 function statusDotTitle(status: HostStatus): string {
@@ -226,7 +294,7 @@ export function patchLibraryApp(route: string): () => void {
           // Sonnenschein control into a tree we already handled.
           const existingButton = findInReactTree(
             ret,
-            (x: any) => x?.key === "sonnenschein-stream-button" || x?.props?.["data-sonnenschein-stream-row"]
+            (x: any) => x?.key === "sonnenschein-stream-button" || x?.props?.["data-sonnenschein-stream-anchor"]
           );
           if (existingButton) {
             return ret;
@@ -237,34 +305,29 @@ export function patchLibraryApp(route: string): () => void {
               Array.isArray(x?.props?.children) && x?.props?.className?.includes(appDetailsClasses.InnerContainer)
           );
           if (typeof parent !== "object" || typeof appId !== "number" || typeof appName !== "string") {
+            console.error("Sonnenschein: game-page patch target or overview missing", { appId, appName });
             return ret;
           }
 
+          const hltbIndex = parent.props.children.findIndex((x: any) => x?.props?.id === "hltb-for-deck");
           const appPanelIndex = parent.props.children.findIndex(
             (x: any) => x?.props?.overview && x?.props?.onShowLaunchingDetails
           );
-
-          if (appPanelIndex >= 0) {
-            // Current MoonDeck pattern: inject a native AppButtons/MenuButton
-            // focus group immediately before Steam's own Play/Install panel.
-            // Do not re-parent the Steam panel; doing so breaks focus traversal
-            // and is why the previous button disappeared on some Steam builds.
-            parent.props.children.splice(
-              appPanelIndex,
-              0,
-              <StreamButton appId={appId} appName={appName} key="sonnenschein-stream-button" />
-            );
-            return ret;
-          }
-
-          // Fallback (app panel not found, e.g. future Steam UI drift):
-          // still show the button somewhere rather than nowhere at all.
-          const hltbIndex = parent.props.children.findIndex((x: any) => x?.props?.id === "hltb-for-deck");
+          // Match MoonDeck's proven anchor location exactly. appPanelIndex - 1
+          // puts the zero-height anchor in the header coordinate context;
+          // inserting the Focusable itself at appPanelIndex was clipped by
+          // Steam and caused the v0.2.8 regression.
+          const insertionIndex = hltbIndex >= 0
+            ? hltbIndex
+            : appPanelIndex >= 0
+              ? Math.max(0, appPanelIndex - 1)
+              : parent.props.children.length;
           parent.props.children.splice(
-            hltbIndex < 0 ? -1 : hltbIndex,
+            insertionIndex,
             0,
-            <StreamButton appId={appId} appName={appName} key="sonnenschein-stream-button" />
+            <StreamButtonAnchor appId={appId} appName={appName} key="sonnenschein-stream-button" />
           );
+          console.info("Sonnenschein: stream button anchor injected", { appId, appName, insertionIndex });
           return ret;
         }
       );

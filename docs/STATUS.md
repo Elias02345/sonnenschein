@@ -508,6 +508,53 @@
 > ist gültig extrahierbar und enthält 0.2.8. `releases/latest` sowie der
 > latest-Installer-Asset-Link zeigen auf v0.2.8-test. Ausschließlich offen:
 > echter Game-Mode-/Steam-Input-/Host-Lifecycle-E2E durch den Maintainer.
+>
+> **🟡 DECK-RUNDE 10 (2026-07-21) — Button-Fix + Plugin-Updater:**
+> Maintainer-Test von v0.2.8 bestätigt: Der native „Stream with
+> Sonnenschein"-Button erscheint weiterhin nicht. Vergleich mit aktuellem
+> MoonDeck-Quellstand belegt die Abweichung: Unser Router-Patch injiziert die
+> Fokusgruppe direkt als normales `InnerContainer`-Kind; MoonDeck injiziert
+> dort stattdessen einen nullhohen Anchor und positioniert die native
+> `AppButtons`-/`MenuButton`-Gruppe absolut relativ zum sichtbaren
+> `TopCapsule`-Header. Ziel ist die vollständige Übernahme dieses bewährten
+> Anchor-/Visibility-Musters mit einem zusätzlichen DOM-Fallback und
+> Diagnose-Logging statt eines weiteren nur statischen Splice-Contracts.
+> Zusätzlich soll das QAM-Plugin Updates suchen und per Knopf installieren.
+> Das Passwortfeld ist maskiert und startet auf Maintainer-Wunsch mit `deck`,
+> ist aber änderbar. Sicherheitsentscheidung: Das sudo-Passwort wird niemals
+> persistiert, geloggt oder als Prozessargument übergeben, sondern nur im
+> React-Speicher gehalten und einmalig per anonymer stdin-Pipe an `sudo`
+> geschickt. `sudo systemd-run` startet anschließend eine transiente Root-Unit
+> außerhalb der Decky-cgroup; der Helper selbst erhält kein Passwort.
+> Update-Status/Log enthalten keine Secrets und überleben den notwendigen
+> Decky-Neustart.
+> **Implementiert für v0.2.9-test:** Der Gamepage-Patch portiert nun MoonDecks
+> vollständigen zero-height Anchor, absolute Bottom/Right-Positionierung,
+> `TopCapsule`-MutationObserver und exakte Einfügeposition `appPanelIndex - 1`;
+> Route-Ziel und erfolgreicher Insert werden im CEF-Log diagnostizierbar.
+> Das QAM besitzt Update-Suche, installierte/verfügbare Version, maskiertes
+> temporäres Passwortfeld und automatische Installation. Nach einmaliger sudo-
+> Authentifizierung übernimmt eine transiente systemd-Unit außerhalb der
+> Loader-cgroup. Der bereits installierte Helper führt nur feste Operationen
+> aus, verifiziert die GitHub-SHA-256-Digests, exakte Archivstruktur, reguläre
+> Dateitypen und Größenlimit und führt keinen heruntergeladenen Shellcode als
+> root aus. HOME sowie Deck-UID/-GID bleiben explizit. Lokal grün:
+> Rollup/SP_JSX, Frontend-Contract, Frozen-Python-Backend-
+> Harness, Installer-, Runner- und neuer Update-Secret/Lifecycle-Harness,
+> Shell-/Python-Syntax und `git diff --check`. Noch ausstehend: unabhängiger
+> Patch-/Security-Audit, dev-CI, Testrelease und echter Deck-E2E.
+> **Abschluss-Härtung/Audit:** Der erste Audit fand cgroup-, Remote-Root-Code-
+> und Zip-Vertragsprobleme, der zweite deck-writable Root-Pfade und fehlenden
+> Rollback. Alle wurden vor Release geschlossen: `sudo systemd-run --collect`,
+> kein heruntergeladenes Root-Script, fester root-owned State unter
+> `/var/lib/sonnenschein-decky-update`, SHA-256-/CRC-/Layout-/Dateityp-/Größen-
+> Gates, Same-Filesystem-Staging, atomare Aktivierung und Backup-Rollback.
+> Failure Injection beweist die Wiederherstellung des alten Pluginbaums bei
+> Loader-Startfehler. Der finale unabhängige Read-only-Audit meldet keine
+> statisch nachweisbaren Blocker. Offen: dev-/Tag-CI, Live-Asset-Audit sowie
+> echter Button/Fokus, `systemd-run` und Statusaufnahme nach Loader-Restart am
+> Deck. Bei Plugin-Rollback bleibt die zusätzliche neue versionsbenannte
+> AppImage liegen; die alte bleibt ebenfalls erhalten, daher ist Retry sicher.
 > Das versionierte One-Shot-Script ist ein eigenes unveränderliches Release-
 > Asset; die rolling Anleitung nutzt `releases/latest/download`, der Release-
 > Text verweist reproduzierbar auf sein eigenes Tag-Asset. Verifikationsclaims

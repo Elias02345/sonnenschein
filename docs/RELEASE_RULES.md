@@ -27,7 +27,8 @@ Sie ergänzen `UPDATE_RULES.md`; der tagesaktuelle Arbeitsstand bleibt in
    - erfolgreicher TypeScript-/Rollup-Build,
    - `SP_JSX` statt nackter `React.createElement`-Referenzen,
    - exaktes Zip-Layout `sonnenschein/{plugin.json,package.json,main.py,
-     sonnenschein-run.sh,dist/index.js,LICENSE}`,
+     sonnenschein-run.sh,sonnenschein-update.sh,dist/index.js,LICENSE}` sowie
+     ausführbare Runner-/Updater-Helper im fertig assemblierten Archiv,
    - Import und Methodenaufrufe durch die echte Decky-Loader-Maschinerie,
    - Frozen-Python-Kompatibilität und Offline-/Timeout-Verhalten.
 3. Client-Releases zusätzlich auf einkompilierte Version, Discovery-/Config-

@@ -33,7 +33,7 @@ done
 url=${!#}
 case "$url" in
     *api.github.com*)
-        printf '%s\n200' '{"assets":[{"browser_download_url":"https://example.test/Sonnenschein-Decky-Plugin-0.2.8-test.zip"},{"browser_download_url":"https://example.test/Sonnenschein_Client-0.2.8-test-x86_64.AppImage"}]}'
+        printf '%s\n200' '{"assets":[{"browser_download_url":"https://example.test/Sonnenschein-Decky-Plugin-0.2.9-test.zip"},{"browser_download_url":"https://example.test/Sonnenschein_Client-0.2.9-test-x86_64.AppImage"}]}'
         ;;
     *Decky-Plugin*) cp "$FIXTURE_ZIP" "$output" ;;
     *x86_64.AppImage) cp "$FIXTURE_APPIMAGE" "$output" ;;
@@ -64,7 +64,7 @@ EOF
 chmod +x "$STUB_DIR"/*
 PATH="$STUB_DIR:$PATH" bash "$ROOT_DIR/deck-install.sh"
 
-APPIMAGE="$HOME/Applications/Sonnenschein_Client-0.2.8-test-x86_64.AppImage"
+APPIMAGE="$HOME/Applications/Sonnenschein_Client-0.2.9-test-x86_64.AppImage"
 test -x "$APPIMAGE"
 test -s "$APPIMAGE"
 test -f "$HOME/homebrew/plugins/sonnenschein/plugin.json"
