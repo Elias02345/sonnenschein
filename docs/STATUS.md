@@ -2597,7 +2597,7 @@ etwas davon braucht.
 Arch / Ubuntu-24.04 / Fedora-41 / openSUSE-Tumbleweed, AppImage, Decky-Plugin, Windows- + macOS-Client.
 Kein neues Tag nötig — der Installer baut aus dem Branch-Source, nicht aus Release-Assets.
 
-### 9.27 Stale CMake-Cache: Link bricht an verschwundenen Ayatana-Libs (GELÖST 2026-09-15)
+### 9.27 Stale CMake-Cache: Link bricht an verschwundenen Ayatana-Libs (GELÖST 2026-09-15, `9a3ee94`)
 
 **Symptom** (CachyOS, direkt nach dem §9.26-Fix, Build lief bis zum Linken durch):
 
@@ -2659,6 +2659,8 @@ Versionsnummern — das Update-System funktioniert unabhängig davon. Auswirkung
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+9a3ee94 — fix(installer): skip stale CMake cache after system upgrades — 2026-09-15 (Ayatana-Link-Bruch, §9.27)
+7484eeb — docs(status): record dev -> main merge (PR #2) — 2026-09-15
 683c1e0 — Merge pull request #2 from Elias02345/dev — 2026-09-15 (main auf dev-Stand, 67 Commits, CI komplett grün)
 0630a0c — docs(status): correct commit hash for the pacman dependency fix — 2026-09-15
 6c58593 — fix(installer): skip already-satisfied pacman dependencies — 2026-09-15 (CachyOS PipeWire-Konflikt, §9.26)
