@@ -2590,6 +2590,13 @@ satisfied"; Gegentest mit zwei künstlich fehlenden Paketen ruft `pacman -Sy --n
 `pacman -Syu` aus dem Installer heraus. Beides fasst den Audio-Stack des Nutzers an, ohne dass Sonnenschein
 etwas davon braucht.
 
+**Nach `main` gebracht** (2026-09-15, PR #2, Merge `683c1e0`): Der curl-Einzeiler im README klont per Default
+`--branch main`, der Fix wäre auf `dev` allein wirkungslos geblieben. Mit dem PR gingen die aufgelaufenen
+67 Commits mit (Installer-Umbau, Deck-Lifecycle, Update-System, Release-Asset-Gates) — `main` war seit
+`5040ad0` nicht mehr aktualisiert. CI vor dem Merge komplett grün: ShellCheck, clang-format, Prettier,
+Arch / Ubuntu-24.04 / Fedora-41 / openSUSE-Tumbleweed, AppImage, Decky-Plugin, Windows- + macOS-Client.
+Kein neues Tag nötig — der Installer baut aus dem Branch-Source, nicht aus Release-Assets.
+
 ---
 
 ## 10. Letzte Commits chronologisch
@@ -2597,6 +2604,8 @@ etwas davon braucht.
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+683c1e0 — Merge pull request #2 from Elias02345/dev — 2026-09-15 (main auf dev-Stand, 67 Commits, CI komplett grün)
+0630a0c — docs(status): correct commit hash for the pacman dependency fix — 2026-09-15
 6c58593 — fix(installer): skip already-satisfied pacman dependencies — 2026-09-15 (CachyOS PipeWire-Konflikt, §9.26)
 6468974 — docs(status): record v0.2.9-test release audit — 2026-07-21
 73ea599 — test(deck): satisfy updater shellcheck — 2026-07-21 (v0.2.9-test live)
