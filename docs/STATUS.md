@@ -2597,6 +2597,61 @@ etwas davon braucht.
 Arch / Ubuntu-24.04 / Fedora-41 / openSUSE-Tumbleweed, AppImage, Decky-Plugin, Windows- + macOS-Client.
 Kein neues Tag nötig — der Installer baut aus dem Branch-Source, nicht aus Release-Assets.
 
+### 9.27 Stale CMake-Cache: Link bricht an verschwundenen Ayatana-Libs (GELÖST 2026-09-15)
+
+**Symptom** (CachyOS, direkt nach dem §9.26-Fix, Build lief bis zum Linken durch):
+
+```
+[300/302] Linking CXX executable sonnenschein-0.0.0
+/usr/bin/ld: -layatana-indicator3 kann nicht gefunden werden: Datei oder Verzeichnis nicht gefunden
+/usr/bin/ld: -layatana-ido3-0.4 kann nicht gefunden werden: Datei oder Verzeichnis nicht gefunden
+```
+
+**Ursache**: *Nicht* ein fehlendes Paket. `libayatana-appindicator` 0.6.0 (Arch, 26.08.2026) hat die
+transitiven Abhängigkeiten `libayatana-indicator` und `libayatana-ido` fallengelassen — die `.pc`-Datei
+listet heute nur noch `dbusmenu-glib-0.4 glib-2.0 gtk+-3.0`. Das Build-Verzeichnis überlebt aber
+System-Upgrades, und `pkg_check_modules` friert sein Ergebnis in `CMakeCache.txt` ein. Ein vor dem Upgrade
+geschriebener Cache verlangt beide Libs weiter:
+
+```
+APPINDICATOR_LDFLAGS:INTERNAL=...;-layatana-appindicator3;-layatana-indicator3;-layatana-ido3-0.4;...
+pkgcfg_lib_APPINDICATOR_ayatana-ido3-0.4:FILEPATH=/usr/lib/libayatana-ido3-0.4.so   # existiert nicht mehr
+```
+
+Diagnose (zeigt die Diskrepanz in einem Befehl):
+```bash
+pkg-config --libs ayatana-appindicator3-0.1          # heute: ohne indicator3/ido3
+grep APPINDICATOR_LDFLAGS <build>/CMakeCache.txt      # Cache: mit indicator3/ido3
+```
+
+Die CI sieht das nie — Container bauen immer frisch. Es trifft ausschließlich bestehende Installationen
+nach einem Systemupdate, also Re-Install und **jedes `update.sh`**.
+
+**Fix**: `cmake_cache_guard()` in `installer/lib/common.sh`, aufgerufen vor dem Konfigurieren in
+`install.sh` **und** `update.sh` (beide sourcen `common.sh`). Der Guard prüft jeden absoluten Pfad, den der
+Cache als gefunden führt (`FILEPATH=` / `PATH=`, ohne `NOTFOUND`) und der außerhalb des Build-Verzeichnisses
+liegt. Fehlt eine dieser Dateien, beschreibt der Cache ein System, das es nicht mehr gibt → `CMakeCache.txt`
++ `CMakeFiles/` weg, nächster Configure-Lauf probt neu. `_deps/` bleibt bewusst stehen (788 MB geholte
+Quellen, u. a. Boost — hängt nicht an System-Lib-Pfaden).
+
+Der Guard ist generisch: er fängt dieselbe Klasse für jede andere Lib, die eine Distro künftig umbaut, nicht
+nur Ayatana.
+
+Verifiziert: erkennt den echten kaputten Cache (`/usr/lib/libayatana-ido3-0.4.so`); ein frisch
+konfigurierter Cache mit 37 geprüften Pfaden löst *keinen* Fehlalarm aus; nach dem Reset enthält der neue
+Cache null Treffer auf die beiden verschwundenen Libs, und der Link geht durch.
+
+### 9.28 (Nebenbefund, offen) `PROJECT_VERSION: 0.0.0` im Installations-Checkout
+
+Beim Konfigurieren meldet CMake `ERROR: Got git error while fetching tags: 128`, gefolgt von
+`PROJECT_VERSION: 0.0.0` / `PROJECT_YEAR: 1990`; das Binary heißt entsprechend `sonnenschein-0.0.0`.
+Der Installations-Checkout unter `~/.local/share/sonnenschein/src` hat 0 Tags, `git describe --tags`
+findet nichts.
+
+**Nicht update-relevant**: `update-check.sh` vergleicht Commit-Hashes gegen `origin/<branch>`, keine
+Versionsnummern — das Update-System funktioniert unabhängig davon. Auswirkung ist kosmetisch
+(Binary-Name, Versionsanzeige in der WebUI). Vor 1.0 zu klären, wenn die Versionsanzeige echt werden soll.
+
 ---
 
 ## 10. Letzte Commits chronologisch

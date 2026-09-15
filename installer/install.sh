@@ -125,6 +125,8 @@ build_from_source() {
     git -C "$REPO_ROOT" submodule update --init --recursive
   fi
 
+  cmake_cache_guard "$build_dir"
+
   cmake -S "$REPO_ROOT" -B "$build_dir" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$PREFIX" \

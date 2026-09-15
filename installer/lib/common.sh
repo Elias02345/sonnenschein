@@ -147,3 +147,52 @@ require_sudo() {
 have() {
   command -v "$1" >/dev/null 2>&1
 }
+
+# --- CMake cache hygiene --------------------------------------------------
+# A build directory survives system upgrades, and `pkg_check_modules` freezes
+# its results in CMakeCache.txt. When a distro package drops a transitive
+# library, the cache still points at the vanished .so and the build dies at
+# link time with an error that names a library nobody asked for:
+#
+#   /usr/bin/ld: cannot find -layatana-indicator3
+#
+# (libayatana-appindicator 0.6.0 dropped libayatana-indicator/-ido, but a
+# cache written before that upgrade keeps requesting both.)
+#
+# Check every absolute path the cache claims to have found outside the build
+# directory. If one is gone, the cache describes a system that no longer
+# exists — drop CMakeCache.txt + CMakeFiles/ so the next configure re-probes.
+# _deps/ is deliberately kept: it holds fetched sources (Boost is ~1 GB) that
+# do not depend on system library paths.
+cmake_cache_is_stale() {
+  local build_dir="$1"
+  local cache="${build_dir}/CMakeCache.txt"
+  [ -r "$cache" ] || return 1
+
+  local path
+  while IFS= read -r path; do
+    case "$path" in
+      "${build_dir}"/*) continue ;;    # generated during the build
+      /*) [ -e "$path" ] || { STALE_CACHE_PATH="$path"; return 0; } ;;
+    esac
+  done < <(sed -n 's/^[^#/][^:]*:\(FILEPATH\|PATH\)=\(.*\)$/\2/p' "$cache" | grep -v 'NOTFOUND$')
+
+  return 1
+}
+
+# Drop a stale configure result, keeping fetched dependencies.
+cmake_cache_reset() {
+  local build_dir="$1"
+  rm -rf "${build_dir}/CMakeCache.txt" "${build_dir}/CMakeFiles"
+}
+
+# Call before configuring: resets the cache if it went stale.
+cmake_cache_guard() {
+  local build_dir="$1"
+  STALE_CACHE_PATH=""
+  if cmake_cache_is_stale "$build_dir"; then
+    warn "Build cache refers to '${STALE_CACHE_PATH}', which no longer exists."
+    warn "A system upgrade invalidated it — reconfiguring from scratch."
+    cmake_cache_reset "$build_dir"
+  fi
+}

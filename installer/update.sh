@@ -166,6 +166,8 @@ build_and_install() {
     $SUDO chown -R "$(id -un):$(id -gn)" "${REPO_ROOT}/build" 2>/dev/null || true
   fi
 
+  cmake_cache_guard "${REPO_ROOT}/build"
+
   cmake -S "$REPO_ROOT" -B "${REPO_ROOT}/build" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$PREFIX" \
