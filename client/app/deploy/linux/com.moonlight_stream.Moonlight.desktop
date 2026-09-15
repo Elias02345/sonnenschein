@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Sonnenschein Client
+Comment=Stream games and the desktop from a Sonnenschein/Sunshine/Apollo host
+Exec=sonnenschein-client
+Icon=moonlight
+Terminal=false
+Type=Application
+Categories=Qt;Game;Network;RemoteAccess;
+Keywords=nvidia;gamestream;stream;sunshine;remote play;

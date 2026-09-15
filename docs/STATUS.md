@@ -5,7 +5,674 @@
 > Wahrheit für Multi-Session-Arbeit. Wenn etwas hier fehlt, weiß die
 > nächste Session es nicht.
 
-> ## ⏸ HIER WEITERMACHEN (2026-07-13, Maintainer kommt zurück)
+> ## ⏸ HIER WEITERMACHEN (2026-07-16, Session auf dem CachyOS-Target)
+>
+> **📋 MAINTAINER-PRÄZISIERUNG (2026-07-16, Runde 2)**: RD-Tests macht der
+> Maintainer auf dem **Windows-Laptop mit der .exe** (nicht am CachyOS-PC) —
+> es braucht also downloadbare GitHub-Builds mit M1+M2. **Deck = nur
+> Gaming-Version + Decky-Plugin** (keine RD-Features nötig). Auftrag: alles
+> fertig bauen → **ein Release mit allen Apps** (Windows: **nativer
+> Installer statt zip**, klar als Client benannt) + **Deck-Anleitung auf
+> GitHub** (2 Teile: Client-App + Decky-Plugin). Danach eine große
+> Testrunde (Gaming am Deck, RD auf Windows).
+> **Decky-Scope-Entscheidung**: **Voll-Sync automatisch** — Host-Spiele
+> werden automatisch in die Steam-Bibliothek gesynct (diff-basiert,
+> Restart-Helper als Sicherheitsnetz).
+>
+> **🟡 RUNDE-2-UMSETZUNG (2026-07-16, alles auf `dev`, CI-Ergebnis offen):**
+> 1. **M1+M2 auf `dev` gemerged** (`85bfbce`) — Sichttest verlagert in die
+>    große Testrunde (Windows-Laptop).
+> 2. **M4/M5 (`1bdf189`)**: WiX-Bundle → „Sonnenschein Client" (eigene
+>    Upgrade-GUIDs, x64-only, Install nach `Program Files\Sonnenschein
+>    Client`, Registry/AppData unter Sonnenschein), Output
+>    **`SonnenscheinClientSetup-<ver>.exe`**, CI lädt Installer statt zip
+>    hoch; dmg → `Sonnenschein_Client-<ver>.dmg`; **AutoUpdateChecker →
+>    GitHub `releases/latest`** (Button zeigt direkten Plattform-Download,
+>    Windows = Installer; Versionsparser toleriert `-test`-Suffixe);
+>    **eigene Versionslinie `0.1.0`** (version.txt, war Moonlights 6.1.0).
+> 3. **M6 (`81b446a`)**: **Decky-Plugin** (`decky-plugin/`) — Python-Backend
+>    liest das Pairing der Client-App (`~/.config/Sonnenschein/…conf`:
+>    certificate/key/uniqueid/hosts, QSettings-INI-Format verifiziert) und
+>    spricht die cert-auth Moonlight-API (`/applist`, `/appasset`); Frontend
+>    (React/TS, `@decky/ui`+`@decky/api`) **auto-synct** Host-Spiele als
+>    Non-Steam-Shortcuts (diff-basiert, Boxart, Launch-Options-Env →
+>    `sonnenschein-run.sh` → Client-AppImage aus `~/Applications`); CI-Job
+>    `build-decky-plugin` (pnpm 9 + rollup) baut das Plugin-Zip. **Doku:
+>    `docs/steam-deck.md`** (2-Teile-Anleitung, im README verlinkt).
+>    Release-Job: exe/zip direkt als Assets, Tag-Name als Version.
+> 4. **✅ RELEASE v0.1.0-test LIVE** (2026-07-16, Run 29497827949 komplett
+>    grün): <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.0-test>
+>    — `SonnenscheinClientSetup-0.1.0-test.exe` (nativer Win-Installer, 26 MB),
+>    AppImage, dmg (jetzt `Sonnenschein_Client-*`), Decky-Plugin-Zip
+>    (Struktur verifiziert: `sonnenschein/` mit plugin.json/main.py/dist/
+>    Runner/LICENSE), Release-Notes mit Download-Tabelle + Deck-Anleitung.
+>    **→ Jetzt: große Testrunde des Maintainers** (Deck: AppImage +
+>    Decky-Plugin nach docs/steam-deck.md; Windows-Laptop: Installer,
+>    Easy/Advanced, RD-Abfrage, Update-Banner beim nächsten Release).
+> **Decky-Plugin komplett ungetestet auf echter Hardware** (kein Deck-Zugriff
+> aus der Session) — SteamClient-API-Aufrufe (AddShortcut etc.) sind nach
+> MoonDeck-Vorbild implementiert, erste Fehlerrunde am Deck einplanen.
+>
+> **🔧 DECK-FEHLERRUNDE 1 (2026-07-16, Maintainer-Test)**: Plugin crashte
+> beim Laden mit `ReferenceError: React is not defined`
+> (PluginLoader.importReactPlugin). **Ursache verifiziert** (lokaler
+> Rebuild + @decky/rollup-Quellcode + Template-Recherche): tsconfig hatte
+> `"jsx": "react"` (classic) → Bundle enthielt nackte `React.createElement`-
+> Referenzen; @decky/rollup mappt aber nur Imports auf die Loader-Globals
+> (`react`→SP_REACT, **`react/jsx-runtime`→SP_JSX**, `@decky/ui`→DFL) und
+> Steams CEF hat kein `window.React`. **Fix `c2913df`**: `"jsx": "react-jsx"`
+> (exakt wie decky-plugin-template + MoonDeck) + Deps template-konform
+> (@types/react 19.x — Steam shipped React 19; tslib/react-icons/@decky/api
+> als runtime-deps). Lokal verifiziert: Bundle nutzt SP_JSX (17 Stellen),
+> null nackte React-Referenzen. Weitere Template-Checks bestanden:
+> `api_version: 1` (Pflicht für @decky/api-callable-Dispatch, positional
+> args auf Plugin-Klasse), `"type": "module"` (ESM-Import-Pfad), Zip-Layout
+> (plugin.json auf Tiefe 1), decky-Konstanten existieren alle.
+> → **✅ RELEASE v0.1.1-test LIVE** (Run 29502085858 komplett grün):
+> <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.1-test> —
+> alle 4 Apps + Debug-Symbols; **veröffentlichtes Plugin-Bundle
+> nachgeprüft** (SP_JSX ×17, kein React.createElement). v0.1.0-test als
+> Pre-Release markiert mit Hinweis auf v0.1.1-test (damit `releases/latest`
+> und der Client-Update-Check auf die gefixte Version zeigen).
+> **Testrunde des Maintainers startet mit v0.1.1-test.**
+>
+> **🔧 DECK-FEHLERRUNDE 2 (2026-07-16)**: Plugin hing bei „Verbinde…".
+> **Backend diesmal komplett lokal E2E-getestet** (Harness mit decky-Stub
+> gegen echte Client-Config + laufenden Host auf dem CachyOS-Rechner) —
+> 3 echte Bugs gefunden + gefixt (`0031447`):
+> 1. **Conf-Parser las die Hosts nicht**: reale QSettings-INI hat eine
+>    eigene `[hosts]`-Sektion mit `N\feld`-Keys (Feld heißt `hostname`,
+>    nicht `name`) — Parser war auf `hosts\N\name` unter [General] gebaut
+>    → 0 Hosts → paired=false.
+> 2. **Falscher Port**: gespeichert ist der HTTP-Port (47989); die
+>    cert-auth-API läuft auf HTTPS — jetzt live via unauth `/serverinfo`
+>    aufgelöst (wie der Client, `HttpsPort`-Feld), Fallback Port−5.
+> 3. **Fehler unsichtbar**: Moonlight-Hosts liefern Fehler als
+>    `status_code`-Attribut bei HTTP 200 (401 = nicht gepairt) — wird
+>    jetzt als klare Meldung geworfen (lokal verifiziert, da hiesiger
+>    Client nur mit der alten Test-Instanz gepairt ist).
+> **Frontend kann nicht mehr hängen**: Ping-Probe (6 s) unterscheidet
+> totes Backend von Host-Problemen, alle Calls mit Deadline, Fehler
+> inline im Panel mit Retry-Button (statt verpassbarem Toast), Backend
+> loggt Import-OK. App-Parsing zusätzlich synthetisch getestet.
+> **🔧 DECK-FEHLERRUNDE 3 (2026-07-19)**: v0.1.2 meldet sauber „Backend
+> antwortet nicht" (Frontend-Härtung wirkt) — das Python-Backend kommt auf
+> dem Deck also nie hoch. **Beweis-Arbeit dieser Runde**:
+> 1. Das veröffentlichte Plugin durch die **exakte Import-Maschinerie des
+>    Loaders** geladen (echtes decky-Modul aus dem Loader-Repo, env-
+>    Injektion, spec_from_file_location, Plugin(), Dispatch) — läuft
+>    fehlerfrei inkl. Host-Zugriff. **Der Plugin-Code ist es nicht.**
+> 2. Recherche im Loader-Quellcode (Stable v3.2.6): Backend-Startup-Crash
+>    ⇒ stilles `sys.exit(0)` vor dem Socket-Server ⇒ **alle callables
+>    hängen ewig ohne Fehler** — exakt unser Symptom. Traceback landet NUR
+>    in `journalctl -u plugin_loader`. Häufigste Real-Ursachen: Reste
+>    alter Versionen, **root-owned Files nach sudo-Unzip** (Loader-eigener
+>    Perm-Fixer überspringt root-owned Ordner!), fehlender Loader-Restart.
+>    `import decky` existiert seit v3.0.0, Flags sind egal (MoonDeck: []).
+>    **Backend-less keine Option**: Loader-fetchNoCors verifiziert TLS
+>    strikt (certifi) — selbstsignierte Host-Zertifikate scheitern.
+> 3. Fixes (`d80891e`): main.py minimale Import-Fläche (alles lazy) +
+>    decky_plugin-Fallback; Frontend pingt 3×; **neues
+>    `decky-plugin/deck-install.sh`** — sauberer Reinstall (Loader-Stop,
+>    Reste+__pycache__ weg, Latest-Release-Zip, deck-owned Perms) und
+>    **beweist danach den Backend-Zustand**: Prozess-Check, Journal-Grep
+>    mit Traceback-Ausgabe, Plugin-Log. Ein-Zeiler in steam-deck.md
+>    (curl | bash von raw.githubusercontent). Loader-Maschinerie-Test
+>    erneut grün. → **✅ RELEASE v0.1.3-test LIVE** (2026-07-19, Run
+>    29694763009 grün): veröffentlichtes Zip erneut durch die
+>    Loader-Maschinerie verifiziert; v0.1.2 als überholt markiert.
+>    **Maintainer-Testpfad: Install-Script im Desktop-Modus ausführen**
+>    — es beweist den Backend-Zustand; falls rot, liefert es den
+>    Traceback für Fehlerrunde 4.
+>
+> **🎯 DECK-FEHLERRUNDE 4 (2026-07-19) — ROOT CAUSE GEFUNDEN**: Das
+> Install-Script hat wie designed den Original-Traceback geliefert:
+> **`ModuleNotFoundError: No module named 'xml.etree'`**. Der Decky-Loader
+> shippt ein **PyInstaller-frozen Python**, das nur die vom Loader selbst
+> genutzten Stdlib-Module bündelt — `xml.etree` fehlt (darum liefen alle
+> lokalen System-Python-Tests durch!). Das war von Anfang an die Ursache
+> von „Backend antwortet nicht". Beweisbar OK sind alle anderen genutzten
+> Module (v0.1.2-Traceback: alle Imports VOR xml.etree kamen durch).
+> Zweiter Script-Bug: `~/homebrew/plugins` ist **root-owned** → unzip ohne
+> sudo scheiterte still. **Fixes (`e314f61`)**: applist/serverinfo-Parsing
+> via `re` + manuellem Entity-Unescape (kein xml-Import mehr im ganzen
+> Backend); Script nutzt sudo-unzip + Loader-Ownership-Konvention
+> (Inhalte deck, Top-Dir root), räumt alte Logs, prüft plugin.json vor
+> dem Verdikt. **Verifiziert mit Frozen-Python-Simulation** (meta_path-
+> Blocker: xml-Import wirft) — kompletter Loader-Maschinerie-Lauf inkl.
+> Live-serverinfo/applist gegen den echten Host + synthetischem
+> 200er-Parse mit Entities. → **✅ RELEASE v0.1.4-test LIVE** (2026-07-19,
+> Run 29696225160 grün): veröffentlichtes Zip unter Frozen-Python-
+> Simulation erneut komplett verifiziert; v0.1.3 als überholt markiert.
+> **Lektion für alle künftigen Decky-Backends**: nur Stdlib-Module
+> verwenden, deren Präsenz im Loader-Python belegt ist (os, json, re,
+> ssl, http.client, urllib.parse, uuid, base64, glob, tempfile ✓;
+> xml.etree ✗) — oder Module nach MoonDeck-Art selbst bündeln.
+>
+> **🎯 DECK-RUNDE 5 (2026-07-19, Maintainer-Test v0.1.4)**: **Backend läuft
+> jetzt** — Panel zeigt die Host-Spiele ✓. Zwei Befunde: (1) **Client-App
+> wird nicht gefunden** (Panel-Warnung), obwohl die AppImage in
+> ~/Applications liegt und startbar ist → die gesyncten Shortcuts sind
+> „völlig leere Platzhalter" und schließen sich sofort (Runner findet
+> keinen Client, Exit 1). (2) **Maintainer-Vision präzisiert (verbindlich)**:
+> Spiele, die in der Deck-Steam-Bibliothek **sichtbar** sind (installiert
+> ODER nur im Account/Download-Button, Beispiel Portal), bekommen auf der
+> nativen Spieleseite **einen zusätzlichen Button „Stream via Sonnenschein"**
+> neben Spielen/Installieren — kein Platzhalter-Duplikat, fühlt sich wie
+> nativer Start an. Nur Host-Spiele, die gar nicht in der Bibliothek sind,
+> werden (wie bisher) als Einträge mit Artwork angelegt.
+> **Umsetzungsplan Runde 5**: (a) Client-Discovery robust (mehr Pfade,
+> case-insensitiv, Datei-Picker via openFilePicker, Pfad in Settings +
+> `SONNENSCHEIN_CLIENT` in den Launch-Options); (b) Game-Page-Button via
+> routerHook-Patch nach MoonDeck-Vorbild (GPL-3), Matching Host-Spiel ↔
+> Deck-appid via Titel (v1; Host-seitiges SteamAppId-Feld in applist als
+> späteres Upgrade notiert); Start über EIN wiederverwendetes verstecktes
+> Stream-Shortcut (Launch-Options vor RunGame umgeschrieben);
+> (c) Shortcut-Sync nur noch für Nicht-Bibliotheks-Spiele.
+> **Ausführung: Sonnet-Subagenten implementieren, Fable orchestriert +
+> verifiziert (Maintainer-Anweisung, Kosten sparen).**
+>
+> **🟡 RUNDE 5 UMGESETZT (`0b5ae6e`, Deck-Test offen)**: (a) Backend:
+> Client-Discovery case-insensitiv über Applications/Downloads/Desktop/
+> .local/bin/HOME + manueller Pfad via Datei-Picker (persistiert in
+> Plugin-Settings) + `SONNENSCHEIN_CLIENT` in allen Launch-Options +
+> Diagnose-Liste gefundener AppImages im Panel (von mir). (b) Frontend
+> (Sonnet-Agent nach MoonDeck-Quellcode-Recherche, von mir reviewt):
+> `steamlib.ts` (Titel-Normalisierung, Bibliotheks-Matching über
+> `appStore.m_mapApps` nur app_type 1, EIN verstecktes wiederverwendetes
+> „Sonnenschein Stream"-Shortcut mit Launch-Options-Rewrite vor RunGame),
+> `gamepage.tsx` (Route-Patch `/library/app/:appid` nach MoonDeck-Rezept,
+> Button nur bei Host-Treffer), Sync erstellt nur noch Shortcuts für
+> Nicht-Bibliotheks-Spiele (Diff räumt jetzt-gematchte automatisch ab).
+> Review-Fix von mir: Guard gegen leeren runnerPath im Stream-Shortcut.
+> Verifiziert: Build grün, Bundle nur SP_JSX, Backend durch Loader-
+> Maschinerie (frozen-python) inkl. neuer Methoden end-to-end.
+> **Nur am Deck testbar**: Game-Page-Patch-Rendering, Titel-Matching
+> gegen echte Bibliothek, RunGame-Fokus. Sonnet-Agent musste 1× nach
+> Session-Limit per SendMessage fortgesetzt werden (Kontext blieb).
+> **✅ RELEASE v0.2.0-test LIVE** (2026-07-20, Run 29707037957 grün):
+> veröffentlichtes Zip verifiziert (Frontend-Strings + Backend durch
+> Loader-Maschinerie), v0.1.4 als überholt markiert. Maintainer-Test:
+> Install-Script → Deck-Neustart → Spieleseite eines Host-Spiels
+> (z. B. Portal) → „Stream via Sonnenschein"-Button.
+>
+> **🎯 DECK-RUNDE 6 (2026-07-20) — echter Deck-Test, 3 Befunde + Root-Cause
+> gefunden.** Maintainer-Report: Button zu groß/UI kaputt; Klick öffnet
+> Client, zeigt „Starting Portal", schließt sofort ohne zu streamen,
+> UND legt ein leeres Platzhalterspiel „Sonnenschein Stream" an;
+> außerdem Wunsch nach Verfügbarkeits-LED am Button. **Auf Maintainer-
+> Anweisung: Fable als Opus-Rolle orchestriert + verifiziert, Sonnet-
+> Subagenten implementieren (Kostenersparnis).**
+>
+> **Vollständige Code-Analyse (von mir, C++/QML kritisch):**
+> 1. **Root Cause „schließt sofort, kein Fehler"**: `AutoConfig::
+>    applyEasyMode()` (M1, Easy-Mode-Default) lief bei JEDEM frischen
+>    CLI-Prozess — jeder Decky-Stream-Start ist einer — eine VOLLSTÄNDIGE
+>    Hardware-Decoder-Sondierung (bis zu 9 Decoder-Erstellen/Zerstören-
+>    Zyklen über ein Wegwerf-Testfenster), UNMITTELBAR gefolgt von
+>    `Session::initialize()`s EIGENER, ebenfalls vollständiger Decoder-
+>    Initialisierung mit einem ZWEITEN Testfenster — doppelter GPU-/
+>    Decoder-Auf-/Abbau im selben Prozess, direkt hintereinander, genau
+>    beim heikelsten Moment des Stream-Starts. Auf dem PC nie aufgefallen
+>    (Prozess läuft über mehrere manuelle Starts weiter, Sondierung ist
+>    einmalig gecacht) — CLI/Decky erzwingt hingegen jedes Mal einen
+>    frischen Prozess. **Unabhängig davon**: alle drei Fehlerpfade in
+>    `Session::initialize()` (SDL-Video-Init, Testfenster-Erstellung,
+>    Decoder-Eigenschaften-Population via `populateDecoderProperties`)
+>    haben NIE das existierende `displayLaunchError`-Signal gefeuert —
+>    zusammen mit `quitAfter=true` (CLI-Start) macht das JEDEN Fehler zu
+>    100% unsichtbar: die App beendet sich ohne jede Anzeige. Das erklärt
+>    exakt das gemeldete Symptom.
+> 2. **Root Cause „Platzhalterspiel Sonnenschein Stream"**: Das
+>    gemeinsame, wiederverwendete Shortcut hat nie einen Namen/Artwork
+>    des Zielspiels — Steams eigener „App wird gestartet"-Übergangsbild-
+>    schirm zeigt daher zwangsläufig den generischen Platzhalter.
+> 3. **Button-Styling**: Sonnet-Agent hatte generischen `DialogButton`
+>    mit eigenem Markup gesplict statt Steam-eigene Klassen/Größe zu
+>    nutzen wie MoonDeck.
+>
+> **Fixes (`776cd7d`, `feature/client-stream-fixes`, von mir selbst
+> gemacht — C++/QML-kritisch):**
+> - Neue `AutoConfig::detectProfileCheap()`: nur Display-Geometrie
+>   (Auflösung/Refresh), KEINE Decoder-Erstellung. Easy Mode ruft jetzt
+>   diese statt der vollen `detectProfile()`. Volle Sondierung bleibt
+>   exklusiv dem eigenständigen `detect-profile`-Diagnosebefehl
+>   vorbehalten (verifiziert unverändert: läuft weiterhin die volle
+>   Multi-Codec-Sondierung, ~30 s auf dieser Dev-Maschine ohne echte
+>   Deck-GPU-Decoder).
+> - Alle drei stillen Fehlerpfade in `Session::initialize()` feuern jetzt
+>   `displayLaunchError` mit Log-Verzeichnis-Hinweis.
+> - DE-Übersetzung ergänzt (278/278).
+> - Verifiziert: Client-Rebuild sauber, `detect-profile`-CLI-Befehl
+>   unverändert voll funktional.
+>
+> **Frontend-Fixes (`cb5ab29`, Sonnet-Agent, von mir reviewt + selbst
+> verifiziert):**
+> - **Button**: MoonDeck nutzt für die Größe/Platzierung einen
+>   MutationObserver-Mechanismus (zu riskant zum 1:1-Portieren); daraus
+>   übernommen: (1) Steams eigenes `DialogButton`-CSS gewinnt gegen
+>   Inline-Styles → gescopte `!important`-Style-Klasse fixiert Höhe
+>   (40px)/Padding/Margin, (2) Button wird als Geschwister-Element NEBEN
+>   dem bestehenden Play/Install-Panel gerendert (das App-Panel-Element
+>   wird in eine Flex-Row mit unserem Button gewrappt) statt als
+>   zusätzliche volle Zeile drunter gesplict — Splice-Fallback bleibt
+>   für den Fall, dass Steam-UI-Drift das App-Panel nicht mehr findet.
+>   Label auf „Stream" gekürzt (analog „Play"/„Install"). Nebenbei einen
+>   Rules-of-Hooks-Bug gefixt (früher `return null` vor einem Hook).
+> - **Rename**: `streamGame()` ruft jetzt `SetShortcutName(appId, title)`
+>   direkt vor `SetAppLaunchOptions` — Steams Start-Übergangsbildschirm
+>   zeigt „Portal" statt „Sonnenschein Stream".
+> - **Verfügbarkeits-LED**: neue Backend-Methode
+>   `check_host_available(address, port)` (unauth `/serverinfo`-Probe,
+>   gleiches Muster wie `_https_port`, kein `xml.etree`), Frontend pollt
+>   alle 8s: grüner Punkt (erreichbar+frei), orange (erreichbar+
+>   beschäftigt), rot (nicht erreichbar).
+> - **Verifiziert von mir**: Build grün, Bundle nur SP_JSX, Backend durch
+>   Loader-Maschinerie inkl. `check_host_available` live gegen den
+>   echten Host UND gegen eine unerreichbare Adresse getestet — beide
+>   Fälle korrekt.
+> **Beide Feature-Branches gemerged auf `dev`** (`57bab50` Client,
+> `cad173f` Decky). Nach CI-Grün → Release v0.2.1-test.
+> **Bekanntes Risiko (nur am Deck prüfbar)**: das Flex-Row-Wrapping des
+> App-Panels ist rein visuell nur auf echter Hardware verifizierbar.
+>
+> **✅ RELEASE v0.2.1-test LIVE** (2026-07-20, Run 29726550816 grün):
+> veröffentlichtes Zip verifiziert (Bundle enthält alle Fixes, Backend
+> durch Loader-Maschinerie), v0.2.0 als überholt markiert.
+> **Arbeitsweise dieser Runde (Maintainer-Vorgabe)**: Fable analysiert/
+> orchestriert/verifiziert, Sonnet-Subagent implementiert Frontend;
+> C++/QML-kritischer Teil (Session::initialize, AutoConfig) von Fable
+> selbst umgesetzt.
+>
+> **🔧 DECK-RUNDE 7 (2026-07-20): `deck-install.sh` zeigte irreführenden
+> Fehler beim Update.** Maintainer-Report: „Could not find the plugin
+> zip in the latest release". **Root Cause sofort reproduziert** (von
+> mir, ein einzelner unauthentifizierter curl-Call): die unauthenti-
+> fizierte GitHub-API erlaubt nur 60 Requests/Stunde pro IP — bei
+> Erschöpfung antwortet `api.github.com` mit HTTP 403 + Rate-Limit-JSON,
+> das der alte Code ungeprüft in den `browser_download_url`-Grep
+> pipete → leeres Ergebnis → irreführende generische Meldung statt der
+> echten Ursache. **Fix von Codex-Subagent (GPT-5.6, `cd58f54`)**: HTTP-
+> Status + Body getrennt erfasst, bis zu 4 Versuche mit 15/30/60s
+> Backoff, optionaler `GITHUB_TOKEN`-Header für höheres Limit (5000/h),
+> bei endgültigem Fehlschlag echter HTTP-Status + Body-Ausschnitt statt
+> der generischen Meldung. **Von mir verifiziert**: isolierte Stub-Tests
+> für Rate-Limit-dann-Erfolg UND permanenten Fehlschlag (beide korrekt),
+> plus ein echter authentifizierter Call gegen die reale GitHub-API mit
+> der neuen Logik (Status 200, `v0.2.1-test` + Plugin-Zip korrekt
+> erkannt). **Kein neues Release nötig** — das Script wird live von
+> `dev` per `raw.githubusercontent.com` geladen, der Fix ist sofort
+> wirksam.
+>
+> **🔴 DECK-RUNDE 8 (2026-07-20, Regression in aktueller Testversion):**
+> Maintainer meldet nach Installation der neuesten Client-AppImage UND des
+> neuesten Decky-Plugins: Host wird nicht gefunden, Bibliothek wird nicht
+> synchronisiert, Spiele starten nicht und der zuvor vorhandene
+> „Stream via Sonnenschein"-/„Stream"-Button fehlt auf nativen
+> Steam-Spieleseiten. Auftrag: Regression vollständig gegen den letzten
+> funktionierenden Stand analysieren, beheben, auditieren und verifizieren;
+> erst danach Commit + Push + neue Testversion im bestehenden Release-Stil.
+> **Verbindliche UX-Regel:** streambare Spiele tragen bereits in der
+> Bibliothekskapsel ein kleines Sonnenschein-Symbol. Auf der Spieleseite
+> steht der Sonnenschein-Stream-Button neben Steams Play/Install/Download-
+> Element. Sein Indikator ist grün, wenn der Host erreichbar und frei ist,
+> sonst rot (offline ODER ein anderes Spiel läuft). Der rote Zustand ist
+> rein informativ und blockiert keinen manuellen Startversuch. Vor der
+> Implementierung wird außerdem der reale Release-/Update-Ablauf auditiert
+> und als dauerhafte Projektregel dokumentiert.
+>
+> **🟡 DECK-RUNDE 8 — DECKY-ROOT-CAUSE + FIX IMPLEMENTIERT (Release ausstehend):**
+> Das veröffentlichte v0.2.1-Zip wurde heruntergeladen und gegen den Tag
+> geprüft (SHA-256 `59942154…f89f9da`, `main.py` bytegleich mit Tag). Gemeinsame
+> Nachgewiesene Ursache für den zusammenhängenden Decky-Ausfall: Deckys Backend nutzt EINEN
+> asyncio-Event-Loop, unsere `async`-Methoden führten aber synchrones
+> `http.client`-I/O aus. Schon `get_apps` konnte bei offline/langsamem Host
+> ~15 s alles blockieren; v0.2.1 ergänzte zusätzlich pro Button eine
+> blockierende 5-s-Statusprobe alle 8 s. Parallel wartete das Frontend nur
+> 6 s auf `ping` → Backend wirkte tot, Katalog blieb leer. Zweiter
+> deterministischer Bug: `hostGameIndex` war eine nackte globale Map; ein
+> nachträglicher async Katalog-Load löste keinen React-Rerender aus → eine
+> früh geöffnete Spieleseite behielt dauerhaft keinen Button.
+> **Fix:** sämtliches Host-Netzwerk-I/O läuft über einen Frozen-Python-
+> kompatiblen Worker außerhalb des Loader-Loops; Availability-Polls können
+> nicht überlappen; der bestehende Spieleindex ist via `useSyncExternalStore`
+> abonnierbar; Route-Patches werden dedupliziert und beim Unload vollständig
+> entfernt; Route-Patch-Fehler können das QAM-Plugin nicht mehr abwürgen.
+> Streambare native Steam-Spiele erhalten per defensivem DOM-Observer ein
+> Sonnen-Badge. Der Spielseiten-Indikator berücksichtigt `<currentgame>`:
+> offline oder mit einem anderen Spiel beschäftigt = rot, erreichbar und frei
+> (oder bereits dasselbe Spiel aktiv) = grün; Start bleibt immer erlaubt.
+> Regression-Harness beweist parallele langsame Calls + sofortigen Ping,
+> Worker-Fehlerweitergabe und Busy-Spiel-ID unter blockiertem `xml.etree`;
+> Rollup sauber (SP_JSX, keine nackte React-
+> Referenz); echte Loader-Maschinerie importiert Backend, liest reale
+> Client-Config und erkennt Pairing/Host. Live-Host aus Sandbox nicht routbar
+> (`No route to host`) — Offlinepfad bleibt responsiv.
+> **AppImage-Audit:** Die tatsächlich veröffentlichten v0.2.0/v0.2.1-
+> AppImages wurden extrahiert und verglichen. QSettings-Identität, Host-
+> Discovery-/Pairing-Code und Paketlayout sind unverändert; der Quell-Diff
+> betrifft nur Easy-Mode-Decoderinitialisierung/Übersetzung, nicht die
+> Hostsuche. Beide Binärdateien enthalten dieselbe QSettings-/Host-Identität;
+> ein headless CLI-Lauf scheitert bei beiden bereits identisch an der fehlenden
+> Grafik-/DRM-Umgebung und kann deshalb keinen realen Hostvergleich ersetzen. Damit
+> ist eine eigenständige AppImage-Discovery-Regression derzeit **nicht
+> belegt**; ein realer Deck+Host-Test ist vor der Freigabe zwingend.
+> Dauerhafte Release-
+> Regel: `docs/RELEASE_RULES.md`; Versionsdrift behoben (Client+Plugin 0.2.2),
+> `CHANGELOG.md` angelegt, Release-Workflow verlangt vollständiges Asset-Set.
+> **Noch vor Tag:** unabhängiges Code-Audit + kompletter lokaler Paket-/Loader-
+> Audit, danach echter Deck+Host-Test. Erst bei vollständig grünem Ergebnis:
+> Commit/Push, grüne `dev`-CI und Test-Tag.
+> **Release-Entscheidung 2026-07-20:** Der Maintainer hat ausdrücklich die
+> Veröffentlichung als Testbuild angefordert, damit genau dieser fehlende
+> Deck+Host-E2E durchgeführt werden kann. Der Testbuild bleibt daher bis zur
+> Hardware-Rückmeldung unbestätigt. Mangels lokal konfiguriertem Signing-Key
+> wird dieser Test-Tag auf explizite Anweisung im bisherigen leichtgewichtigen,
+> unsignierten Tag-Stil veröffentlicht; stabile Releases bleiben davon
+> unberührt.
+> **Release-Gate-Ergebnis 2026-07-21:** `v0.2.2-test` baute AppImage,
+> Win/macOS und Decky erfolgreich, veröffentlichte aber absichtlich nichts:
+> die neu eingeführte Asset-Gate-Prüfung war bei einem Debugsymbol-Präfix zu
+> eng. Der Tag bleibt unverändert als fehlgeschlagener Kandidat. Die
+> korrigierte Prüfung verlangt weiterhin exakt 1 AppImage + 1 EXE + 1 DMG +
+> 3 ZIPs (davon exakt ein versionsrichtiges Decky-Zip); neuer Kandidat ist
+> `v0.2.3-test`.
+> **Maintainer-Entscheidung 2026-07-21 (Deck-One-Shot):** Das bestehende
+> `deck-install.sh` installiert ab sofort nicht nur das neueste Decky-Plugin,
+> sondern lädt aus demselben `releases/latest`-Datensatz auch die neueste
+> x86_64-AppImage nach `~/Applications` (auf Steam Deck
+> `/home/deck/Applications`) und setzt sie ausführbar. Download/Installation
+> müssen fehlschlagssicher sein; eine vorhandene Client-Config und damit das
+> Pairing werden nicht verändert. Wegen unveränderlicher Test-Tags ist der
+> erste Kandidat mit diesem Verhalten `v0.2.4-test`.
+> **Asset-Gate-Nachtrag:** Die Actions-API für `v0.2.3-test` bestätigt sechs
+> vollständige, korrekt benannte Buildartefakte; trotzdem scheiterte die
+> nachträgliche Dateiendungszählung an der entpackten Artefaktstruktur. Das
+> Gate prüft für `v0.2.4-test` deshalb die sechs exakten Artefaktverzeichnisse,
+> anschließend exakt sechs nichtleere Release-Dateien und separat das
+> versionsgenaue Decky-Zip. Dies prüft Vollständigkeit ohne Annahmen über die
+> interne Symbolpaket-Struktur.
+> **Zweiter Gate-Nachtrag:** `v0.2.4-test` scheiterte bereits vor dem Packen an
+> einer redundanten Annahme über die von `download-artifact` erzeugten
+> Verzeichnisnamen. Alle sechs vorgelagerten Buildjobs waren grün. Das finale
+> Gate zählt deshalb exakt sechs heruntergeladene Artefaktverzeichnisse und
+> danach exakt sechs nichtleere Release-Dateien plus versionsgenaues Decky-Zip.
+> Neuer unveränderlicher Kandidat: `v0.2.5-test`.
+> **Dritter Gate-Nachtrag:** `v0.2.5-test` bestätigte erneut sechs
+> vollständige Artefaktgruppen und paketierte sie erfolgreich. Das Gate
+> scheiterte ausschließlich daran, dass mindestens eine Artefaktgruppe mehr
+> als eine Release-Datei enthält. Der nächste Kandidat prüft daher weiterhin
+> exakt sechs Eingabegruppen, verlangt danach aber semantisch mindestens eine
+> nichtleere AppImage, Windows-EXE, macOS-DMG und das versionsgenaue Decky-Zip,
+> statt eine falsche exakte Anzahl von Ausgabedateien anzunehmen. Neuer
+> unveränderlicher Kandidat: `v0.2.6-test`.
+> **Root Cause des Release-Gates:** `v0.2.6-test` bewies, dass auch die
+> semantische Dateiprüfung am versionsgenauen Decky-Zip scheiterte. Der
+> Release-Job referenzierte `needs.setup.outputs.ci_version`, führte `setup`
+> aber nicht in seiner `needs`-Liste. GitHub Actions setzte die Version dort
+> deshalb leer und prüfte fälschlich auf `Sonnenschein-Decky-Plugin-.zip`.
+> Der Release-Job erhält nun die fehlende explizite Setup-Abhängigkeit; neuer
+> unveränderlicher Kandidat ist `v0.2.7-test`.
+> **✅ TEST-RELEASE LIVE UND ARTEFAKT-AUDITIERT (2026-07-21):**
+> `v0.2.7-test` wurde durch Client-Build-Run `29816448620` mit allen acht
+> Jobs erfolgreich veröffentlicht:
+> <https://github.com/Elias02345/sonnenschein/releases/tag/v0.2.7-test>.
+> Alle sechs Release-Dateien sind vorhanden. Das veröffentlichte Decky-Zip
+> (`SHA-256 d36d717e8e19db045ed40756ccce103a028d882e46d4b399844d14171ff84611`)
+> besteht ZIP-, Layout-, Versions-, Bundle- und Backend-Regressionsprüfung.
+> Die veröffentlichte x86_64-AppImage
+> (`SHA-256 1306cc35ed6290bc32b05750cb0ba9e459dc820f8168af0c4d03583be99716cc`)
+> ist ein gültiges extrahierbares AppImage und enthält Client-Version 0.2.7.
+> `releases/latest` zeigt auf diesen Release; das Raw-One-Shot-Script auf
+> `dev` ist bytegleich mit dem lokal getesteten Installer. Offen bleibt nur
+> der echte Steam-Deck+Host-E2E durch den Maintainer.
+>
+> **✅ DECK-RUNDE 9 (2026-07-21) — v0.2.8-test veröffentlicht:**
+> Maintainer bestätigt, dass v0.2.7 installiert funktioniert, meldet aber:
+> Der Stream-Button fehlt weiterhin auf nativen Steam-Spielseiten; der
+> gemeinsame Stream-Shortcut erzeugt eine unnatürliche/teils wiederholt neue
+> Laufzeit-App; Steam soll den Stream pro Spiel sauber als laufend verfolgen,
+> Deck-Controller sollen vollständig durchgereicht werden und ein normales
+> Beenden am Deck soll auch das Host-Spiel beenden. Danach neues Testrelease
+> mit kuratierter Beschreibung, Downloadlinks und Steam-Deck-Anleitung im
+> bisherigen Claude/Fable-Stil.
+> **Verifizierte Architekturentscheidung vor Code:** Eine beliebige externe
+> AppImage kann insbesondere für nicht installierte Spiele nicht sicher unter
+> der echten Steam-Store-App-ID gestartet werden; das würde undokumentierte,
+> persistente Eingriffe in nutzereigene Launch-Optionen erfordern und ist
+> nicht akzeptabel. Root Cause der wiederholten Hilfs-Apps ist stattdessen der
+> eine umbenannte Shared-Shortcut plus ein Read/Modify/Write-Race zwischen
+> Auto-Sync und Start sowie verzögerte Steam-AppStore-Sichtbarkeit. Ziel:
+> exakt eine dauerhaft versteckte Laufzeit-App pro Host-Spiel, race-freier
+> State und stabile App-ID/Steam-Input-Konfiguration pro Titel; sie erscheint
+> nicht als Bibliotheksduplikat. Die echte native Seite bleibt der sichtbare
+> Einstieg. Der Clientpfad überträgt Gamepad bereits nativ via SDL/Limelight
+> (inkl. Rumble/Motion/Controllerereignissen). Der Runner aktiviert zusätzlich
+> `--quit-after`, sodass ein normales Streamende per authentifiziertem
+> `/cancel` Host-Spiel, Session und Virtual Display beendet. Absichtliche
+> Sicherheitssemantik bleibt: bei Crash/Netzverlust wird das Host-Spiel nicht
+> automatisch abgeschossen, damit Reconnect/weitere Clients nicht zerstört
+> werden. Echte Steam-UI-/Controller-/Lifecycle-Verifikation bleibt Hardware-
+> E2E auf Stable und Beta.
+> **Implementiert für v0.2.8-test:** Native Spielseiten-Injektion nutzt nun
+> wie aktuelles MoonDeck Steams eigene `AppButtons`-/`MenuButton`-Fokusgruppe
+> unmittelbar vor dem Play/Install-Panel, ohne dieses Panel umzuhängen; Null-
+> sichere UI-Drift-Fallbacks und direkter Steam-App-ID→Host-App-Index ersetzen
+> das fragile reine Titel-Rematching. Der gemeinsame `_streamShortcut` wurde
+> durch `_nativeStream/<hostUuid>/<hostAppId>` ersetzt. Eine globale
+> State-Mutationsqueue serialisiert Auto-Sync und Start; pro Key verhindert
+> ein In-flight-Promise doppelte Erzeugung; gespeicherte IDs werden während
+> Steam-AppStore-Warmup nicht mehr fälschlich als gelöscht interpretiert; der
+> alte Shared-Shortcut wird beim Sync entfernt. Der Runner nutzt in allen drei
+> Clientpfaden `--quit-after`; eigener Harness beweist die exakte Argument-
+> weitergabe. Release-Workflow erzeugt aus `CHANGELOG.md` eine kuratierte
+> englische Beschreibung mit Plattform-Downloadtabelle, versionsgebundener
+> Steam-Deck-Anleitung, One-Shot-Befehl und Verifikationsabschnitt; diese Form
+> ist jetzt verbindlich in `docs/RELEASE_RULES.md`. Lokal grün: Rollup/SP_JSX,
+> Backend-Harness, One-Shot-Installer-Harness, Runner-Lifecycle-Harness,
+> Release-Notes-Generator und `git diff --check`. Noch ausstehend: unabhängiges
+> Patch-Audit, dev-CI, Tag-Workflow, Live-Asset-/Release-Text-Audit und echter
+> Deck+Host-E2E.
+> **Audit-Nachbesserungen:** First-launch wartet jetzt begrenzt auf Steams
+> asynchrone AppStore-Veröffentlichung statt einen zweiten Shortcut zu erzeugen;
+> der Lazy-Warmup-Pfad repariert auch den direkten App-ID-Index und benachrichtigt
+> React. Die globale State-Queue umfasst keine Boxart-Netzwerkzeiten mehr,
+> sondern nur kurze, pro Eintrag erneut validierte Identitätsmutationen. Der
+> alte v0.2.7-Shortcut wird während einer möglicherweise noch laufenden Session
+> nie entfernt, nur seine veraltete Zuordnung vergessen. Verwaiste versteckte
+> Per-Game-Identitäten werden absichtlich nicht ohne nachgewiesene Running-State-
+> API gelöscht, um aktive Streams/Controllerprofile nicht zu beschädigen.
+> Release-Links werden vor Publish gegen alle exakten sieben Dateinamen geprüft.
+> **Abschluss-Audit vor Commit:** Der Cleanup-State bleibt nun auch bei
+> Steam-AppStore-Warmup und bei fehlgeschlagenem `RemoveShortcut` erhalten und
+> wird erst nach bestätigter Entfernung gelöscht; der Frontend-Contract fixiert
+> diese Reihenfolge. Ein unabhängiger Read-only-Diff-Audit meldet keine
+> statisch nachweisbaren Release-Blocker. Rollup/SP_JSX, Backend-, Frontend-,
+> Installer- und Runner-Harness, Shell-/Python-Syntax, kuratierte Release-Notes
+> und `git diff --check` sind lokal grün. Zu diesem Zeitpunkt waren dev-/Tag-
+> CI und Live-Asset-Audit noch offen; deren Abschluss ist direkt nachfolgend
+> dokumentiert.
+> **✅ RELEASE v0.2.8-test LIVE:**
+> <https://github.com/Elias02345/sonnenschein/releases/tag/v0.2.8-test>
+> — Tag `v0.2.8-test` zeigt unveränderlich auf `6ef9772`; dev-Gates
+> Client Build `29845199780`, Linux `29845199606` und Lint `29845199576`
+> sind grün, ebenso der vollständige Tag-/Release-Run `29846093478`.
+> Die öffentliche Release-Seite enthält die kuratierte Beschreibung,
+> Plattform-Downloadtabelle, getaggte Steam-Deck-Anleitung und den One-Shot-
+> Befehl. Genau sieben Assets wurden veröffentlicht. Öffentlicher Download-
+> Audit: Installer `85d771d4a62a446031d72439c862f0de40c420e1e37b836c655161dea710235e`,
+> Decky-Zip `437f8961b58a9a1e438742cd6b94669c9f73fd61485baf960d0ddca1cccc53f8`,
+> AppImage `92d81d4965b00192aa40227146520c55e6166fb36118c5138eaf3be018b8cfef`
+> (jeweils SHA-256). Installer ist bytegleich mit dem Tag; Zip besteht CRC,
+> Layout, Version, SP_JSX-/React- und Frozen-Python-Backendprüfung; AppImage
+> ist gültig extrahierbar und enthält 0.2.8. `releases/latest` sowie der
+> latest-Installer-Asset-Link zeigen auf v0.2.8-test. Ausschließlich offen:
+> echter Game-Mode-/Steam-Input-/Host-Lifecycle-E2E durch den Maintainer.
+>
+> **✅ DECK-RUNDE 10 (2026-07-21) — v0.2.9-test veröffentlicht:**
+> Maintainer-Test von v0.2.8 bestätigt: Der native „Stream with
+> Sonnenschein"-Button erscheint weiterhin nicht. Vergleich mit aktuellem
+> MoonDeck-Quellstand belegt die Abweichung: Unser Router-Patch injiziert die
+> Fokusgruppe direkt als normales `InnerContainer`-Kind; MoonDeck injiziert
+> dort stattdessen einen nullhohen Anchor und positioniert die native
+> `AppButtons`-/`MenuButton`-Gruppe absolut relativ zum sichtbaren
+> `TopCapsule`-Header. Ziel ist die vollständige Übernahme dieses bewährten
+> Anchor-/Visibility-Musters mit einem zusätzlichen DOM-Fallback und
+> Diagnose-Logging statt eines weiteren nur statischen Splice-Contracts.
+> Zusätzlich soll das QAM-Plugin Updates suchen und per Knopf installieren.
+> Das Passwortfeld ist maskiert und startet auf Maintainer-Wunsch mit `deck`,
+> ist aber änderbar. Sicherheitsentscheidung: Das sudo-Passwort wird niemals
+> persistiert, geloggt oder als Prozessargument übergeben, sondern nur im
+> React-Speicher gehalten und einmalig per anonymer stdin-Pipe an `sudo`
+> geschickt. `sudo systemd-run` startet anschließend eine transiente Root-Unit
+> außerhalb der Decky-cgroup; der Helper selbst erhält kein Passwort.
+> Update-Status/Log enthalten keine Secrets und überleben den notwendigen
+> Decky-Neustart.
+> **Implementiert für v0.2.9-test:** Der Gamepage-Patch portiert nun MoonDecks
+> vollständigen zero-height Anchor, absolute Bottom/Right-Positionierung,
+> `TopCapsule`-MutationObserver und exakte Einfügeposition `appPanelIndex - 1`;
+> Route-Ziel und erfolgreicher Insert werden im CEF-Log diagnostizierbar.
+> Das QAM besitzt Update-Suche, installierte/verfügbare Version, maskiertes
+> temporäres Passwortfeld und automatische Installation. Nach einmaliger sudo-
+> Authentifizierung übernimmt eine transiente systemd-Unit außerhalb der
+> Loader-cgroup. Der bereits installierte Helper führt nur feste Operationen
+> aus, verifiziert die GitHub-SHA-256-Digests, exakte Archivstruktur, reguläre
+> Dateitypen und Größenlimit und führt keinen heruntergeladenen Shellcode als
+> root aus. HOME sowie Deck-UID/-GID bleiben explizit. Lokal grün:
+> Rollup/SP_JSX, Frontend-Contract, Frozen-Python-Backend-
+> Harness, Installer-, Runner- und neuer Update-Secret/Lifecycle-Harness,
+> Shell-/Python-Syntax und `git diff --check`. Noch ausstehend: unabhängiger
+> Patch-/Security-Audit, dev-CI, Testrelease und echter Deck-E2E.
+> **Abschluss-Härtung/Audit:** Der erste Audit fand cgroup-, Remote-Root-Code-
+> und Zip-Vertragsprobleme, der zweite deck-writable Root-Pfade und fehlenden
+> Rollback. Alle wurden vor Release geschlossen: `sudo systemd-run --collect`,
+> kein heruntergeladenes Root-Script, fester root-owned State unter
+> `/var/lib/sonnenschein-decky-update`, SHA-256-/CRC-/Layout-/Dateityp-/Größen-
+> Gates, Same-Filesystem-Staging, atomare Aktivierung und Backup-Rollback.
+> Failure Injection beweist die Wiederherstellung des alten Pluginbaums bei
+> Loader-Startfehler. Der finale unabhängige Read-only-Audit meldet keine
+> statisch nachweisbaren Blocker. Offen: dev-/Tag-CI, Live-Asset-Audit sowie
+> echter Button/Fokus, `systemd-run` und Statusaufnahme nach Loader-Restart am
+> Deck. Bei Plugin-Rollback bleibt die zusätzliche neue versionsbenannte
+> AppImage liegen; die alte bleibt ebenfalls erhalten, daher ist Retry sicher.
+> **CI-Nachbesserung:** Erster Lint-Run zu `c5e1c9f` fand ausschließlich
+> ShellCheck SC2034 im neuen Harness (`LOG_FILE` nach dem root-owned-State-
+> Umbau unbenutzt). Die tote Testvariable wurde entfernt; kein Runtime-Code
+> betroffen. Reproduktion: ShellCheck 0.11 mit Severity `warning` auf
+> `decky-plugin/tests/update_harness.sh`.
+> **✅ RELEASE v0.2.9-test LIVE:**
+> <https://github.com/Elias02345/sonnenschein/releases/tag/v0.2.9-test>
+> — unveränderlicher Tag auf `73ea599`; dev-Gates Client Build
+> `29857152284`, Linux `29857151079` und Lint `29857151082` grün; Tag-/Release-
+> Run `29857919235` vollständig grün. Kuratierter Release-Text, getaggte Deck-
+> Anleitung und genau sieben Assets sind öffentlich. Rückdownload-Audit:
+> Installer SHA-256 `1998b70bcf83e2d2845b80b62071921398f7667ca8d4f4aa2071b432ac6a07b6`,
+> Decky-Zip `ff4354b9ae67c533f7ed2cd43197466f7dc773970b01d8c648a48e9e06fbc4f9`,
+> AppImage `43c154490d16bbfe550a8eb84b1c2f972f6d802bf58c9717f66e163ca301324a`.
+> Installer ist bytegleich mit dem Tag; Zip besteht CRC, exaktes Layout,
+> Helper-Exec-Bits/-Gleichheit, Version, SP_JSX/React und veröffentlichtes
+> Frozen-Python-Backend-Harness; AppImage ist extrahierbar und enthält 0.2.9.
+> Update-Integrity/Rollback-Harness erneut grün. `releases/latest` und der
+> rolling Installer zeigen auf v0.2.9-test. Offen ausschließlich: echter
+> Steam-Deck-Test des Buttons/Fokus und der ersten `systemd-run`-Aktualisierung.
+> Das versionierte One-Shot-Script ist ein eigenes unveränderliches Release-
+> Asset; die rolling Anleitung nutzt `releases/latest/download`, der Release-
+> Text verweist reproduzierbar auf sein eigenes Tag-Asset. Verifikationsclaims
+> sind bis zum tatsächlichen Post-Publish-Audit ausdrücklich zukünftig formuliert.
+>
+> → **✅ RELEASE v0.1.2-test LIVE** (2026-07-17, Run 29537965862 grün):
+> <https://github.com/Elias02345/sonnenschein/releases/tag/v0.1.2-test> —
+> veröffentlichtes Plugin-Zip nachgeprüft (Parser-Fix + Timeouts im
+> Bundle), v0.1.1-test als überholt markiert. **Hinweis**: das
+> „Verbinde…" der v0.1.1 hätte jede der drei Ursachen sein können — mit
+> v0.1.2 zeigt das Panel im Fehlerfall die exakte Ursache an.
+>
+> **🔧 Client-CI-Fix im Haupt-Repo (2026-07-16, Runde 13)**: Der erste „Client
+> Build"-Run auf `dev` (nach `dff9b93`) war rot. Der Repo-Umzug `c36c20b` hatte
+> **zweierlei verschluckt**: (1) die Exec-Bits aller `client/scripts/*.sh`
+> (Achtung: Repo hat `core.fileMode=false`, chmod allein reicht nicht → `git
+> update-index --chmod=+x`) → AppImage „Permission denied"; (2) die vendored
+> Windows-Build-Tools `client/scripts/{jom,vswhere}.exe` wegen `*.exe` in der
+> Root-`.gitignore` → Windows-Build Exit 9009. Dazu: `cl.exe` nicht im PATH,
+> seit der Client im Unterordner liegt. Fixes: `577ce22` (Exec-Bits für 7
+> Scripts, `bash scripts/build-appimage.sh`, MSVC via `ilammy/msvc-dev-cmd@v1`,
+> Windows-ARM64-Build ersatzlos raus — Roadmap-Ziel ist x64-.exe + Installer) —
+> damit **AppImage + macOS grün**; danach jom/vswhere.exe aus Upstream
+> re-added (Blob-Hashes verifiziert, `18500c7`) + gitignore-Ausnahmen; dritte
+> Regression: WiX-Bundle verlangte den entfernten ARM64-Build → Package-Step
+> macOS-only, Output wurde auf Windows eh nie hochgeladen (`7c2fda9`).
+> **✅ Client-CI KOMPLETT GRÜN auf `dev@7c2fda9`** (AppImage + Windows x64 +
+> macOS, Run 29477549618). **✅ Erstes Client-Release im Haupt-Repo LIVE**
+> (Maintainer-Go 2026-07-16): <https://github.com/Elias02345/sonnenschein/releases/tag/v0.0.3-test>
+> — `Sonnenschein_Client-*-x86_64.AppImage` + `Sonnenschein-Windows-x64-*.zip`
+> + dmg + Debug-Symbols. **✅ Alter Fork `sonnenschein-client` ARCHIVIERT**
+> (Bedingung erfüllt: CI grün + Release im Haupt-Repo). Kosmetik-TODO: die
+> macOS-dmg heißt noch `Moonlight-<ver>.dmg` (generate-dmg.sh/Target-Name
+> nicht rebranded) — bei nächster Client-Runde mitnehmen.
+>
+> **✅ DECK-TESTS BESTANDEN (Maintainer, 2026-07-16)**: (1) Spiele-Grid mit
+> Boxart erscheint im Client (Ansatz a end-to-end inkl. Cover); (2) RD-1
+> Remote-Desktop Single-Monitor E2E funktioniert. Beide offenen Punkte aus
+> Runde 12 damit verifiziert.
+>
+> **📋 MAINTAINER-AUFTRAG (2026-07-16, verbindlich — „Client-Modernisierung")**,
+> bestätigt + erweitert die Entscheidungen vom 13.07.:
+> 1. **Client-Rebrand + moderne UI**: Moonlight-Erbe raus, durchgängig
+>    Sonnenschein, moderner Look.
+> 2. **Windows installierbare .exe** (echter Installer), die **selbst nach
+>    Updates sucht** (GitHub Releases).
+> 3. **Auto-Settings**: beste Settings pro Gerät automatisch erkennen +
+>    anwenden. **Default = Easy-Modus** (kaum Einstellmöglichkeiten, alles
+>    automatisch). **Advanced-Modus** optional, gibt alle Controls zurück.
+> 4. **RD-Abfrage**: Verbindet sich ein Nicht-Gaming-Client mit dem
+>    Desktop-Modus/der Desktop-App → Abfrage: Remote-Desktop an/aus +
+>    Absolut- oder Single-Monitor-Modus.
+> 5. **Konstanter Stream in voller Bildwiederholrate zu allen Zeiten**
+>    (immer smooth, unabhängig vom Bildinhalt).
+> 6. **Decky-Plugin als Killer-Feature**: gräbt sich tief in den Gaming Mode
+>    ein; wenn ein verbundener Host das Spiel streamen kann, ist es direkt
+>    vom Deck aus streambar (Game-Mode-nativ).
+> **Design-Entscheidungen dazu (Maintainer, 2026-07-16)**: Easy-Modus zeigt
+> **Qualitätsregler (Auto/Qualität/Flüssigkeit) + Audio-Ausgabe-Wahl**, sonst
+> nichts; Windows-Updater = **melden + 1-Klick-Install**; Decky-Plugin
+> **nutzt die installierte Client-App** für Pairing/Streaming (Plugin = reine
+> Game-Mode-UI + Bibliotheks-Integration).
+> Ausgearbeiteter Plan: **ROADMAP „Client-Modernisierung" (M1–M6)** — M1
+> Easy/Advanced + Auto-Settings, M2 RD-Abfrage, M3 konstante volle FPS, M4
+> Rebrand/moderne UI, M5 Windows-Installer+Updater, M6 Decky-Plugin.
+> Implementierung läuft ab 2026-07-16 in dieser Reihenfolge (M1–M3 PC-testbar,
+> M6 Deck-gebunden).
+>
+> **🟡 M1+M2 IMPLEMENTIERT (2026-07-16, `feature/client-easy-mode` @ `9647e34`,
+> Maintainer-Sichttest offen)**: Easy/Advanced-Modus (`settingsMode`, Default
+> Easy) + Auto-Settings-Engine (`AutoConfig::applyEasyMode`, gecachte Probe,
+> Qualitätsregler Ausgewogen/Bildqualität/Flüssigkeit — letzterer cappt bei
+> 1080p; Hook in `Session::initialize`) + Easy-Settings-UI (nur Qualität,
+> Audio, RD; Advanced blendet alle 7 Gruppen wieder ein) + RD-Abfrage-Dialog
+> beim Start der Desktop-App von einem Client mit Desktop-Umgebung
+> (`hasDesktopEnvironment`, 3 Optionen + „Auswahl merken" →
+> `rememberRdChoice`). **DE-Übersetzung komplett** (qml_de.ts 275/275, inkl.
+> 27 vorher fehlender Alt-Strings; via `lupdate6 app.pro` + lrelease).
+> Lokal gebaut (CachyOS, qmake6; Vulkan-Header fehlten systemweit → nach
+> `~/Dokumente/.localdeps/prefix/include` gelegt; Build-Dir
+> `~/Dokumente/sns-client-build`) + `detect-profile`-Smoke ✅ (4K60/AV1 wie
+> Runde 10) + GUI-Start ohne QML-Fehler. **Merge auf `dev` erst nach
+> Maintainer-Sichttest** (Settings-Seite Easy/Advanced, RD-Dialog, Stream).
+>
+> **M3-Analyse (2026-07-16)**: Client-Teil durch M1 erledigt (Easy fordert
+> native Refresh an). Host-Pacing (Runde 3, pwgrab.cpp ~2058-2132): auf dem
+> **SHM-Pfad** wird der letzte Frame bei Damage-Stille re-encodet (voller
+> Takt) — auf dem realen Host aktiv (BGRx-SHM-Negotiation, von Maintainer
+> als „komplett funktional" bestätigt). **Bekannte Lücke**: auf dem
+> **DMA-BUF-Zero-Copy-Pfad** wird bei ausbleibendem Frame nur
+> `frame_captured=false` signalisiert → video.cpp raised nichts → Encoder
+> pausiert → FPS sinken bei Statik, falls ein Setup dmabuf negotiated.
+> Nächster M3-Schritt: Live-Messung (Moonlight-Overlay auf Idle-Desktop);
+> nur bei realem Einbruch dmabuf-Frame-Repeat implementieren.
+> **Umgebung heute**: Session läuft direkt auf dem CachyOS-Test-Target,
+> Repo-Pfad neu **`~/Dokumente/sonnenschein`**, Deck ist verfügbar. Merke:
+> Push während laufendem Client-Build-Run cancelt den Run (Concurrency-Gruppe)
+> — Doku-Pushes bündeln!
 >
 > **✅ Game-Launch VERIFIZIERT (2026-07-13)**: Maintainer hat vom Deck ein
 > spezifisches Spiel direkt aus Moonlight gestartet — Ansatz (a) läuft end-to-end.
@@ -15,9 +682,19 @@
 > vorerst Moonlight wg. Wix-Installer). Remote-Desktop + Gaming sind
 > cross-platform (auch Windows).
 >
-> **Nächste Schritte (mit Maintainer am Deck):** RD-1 Single-Monitor E2E, nativer
-> Deck-Controller, Multi-Display (RD-2), USB-Bridge, Clipboard. Windows-App testet
-> Maintainer, wenn „komplett fertig".
+> **✅ Repo-Konsolidierung (2026-07-13, `c36c20b`)**: Client-Code lebt jetzt **im
+> Haupt-Repo unter `client/`** (kein Moonlight-Fork mehr — der alte
+> `sonnenschein-client`-Fork wird archiviert), Submodule sauber unter `client/`,
+> GPL-3+Attribution (`client/NOTICE.sonnenschein.md`). Baut + läuft aus `client/`.
+> **Client-CI + Releases im Haupt-Repo** aufgesetzt (`.github/workflows/build-client*.yml`
+> → AppImage + Windows + macOS, Tag → Release). Host-Lint exkludiert `client/`.
+>
+> **Nächste Phase (Maintainer-Entscheidungen 2026-07-13, siehe ROADMAP „Client-Track
+> Präzisierungen"):** Easy/Advanced-RD-UX (Easy=Auto+Abfrage, Advanced=alle Toggles),
+> **Auto-Auflösung/Skalierung/Refresh für ALLE Screens**, moderne UI, **Windows echte
+> .exe + Installer**, **Decky-Plugin** (Deck Game Mode). Vieles Deck-/Stream-testgebunden.
+> Alter Fork-Repo `sonnenschein-client` → archivieren, sobald Haupt-Repo-Client-CI grün +
+> erstes Release dort.
 >
 > **CI + Test-Apps (2026-07-13) ✅ FERTIG**: Host-Repo grün. Client-Repo war rot
 > (Rebrand brach AppImage: `.desktop`-Exec + Upload-Pfad; SteamLink irrelevant) →
@@ -434,6 +1111,75 @@ Backend-Endpoint (POST /api/update → spawnt `installer/update.sh`
 detached; SRC_DIR via `$PREFIX/install-state.env` relativ zum Binary
 auflösen) + echten Update-E2E-Test — eigene Session.
 → Beides in Runde 9 erledigt, siehe unten.
+
+### Nachtrag Runde 13 (2026-07-16): CI-Fixes, §12-Neufassung, Deck-Controller-Recherche
+
+**Session auf dem CachyOS-Target** (Details im HIER-WEITERMACHEN-Block oben):
+Client-CI-Fixes (Exec-Bits/MSVC `577ce22`, jom+vswhere.exe re-added), AGENTS.md
+committed (`a4746f0`), §12 komplett neu geschrieben (alte erledigte Einträge
+raus, Widerspruch Phase 1.6 aufgelöst — CMake-Rebrand war real längst
+erledigt), §6-Phase-1.6-Zeile korrigiert. Host läuft aktiv auf `dev@1914c33`
+(funktional aktuell inkl. Spiele-als-Apps — Commits seither nur CI/Doku).
+
+**Deck-Controller-Recherche (Web + Repo, 2026-07-16) — Kernbefunde:**
+- **Deck-Controller „Neptune" = USB `28de:1205`**; Steam erkennt ihn rein über
+  VID/PID via hidraw (SDL `SDL_hidapi_steamdeck.c`, Valve-udev-Regeln matchen
+  pauschal VID `28de`). Desktop-Steam erkennt ein solches Gerät auch auf
+  Nicht-SteamOS nativ (steam-for-linux #11215) — kein Hardware-Bindungs-Check.
+- **uhid-Emulation ist prinzipiell machbar**: sc-ble-bridge emuliert erfolgreich
+  einen Steam Controller via /dev/uhid; inputtino hat mit dem DS5-uhid-Backend
+  (`src/uhid/joypad_ps5.cpp`) die passende Vorlage. Upstream-inputtino hat
+  keinen Deck-Typ (auch keine PRs). Protokoll gut dokumentiert (64-Byte-Reports
+  inkl. L4/L5/R4/R5, 2 Trackpads, Gyro; Feature-Reports für Lizard-Mode etc.).
+- **Valve selbst** tunnelt bei Remote Play auf Steam-Input-Ebene (Host sieht
+  „Steam Virtual Gamepad" `28de:11ff`) — Rear-Buttons/Gyro dort notorisch
+  kaputt. Hier könnte Sonnenschein besser sein.
+- **ABER — eigentlicher Blocker ist client-seitig**: Im Deck Game Mode claimt
+  Steam den Controller und reicht Moonlight nur das virtuelle Pad weiter —
+  Paddles/Trackpad-Rohdaten kommen im Client gar nicht an (moonlight-qt #936,
+  #1123). Moonlight-Protokoll hat zwar `PADDLE1–4_FLAG`s, aber host-seitig
+  konsumiert sie kein Backend, und es kennt nur EIN Touchpad → für 2 Trackpads
+  bräuchte es eine eigene Protokollerweiterung (wir kontrollieren beide Enden).
+- **Einschätzung: möglich mit großem Aufwand.** Empfohlener Pfad: (1) Host-PoC
+  standalone (uhid-Testtool `28de:1205`, Report-Descriptor vom echten Deck
+  dumpen, Erfolgskriterium: Desktop-Steam zeigt „Steam Deck Controller"),
+  (2) Steam↔Controller-Traffic am echten Deck mit hid-recorder mitschneiden,
+  (3) inputtino-Fork `SteamDeckJoypad` nach DS5-uhid-Vorbild (+ Upstream-PR),
+  (4) Host: `gamepad = steamdeck` + PADDLE-Flags → L4/L5/R4/R5,
+  (5) Client: Raw-Capture der Deck-Extras + Protokollerweiterung — ohne
+  Schritt 5 bringt Host-Emulation gegenüber DS5 fast nichts.
+- **Nur am Gerät klärbar**: unbekannte Feature-Report-Abfragen (Serial/
+  Firmware), Firmware-Update-Prompt-Risiko, hid-steam-Treiber-Verhalten am
+  uhid-Gerät, ob Game-Mode-Raw-Zugriff überhaupt möglich ist (Steam claimt
+  hidraw exklusiv), ob Desktop-Steam externe Deck-Controller voll bedient.
+
+**Decky-Plugin-Recherche (Web, 2026-07-16) — Kernbefunde für M6:**
+- **Stack**: `decky-plugin-template` (React/TS-Frontend via `@decky/ui` +
+  `@decky/api`, Rollup, **pnpm v9 zwingend**; optional Python-Backend).
+  Deploy: SSH nach `/home/deck/homebrew/plugins/` + `systemctl restart
+  plugin_loader`; Decky-Dev-Mode für Sideload + CEF-Debugging (Port 8081).
+- **Maßgebliches Vorbild: MoonDeck** (GPL-3 → kompatibel, aktiv maintained
+  v1.11.3): legt Non-Steam-Shortcuts auf einen **Shell-Wrapper** (nötig für
+  Steam-Fokus), kodiert die App-Identität als Env-Var in den Launch-Options
+  (`X=Y %command%`), startet Moonlight als Subprozess (Flatpak/AppImage, CLI
+  `stream <host> <app>` + `--resolution/--bitrate/--hdr`), Spiele in eigener
+  Steam-Collection. Braucht „MoonDeck Buddy" auf dem Host — **unsere
+  `/api/library` ersetzt das nativ inkl. Artwork.**
+- **Game-Mode-Start**: `SteamClient.Apps.RunGame(gameId, ...)` auf den
+  Shortcut → Steam/gamescope managt die Session (Overlay + Controller-Config
+  funktionieren). Library-Injection via `AddShortcut`/`SetShortcutName`/
+  `SetAppLaunchOptions`/`SetCustomArtworkForApp` (produktiv bewiesen durch
+  SteamGridDB-Plugin) — APIs sind Valve-intern/undokumentiert (Drift real,
+  z. B. AddShortcut setzt Namen nicht mehr). Bekannter Bug: viele Add/Remove-
+  Zyklen korruptieren den Steam-Client → diff-basiert syncen + Restart-Helper.
+- **Architektur (beschlossen: Plugin nutzt unsere Client-App)**: Python-
+  Backend = REST-Client für `/api/library` + Runner-Wrapper (`sonnenschein-
+  run.sh` + `runner.py` startet unsere Client-App); TS-Frontend = Quick-
+  Access-Panel (Hosts, Spiele, Sync-Button) + Shortcut-Sync + Collection.
+  Unser Client braucht dafür stabile Stream-CLI + deterministische Exit-Codes.
+- **Store-Anforderung**: kein Remote-Code-Nachladen — Client-App muss separat
+  installiert sein (Plugin verweist auf Installation). Risiken: SteamClient-
+  API-Drift, SteamOS-Updates entfernen Decky gelegentlich.
 
 ### Nachtrag Runde 12 (2026-07-13): Ansatz-a Spiele-als-Apps + Pläne Remote-Desktop & Deck-Controller
 
@@ -1019,7 +1765,7 @@ Legende: ✅ done · 🟡 in_progress · 🔴 blocked · ⏸ pending
 | cmake configure grün | ✅ | (verifikation) | `-DSUNSHINE_ENABLE_CUDA=OFF` für WSL (kein NVIDIA) |
 | cmake build grün, sunshine-Binary kompiliert | ✅ | (verifikation) | 33 MB ELF, läuft mit `--help` |
 | docs/building.md komplett neu für Sonnenschein | ✅ | `539d3a5` | Per-Distro-Lists (Arch/Ubuntu/Fedora/openSUSE), libva-2.22-Anleitung, WSL2-Workflow, Troubleshooting-Sektion |
-| Phase 1.6: CMake `project(Apollo)` → `project(Sonnenschein)` Rebrand | ⏸ | — | **bewusst aufgeschoben bis nach Phase 2** — riskant, betrifft viele Pfade/Configs/Service-Files. In den meisten Logs heißt das Binary noch "Apollo". |
+| Phase 1.6: CMake `project(Apollo)` → `project(Sonnenschein)` Rebrand | ✅ (Rest kosmetisch) | — | Real erledigt (verifiziert 2026-07-16): `project(Sonnenschein)` in CMakeLists.txt:7, eigene FQDN-Service/Desktop-Files. Nur noch intern offen: „Sunshine Branch:"-Logzeile (build_version.cmake:57) + Target-Name `sunshine` (common.cmake:4) → §12 C. |
 
 ### Phase 2 — Virtual-Display-Abstraktion 🟡
 
@@ -1805,6 +2551,45 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 
 **Fix**: Zeile aus `.gitignore` entfernt, Lockfile erzeugt und committed. CI/Installer können jetzt `npm ci` nutzen (der Build-Weg über CMake ruft weiterhin `npm install`, funktioniert unverändert).
 
+### 9.26 CachyOS: Installer bricht mit PipeWire-Abhängigkeitskonflikt ab (GELÖST 2026-09-15, `6c58593`)
+
+**Symptom** (Maintainer-Report, CachyOS, `installer/install.sh`):
+
+```
+Fehler: Vorgang konnte nicht vorbereitet werden (Kann Abhängigkeiten nicht erfüllen)
+:: Installation von libpipewire (1:1.6.8-1) verletzt Abhängigkeit »libpipewire=1:1.6.8-1.1«,
+   benötigt von gst-plugin-pipewire
+:: Installation von pipewire (1:1.6.8-1) verletzt Abhängigkeit »pipewire=1:1.6.8-1.1«,
+   benötigt von pipewire-alsa / pipewire-audio / pipewire-pulse
+```
+
+**Ursache**: CachyOS liefert Rebuilds mit angehängtem pkgrel-Suffix (`1:1.6.8-1.1`) gegen Arch' `1:1.6.8-1`.
+Steht das Paket gerade nicht (mehr) in `cachyos-extra-v3`, ist die lokale Version **neuer** als alles im Repo.
+`installer/packages/arch.list` listet `pipewire` explizit, und `pacman -S --needed` überspringt nur bei
+*exakt gleicher* Version — bei ungleicher Version will pacman downgraden. Die Geschwisterpakete
+(`gst-plugin-pipewire`, `pipewire-alsa`, `pipewire-audio`, `pipewire-pulse`) hängen per `=`-Abhängigkeit
+an `-1.1` und bleiben zurück → die Transaktion ist unauflösbar und der ganze Dependency-Schritt scheitert,
+obwohl auf dem System **kein einziges** benötigtes Paket fehlte.
+
+Reproduktion / Diagnose:
+```bash
+pacman -Q pipewire libpipewire          # 1:1.6.8-1.1  (lokal, CachyOS-Rebuild)
+pacman -Sl | grep ' pipewire '          # extra 1:1.6.8-1  [Installiert: 1:1.6.8-1.1]
+```
+
+**Fix** (`installer/lib/packages.sh`): Für `PKG_MANAGER=pacman` wird die Paketliste vor dem Install durch
+`pacman -T` gefiltert. `-T` (deptest) meldet nur die *tatsächlich unerfüllten* Abhängigkeiten und löst dabei
+`provides` korrekt auf (z. B. `udev` → `systemd`), was ein naives `pacman -Qq`-Diff nicht könnte. Ist nichts
+unerfüllt, wird pacman gar nicht erst aufgerufen — kein `-Sy`, kein sudo-Prompt, kein Partial-Upgrade-Risiko.
+Der Installer braucht die Pakete nur *vorhanden*, nicht aktuell; Systempflege bleibt Sache des Nutzers.
+
+Verifiziert auf der CachyOS-Maschine des Maintainers: 31 von 31 Deps erfüllt → „All dependencies already
+satisfied"; Gegentest mit zwei künstlich fehlenden Paketen ruft `pacman -Sy --needed` nur mit diesen beiden auf.
+
+**Nicht getan** (bewusst): kein Downgrade der sechs PipeWire-Pakete auf Arch' `-1.1`-loses Build, kein
+`pacman -Syu` aus dem Installer heraus. Beides fasst den Audio-Stack des Nutzers an, ohne dass Sonnenschein
+etwas davon braucht.
+
 ---
 
 ## 10. Letzte Commits chronologisch
@@ -1812,6 +2597,22 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+6c58593 — fix(installer): skip already-satisfied pacman dependencies — 2026-09-15 (CachyOS PipeWire-Konflikt, §9.26)
+6468974 — docs(status): record v0.2.9-test release audit — 2026-07-21
+73ea599 — test(deck): satisfy updater shellcheck — 2026-07-21 (v0.2.9-test live)
+c5e1c9f — fix(deck): anchor native streaming and add safe updates — 2026-07-21 (v0.2.9-test candidate)
+6ef9772 — docs(status): record native Deck lifecycle fix — 2026-07-21 (v0.2.8-test live)
+a8e346d — fix(deck): stabilize native game streaming lifecycle — 2026-07-21 (v0.2.8-test candidate)
+ef88899 — ci(release): expose version to release job — 2026-07-21 (v0.2.7-test live)
+621841a — ci(release): validate required platform assets — 2026-07-21 (v0.2.6-test candidate)
+41a6abe — ci(release): validate downloaded artifact count — 2026-07-21 (v0.2.5-test candidate)
+9493ce3 — ci(release): validate exact artifact inventory — 2026-07-21 (v0.2.4-test candidate)
+fe8f09a — feat(deck): install client and plugin in one step — 2026-07-21 (v0.2.4-test candidate)
+fbddd4e — ci(release): fix asset gate for test packages — 2026-07-21 (v0.2.3-test candidate)
+249afec — fix(deck): restore host sync and add streaming indicators — 2026-07-20 (v0.2.2-test candidate)
+9d9bc07 — docs(status): round 7 — install script rate-limit fix, verified — 2026-07-20
+cd58f54 — fix(deck): handle GitHub API rate limits in install script — 2026-07-20
+1cf323d — docs(status): v0.2.1-test live — round 6 complete and verified — 2026-07-20
 <this commit> — feat(library): Steam artwork endpoint + docs — 2026-07-12
 6b82593 — docs(status): round 10 — Phase 6 done, Steam library API, scope decisions — 2026-07-12
 a5d8686 — feat: update-state + branch selector + Steam library API — 2026-07-12
@@ -1997,17 +2798,61 @@ Liste der Dateien, die durch Sonnenschein neu sind oder substantiell geändert w
 
 ## 12. Was als nächstes — konkrete Schritte
 
-In Reihenfolge der Priorität.
+> **Neu geschrieben 2026-07-16.** Die historischen §12-Einträge (60-Hz-v3-
+> Testplan, alter CMake-Rebrand-Plan, Installer-Reihenfolge) waren erledigt
+> oder überholt (60-Hz/90-Hz vom Maintainer bestätigt, Phase 3+6 fertig,
+> CachyOS-Gesamttest „funktioniert perfekt" 2026-07-11) und wurden entfernt.
+> Tagesaktuelle Autorität bleibt der „HIER WEITERMACHEN"-Block ganz oben
+> plus die Runden-Nachträge.
 
-### 0) ✅ ERLEDIGT: CachyOS-Gesamttest — Maintainer bestätigt „funktioniert perfekt" (2026-07-11)
+In Reihenfolge der Priorität:
 
-Install + Discovery + Pairing + Stream laufen End-to-End. **Noch offen zur
-Detail-Bestätigung** (beim nächsten Stream kurz prüfen, keine Blocker):
-- Zeigt Moonlight 90 Hz (nicht 60)? → schließt §9.20 endgültig
-- HDR10-Indikator im Moonlight-Overlay? → Input für Phase 4
-- Log-Zeile „normalizing to landscape" wenn das Deck Portrait anfordert? → bestätigt §9.23
+### A) ✅ ERLEDIGT 2026-07-16: Client-CI grün + Release v0.0.3-test + Fork archiviert
 
-### 0-alt) CachyOS-Gesamttest der Session 2026-07-11 (Referenz)
+Details im HIER-WEITERMACHEN-Block. Ebenfalls erledigt: Deck-Tests
+Spiele-Grid/Boxart ✅ + RD-1 ✅ (Maintainer bestätigt).
+
+### B) Client-Modernisierung M1–M6 (Maintainer-Auftrag 2026-07-16, in Arbeit)
+
+Plan in ROADMAP „Client-Modernisierung". Reihenfolge: **M1** Easy/Advanced +
+Auto-Settings-Engine → **M2** RD-Abfrage-Dialog → **M3** konstante volle FPS
+(Host-Pacing verifizieren + Client fordert native Refresh) → **M4** Rebrand +
+moderne UI (inkl. dmg-Name) → **M5** Windows-Installer x64 + 1-Klick-Updater →
+**M6** Decky-Plugin (nutzt Client-App; Recherche-Ergebnis in Runde 13/14).
+
+### B2) Verschoben aus altem B): offene Client-Track-Punkte
+
+- cert-auth-Zugriff auf `/api/library` für gepairte Clients entscheiden
+  (offene Architektur-Frage; für M6/einheitliche Liste relevant).
+- Nativer Steam-Deck-Controller: Machbarkeitsskizze liegt vor (Runde 13);
+  nächster Schritt wäre der Standalone-uhid-PoC (`28de:1205`).
+
+### C) Phase-1.6-Rest (kosmetisch, LOW)
+
+Real längst erledigt (entgegen älterer §6/§12-Einträge): `project(Sonnenschein)`
+(CMakeLists.txt:7), eigene FQDN-Service/Desktop-Files
+(`io.github.elias02345.Sonnenschein.*`, `sonnenschein.service.in`). Noch offen,
+rein intern: `cmake/prep/build_version.cmake:57` loggt „Sunshine Branch:", und
+das CMake-Target heißt `add_executable(sunshine)` (cmake/targets/common.cmake:4)
+— bei Umbenennung Symlink-/Installer-Kompat beachten.
+
+### D) Phase 5 WebUI-Rest
+
+17 Bootstrap-Config-Tabs (`configs/tabs/`) → PrimeVue mit dem etablierten
+Live-Test-Setup; Geräteverwaltung. Kein Funktionsverlust im Ist-Zustand.
+
+### E) Phase 4 HDR — upstream-blockiert
+
+KWins virtuelle Outputs melden kein HDR-Capability (Plasma 6.7, caps=0x2000,
+Runde 5). Unser Code ist capability-guarded und selbstaktivierend — bei jedem
+Plasma-Update einen Stream mit HDR-Request testen (Log „HDR+WCG enabled").
+
+### F) Sunshine-Upstream-Sync
+
+Spätestens Phase 7. Script `scripts/sync-from-sunshine.sh` automatisieren,
+das Sunshine für sicherheitsrelevante Fixes cherry-pickt.
+
+### Referenz: CachyOS-Gesamttest-Prozedur (Session 2026-07-11, bestanden)
 
 1. **Installer**: `curl -fsSL https://raw.githubusercontent.com/Elias02345/sonnenschein/main/installer/install.sh | bash`
    — erwartet: Build läuft durch, alles landet in `/opt/sonnenschein`, Abschluss-Summary mit WebUI-URL.
@@ -2019,73 +2864,6 @@ Detail-Bestätigung** (beim nächsten Stream kurz prüfen, keine Blocker):
    - Physische Monitore aus während Stream, wieder an nach Disconnect
 4. **Uninstall-Probe** (optional): `bash /opt/sonnenschein/installer/uninstall.sh` — erwartet: System wie vorher.
 5. Bei Fehlern: `journalctl --user -eu sonnenschein` + `/tmp/sonnenschein-install.log` posten.
-
-### A) 60-Hz-Fix v3 — Cleanup-Hardening + gehärteter Retry (höchste Prio) ✅ implementiert, 🟡 CachyOS-Test offen
-
-v2 (Commits `2996b4e` + `806a7ca`) wurde in `d7afb8b` + `ea201f5` zurückgerollt. v3 ist jetzt vollständig gepusht (`b9f431b` Cleanup-Hardening + `b0f4fd1` 60-Hz v3). WSL2 incremental build 16/16 grün.
-
-**Crash-Safety ist garantiert** durch `b9f431b`: Auch wenn v3 wieder failed, kommen die physischen Monitore zurück (SIGSEGV/SIGABRT-Handler → `proc.terminate()` vor `_Exit`; bei SIGKILL → Boot-Recovery beim nächsten Sonnenschein-Start). Force-Shutdown sollte nicht mehr nötig sein.
-
-#### Phase 2 — Cleanup-Hardening (orthogonal, sollte sowieso passieren)
-- **2a Signal-Handler in `src/main.cpp`** für SIGSEGV + SIGABRT, die `proc::proc.terminate()` + `logging::log_flush()` + `_Exit()` rufen.
-- **2b RAII-Destruktor** in `KwinWaylandBackend` (`src/platform/linux/virtual_display/backends/kwin_wayland.cpp`) der `destroy_all()` ruft.
-- **2c Boot-Time-Recovery** via Lockfile in `~/.local/state/sonnenschein/disabled-outputs.lock`: `create()` trackt disabled outputs, `destroy()` untrackt sie, `main()` ruft beim Start `recovery::recover_on_boot()` welches `kscreen-doctor output.X.enable` für jeden gelisteten output ausführt.
-
-#### Phase 3 — v3 60-Hz-Fix (gehärtet)
-- **CMake-Patch** wieder einspielen (identisch zu `2996b4e`).
-- **pwgrab.cpp v3**: Basis `806a7ca` + fünf Hardenings (Details siehe Plan-File `~/.claude/plans/jetzt-haben-wir-ein-nested-candle.md`):
-  1. Destroy-Reihenfolge in `apply_kde_configuration` — mode_list ZUERST, dann configuration.
-  2. Stream-State-Validation nach `apply_output_management_settings` — wenn `failed=true` (KWin closed stream), return false → Portal-Fallback statt hängender capture-loop.
-  3. Ausführliches Logging vor jedem KDE-call + `log_flush()` damit selbst bei Crash die LAST-action persistiert.
-  4. Timeout 1500ms → 800ms damit kein langes Hängen.
-  5. Dritter Roundtrip in `init()` damit kde_output_device_registry_v2-events durchgeschossen sind.
-
-#### CachyOS-Test (nach Phase 2 + 3 Push)
-1. **Pre-Test cleanup-Validation**: `pkill -9 sonnenschein` mid-stream simulieren → Monitore bleiben aus → Sonnenschein neu starten → Erwartung `recovery: re-enabling HDMI-A-1` + Monitore zurück.
-2. **Main test**: Logs streamen (`journalctl --user -fb -u sonnenschein.service` oder `sonnenschein 2>&1 | tee ~/sns-v3.log`), SteamDeck @ 90 Hz connecten. Erwartete Log-Zeilen pro Pfad in §9.20.
-3. **Fail-Pfad-Validation**: bei jedem fail-Pfad muss Sonnenschein clean enden (kein Force-Shutdown nötig), Logs müssen die LAST-action zeigen.
-
-#### Falls Test grün
-STATUS.md TL;DR auf „60-Hz-Bug GELÖST" aktualisieren, §6 Phase 2 von 🟡 auf ✅, §9.20 als „GELÖST in v3" markieren.
-
-#### Falls Test rot trotz Cleanup-Hardening
-Iteration auf feature/branch (nicht direkt dev), Logs analysieren, mögliche Pfade: EDID-Firmware-Injection (§9.19) als alternative Strategie, KWin-DBus statt Wayland-Protocol, oder reine Acceptance des 60-Hz-Limits + Dokumentation.
-
-### B) Falls 60-Hz-Fix grün: weitere Stabilisierung
-
-- HDR-Pfad nochmal validieren (`hdr_enable` Log-Zeile + Moonlight HDR10-Indikator)
-- Multi-Client-Test (zwei Moonlight-Clients gleichzeitig — verschiedene Virtual Outputs)
-- Restore-Token persistent speichern (§9.15) → kein Portal-Dialog mehr beim Re-Start
-
-### C) Phase 1.6 — CMake-Rebrand (nach Phase 2D-Done)
-
-Sobald der 60-Hz-Fix steht und der Stream auf 90Hz auf dem SteamDeck läuft:
-- `CMakeLists.txt`: `project(Sonnenschein)`
-- `cmake/prep/build_version.cmake`: `Sunshine Branch:` → `Sonnenschein Branch:`
-- Add-Executable-Target: `sunshine` → `sonnenschein` (Symlink `sunshine` für Rückwärts-Kompat)
-- Service-Files / .desktop-Files: `dev.lizardbyte.app.Sunshine` → eigener FQDN
-- README/Docs: alle "Sunshine"-Erwähnungen prüfen
-
-### C) Phase 1.6 — CMake-Rebrand (nach 2D)
-
-Sobald Phase 2D grün ist und ein erster Virtual Display erfolgreich erzeugt wurde:
-- `CMakeLists.txt`: `project(Sonnenschein)`
-- `cmake/prep/build_version.cmake`: `Sunshine Branch:` → `Sonnenschein Branch:`
-- Add-Executable-Target: `sunshine` → `sonnenschein` (Symlink `sunshine` für Rückwärts-Kompat)
-- Service-Files / .desktop-Files: `dev.lizardbyte.app.Sunshine` → eigener FQDN
-- README/Docs: alle "Sunshine"-Erwähnungen prüfen
-
-### D) Phase 3 — Installer
-
-Sobald 1.6 done. Erste Iteration: nur Arch (CachyOS-Test-Hardware). Dann iterativ andere Distros.
-
-### E) Phase 4 — HDR & AV1
-
-Nach Phase 3, weil Installer braucht systemd-User-Mode-Setup für DBus-Bus zur HDR-Kommunikation mit KWin.
-
-### F) Sunshine-Upstream-Sync
-
-Spätestens Phase 7. Ein Script `scripts/sync-from-sunshine.sh` automatisieren, das Sunshine cherry-pickt für sicherheitsrelevante Fixes.
 
 ---
 

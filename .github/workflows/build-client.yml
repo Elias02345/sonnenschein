@@ -1,0 +1,183 @@
+---
+name: Client Build
+permissions:
+  contents: read
+
+# Builds the Sonnenschein client apps (client/ subdir) for Linux (AppImage),
+# Windows and macOS. Runs on client changes and on version tags; a tag push
+# publishes the built apps as a downloadable GitHub Release.
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: build-client-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      ci_version: ${{ steps.set-ci-version.outputs.ci_version }}
+    steps:
+      - name: Set CI version
+        id: set-ci-version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            CI_VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            CI_VERSION=`echo ${GITHUB_SHA} | cut -c1-6`
+          fi
+          echo "ci_version=${CI_VERSION}" >> "${GITHUB_OUTPUT}"
+
+  build-appimage:
+    needs: setup
+    uses: ./.github/workflows/build-client-appimage.yml
+    with:
+      ci_version: ${{ needs.setup.outputs.ci_version }}
+
+  build-windows-macos:
+    needs: setup
+    uses: ./.github/workflows/build-client-win-mac.yml
+    with:
+      ci_version: ${{ needs.setup.outputs.ci_version }}
+
+  # Decky-Loader plugin for Steam Deck Game Mode (decky-plugin/)
+  build-decky-plugin:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up pnpm 9
+        run: npm install -g pnpm@9
+
+      - name: Build plugin frontend
+        working-directory: decky-plugin
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Test plugin backend and bundle
+        run: |
+          python3 decky-plugin/tests/backend_harness.py
+          python3 decky-plugin/tests/frontend_contract.py
+          python3 -m py_compile decky-plugin/main.py decky-plugin/tests/backend_harness.py decky-plugin/tests/frontend_contract.py
+          bash -n decky-plugin/deck-install.sh decky-plugin/sonnenschein-run.sh decky-plugin/sonnenschein-update.sh
+          bash decky-plugin/tests/install_harness.sh
+          bash decky-plugin/tests/runner_harness.sh
+          bash decky-plugin/tests/update_harness.sh
+          test "$(grep -o 'SP_JSX' decky-plugin/dist/index.js | wc -l)" -gt 0
+          ! grep -q 'React.createElement' decky-plugin/dist/index.js
+
+      - name: Assemble plugin zip
+        shell: bash
+        run: |
+          mkdir -p out/sonnenschein/dist
+          cp decky-plugin/plugin.json decky-plugin/package.json \
+             decky-plugin/main.py decky-plugin/sonnenschein-run.sh \
+             decky-plugin/sonnenschein-update.sh \
+             out/sonnenschein/
+          cp decky-plugin/dist/index.js out/sonnenschein/dist/
+          cp LICENSE out/sonnenschein/LICENSE
+          chmod +x out/sonnenschein/sonnenschein-run.sh
+          chmod +x out/sonnenschein/sonnenschein-update.sh
+          (cd out && zip -r "../Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}.zip" sonnenschein)
+          printf '%s\n' \
+            sonnenschein/ \
+            sonnenschein/LICENSE \
+            sonnenschein/dist/ \
+            sonnenschein/dist/index.js \
+            sonnenschein/main.py \
+            sonnenschein/package.json \
+            sonnenschein/plugin.json \
+            sonnenschein/sonnenschein-run.sh \
+            sonnenschein/sonnenschein-update.sh | sort > expected-zip.txt
+          unzip -Z1 "Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}.zip" | sort > actual-zip.txt
+          cmp -s expected-zip.txt actual-zip.txt
+          mkdir -p zip-audit
+          unzip -q "Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}.zip" -d zip-audit
+          test -x zip-audit/sonnenschein/sonnenschein-run.sh
+          test -x zip-audit/sonnenschein/sonnenschein-update.sh
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v6
+        with:
+          name: Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}
+          path: Sonnenschein-Decky-Plugin-*.zip
+          if-no-files-found: error
+
+  # On a tag push, publish the built apps as a downloadable GitHub Release.
+  release:
+    needs: [setup, build-appimage, build-windows-macos, build-decky-plugin]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release metadata
+        uses: actions/checkout@v5
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v6
+        with:
+          path: artifacts
+      - name: Package artifacts into single files
+        shell: bash
+        run: |
+          test "$(find artifacts -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 6
+          mkdir -p release
+          for d in artifacts/*/; do
+            name="$(basename "$d")"
+            if ls "$d"*.AppImage >/dev/null 2>&1; then
+              cp "$d"*.AppImage release/
+            elif ls "$d"*.dmg >/dev/null 2>&1; then
+              cp "$d"*.dmg release/
+            elif ls "$d"*.exe >/dev/null 2>&1; then
+              cp "$d"*.exe release/
+            elif ls "$d"*.zip >/dev/null 2>&1; then
+              cp "$d"*.zip release/
+            else
+              ( cd "$d" && zip -qr "$OLDPWD/release/${name}.zip" . )
+            fi
+          done
+          cp decky-plugin/deck-install.sh release/Sonnenschein-Deck-Installer.sh
+          chmod +x release/Sonnenschein-Deck-Installer.sh
+          ls -la release
+      - name: Verify complete release asset set
+        shell: bash
+        run: |
+          test "$(find release -maxdepth 1 -type f | wc -l)" -eq 7
+          test -z "$(find release -maxdepth 1 -type f -empty -print -quit)"
+          test -s release/Sonnenschein-Decky-Plugin-${{ needs.setup.outputs.ci_version }}.zip
+          test -s release/Sonnenschein_Client-${{ needs.setup.outputs.ci_version }}-x86_64.AppImage
+          test -s release/SonnenscheinClientSetup-${{ needs.setup.outputs.ci_version }}.exe
+          test -s release/Sonnenschein_Client-${{ needs.setup.outputs.ci_version }}.dmg
+          test -s release/zDevDbgSyms-macOS-${{ needs.setup.outputs.ci_version }}.zip
+          test -s release/zDevDbgSyms-Windows-${{ needs.setup.outputs.ci_version }}.zip
+          test -x release/Sonnenschein-Deck-Installer.sh
+      - name: Generate curated release description
+        run: |
+          bash scripts/generate-client-release-notes.sh \
+            '${{ needs.setup.outputs.ci_version }}' release-notes.md
+          test -s release-notes.md
+          grep -q 'Steam Deck setup and troubleshooting guide' release-notes.md
+          grep -q 'releases/download/v${{ needs.setup.outputs.ci_version }}/Sonnenschein-Deck-Installer.sh' release-notes.md
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Sonnenschein v${{ needs.setup.outputs.ci_version }}
+          body_path: release-notes.md
+          files: release/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

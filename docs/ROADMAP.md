@@ -194,6 +194,76 @@ Release-Tag/Announcement.
 
 **Technische Basis**: Fork von Moonlight-Qt (GPL-3, Linux/Windows/SteamOS aus einer Codebasis; für Android später Fork von moonlight-android). Wir erben damit ein gereiftes Protokoll + Decoder/Renderer und konzentrieren uns auf die Sonnenschein-Mehrwerte. Protokoll bleibt Moonlight-kompatibel — Fremd-Clients funktionieren weiter.
 
+### Client-Track — Präzisierungen (Maintainer 2026-07-13, Runde 2)
+
+Verbindliche Richtungsentscheidungen, die C1–C4 überlagern:
+- **Repo-Konsolidierung**: Client-Code lebt **im Haupt-Repo `sonnenschein`** (als
+  `client/`), **kein GitHub-Fork von Moonlight** (der alte `sonnenschein-client`-Fork
+  zog alle Moonlight-Contributors/Netzwerk mit rein → wird archiviert). „Nur wir
+  zwei." GPL-3 + Moonlight-Attribution bleibt (Pflicht). **Releases (gebaute Apps)
+  erscheinen im Haupt-Repo** unter Releases.
+- **Windows**: echte `.exe` bauen + **installierbares Programm** (Installer), klar als
+  Client-Software benannt.
+- **Deck Game Mode = Decky-Plugin** (tiefe native Integration, Killer-Feature) —
+  bevorzugt vor Flatpak, damit ohne Desktop Mode testbar.
+- **Remote-Desktop-UX = Easy + Advanced**:
+  - **Easy (Default)**: alles automatisch. Beim Wählen von „Desktop"-Streaming auf
+    Nicht-Gaming-Geräten → Abfrage „Remote Desktop? → Single-Monitor / Absolut?".
+    **Auflösung, Skalierung, Bildwiederholrate werden von der App selbst ausgelesen
+    + gesetzt — für ALLE Screens** (Multi-Monitor), beste Werte je Anwendung +
+    Nutzerentscheidung automatisch. Kein manuelles Setup. Moonlights eingebaute
+    RD-Features nutzen, keine doppelten Optionen.
+  - **Advanced (opt-in)**: alle Toggles zurück, volle manuelle Kontrolle zum
+    Ausprobieren.
+- **UI**: moderner + weniger kompliziert.
+- **Bekannter Gap (2026-07-13)**: Windows-App übernimmt die Client-Display-Skalierung
+  noch nicht (wirkt seltsam); RD/Absolut-Toggles hatten keine sichtbare Wirkung →
+  wird durch Easy/Advanced-Redesign + Auto-Resolution ersetzt.
+
+### Client-Modernisierung (Maintainer-Auftrag 2026-07-16 — konkretisiert die Präzisierungen vom 13.07.)
+
+Verbindliche Detail-Entscheidungen (2026-07-16): Easy-Modus zeigt **Qualitätsregler
+(Auto / Qualität / Flüssigkeit) + Audio-Ausgabe-Wahl**, sonst nichts; Windows-Updater
+= **melden + 1-Klick-Install** (Prüfung gegen GitHub Releases beim Start); Decky-Plugin
+**nutzt die installierte Sonnenschein-Client-App** für Pairing + Streaming (Plugin =
+Game-Mode-UI + Bibliotheks-Integration, kein eigenes Pairing).
+
+Meilensteine (Reihenfolge = Implementierungsreihenfolge; M1–M3 PC-testbar, M6 Deck-gebunden):
+
+- **M1 — Easy/Advanced-Settings-Architektur**: neuer `settingsMode` (Easy =
+  Default, Advanced = opt-in). Auto-Settings-Engine baut auf `AutoConfig`/
+  `detect-profile` auf und wird bei jedem Verbindungsaufbau angewendet:
+  Auflösung/Skalierung/Refresh pro Ziel-Screen, Codec (AV1 > HEVC > H.264 nach
+  HW-Decode-Probe), Bitrate nach Netzwerk-Klasse, HDR wenn Kette es kann.
+  Easy-UI: Qualitätsregler (3 Stufen) + Audio-Ausgabe + Remote-Desktop —
+  sonst nichts sichtbar. Advanced-UI = heutige SettingsView komplett.
+  *Erfolg*: Frischinstallation streamt ohne ein einziges manuell gesetztes
+  Setting in bestmöglicher Qualität.
+- **M2 — RD-Abfrage-Flow**: Verbindet sich ein Nicht-Gaming-Client (Desktop-
+  Fenster-Kontext, kein Deck/TV) mit der Desktop-App des Hosts → Dialog:
+  „Remote Desktop nutzen?" → bei Ja: „Absolut (Host komplett übernehmen) oder
+  Single-Monitor?". Antwort pro Host gemerkt, im Easy-Modus änderbar über den
+  RD-Schalter. Nutzt die vorhandenen `remoteDesktopMode`/
+  `remoteDesktopAbsolute`-Prefs.
+- **M3 — Konstante volle Bildwiederholrate**: Stream läuft zu jeder Zeit mit
+  der vollen ausgehandelten FPS (kein Einbruch bei statischem Bild). Host-seitig
+  existiert das Re-Encode-Pacing (Runde 3, `have_prev_frame`) — verifizieren +
+  Lücken schließen; Client-seitig fordert der Easy-Modus immer die native
+  Refresh-Rate des Anzeige-Screens an. *Messkriterium*: Moonlight-Overlay zeigt
+  konstant ~Panel-Refresh, auch bei Idle-Desktop.
+- **M4 — Rebrand + moderne UI**: Moonlight-Reste raus (App-Name, Icons,
+  dmg-Name, About), modernisierte QML-Oberfläche (aufgeräumte Host-/Spiele-
+  Ansicht, die Easy-Philosophie spiegelt). Interner .exe-Name folgt in M5.
+- **M5 — Windows-Installer + Auto-Update**: WiX-Bundle x64-only reaktivieren,
+  als `SonnenscheinSetup-<ver>.exe` benannt; Client prüft beim Start GitHub
+  Releases, zeigt Update-Banner, 1 Klick lädt + startet den Installer.
+  Maintainer testet Windows „wenn komplett fertig".
+- **M6 — Decky-Plugin (Killer-Feature)**: Game-Mode-UI (Quick-Access-Menü):
+  gepairte Hosts + streambare Spiele der Host-Bibliothek anzeigen, Stream
+  direkt aus dem Game Mode starten (via installierter Client-App), Host-Spiele
+  optional als Bibliothekseinträge injizieren. Architektur-Details nach
+  Recherche-Ergebnis (STATUS Runde 13/14); Testen nur am Deck.
+
 ### C1 — Client-Fundament (Linux + SteamOS)
 
 **Ziel**: `sonnenschein-client` läuft auf Linux-Desktop und Steam Deck (Flatpak), verbindet sich mit einem Klick zum Host.

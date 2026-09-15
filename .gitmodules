@@ -70,3 +70,15 @@
 	path = third-party/plasma-wayland-protocols
 	url = https://github.com/KDE/plasma-wayland-protocols.git
 	branch = master
+[submodule "client/moonlight-common-c/moonlight-common-c"]
+	path = client/moonlight-common-c/moonlight-common-c
+	url = https://github.com/moonlight-stream/moonlight-common-c.git
+[submodule "client/qmdnsengine/qmdnsengine"]
+	path = client/qmdnsengine/qmdnsengine
+	url = https://github.com/cgutman/qmdnsengine.git
+[submodule "client/app/SDL_GameControllerDB"]
+	path = client/app/SDL_GameControllerDB
+	url = https://github.com/gabomdq/SDL_GameControllerDB.git
+[submodule "client/h264bitstream/h264bitstream"]
+	path = client/h264bitstream/h264bitstream
+	url = https://github.com/aizvorski/h264bitstream.git

@@ -1,0 +1,11 @@
+{
+  "name": "Sonnenschein",
+  "author": "Elias Kanakidis",
+  "flags": [],
+  "api_version": 1,
+  "publish": {
+    "tags": ["streaming", "moonlight", "remote-play"],
+    "description": "Stream your Sonnenschein host's game library right from Game Mode. Host games appear in your Steam library automatically and launch through the Sonnenschein Client.",
+    "image": "https://raw.githubusercontent.com/Elias02345/sonnenschein/dev/decky-plugin/assets/store-image.png"
+  }
+}

@@ -30,6 +30,9 @@
 *.exe
 *.out
 *.app
+# Vendored Windows build tools from Moonlight-Qt (needed by client CI)
+!client/scripts/jom.exe
+!client/scripts/vswhere.exe
 
 # JetBrains IDE
 .idea/
@@ -78,3 +81,7 @@ build/assets/web/
 .vscode/
 *.swp
 *.swo
+
+# Decky plugin build artifacts
+decky-plugin/node_modules/
+decky-plugin/dist/
