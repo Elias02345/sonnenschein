@@ -2551,7 +2551,7 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 
 **Fix**: Zeile aus `.gitignore` entfernt, Lockfile erzeugt und committed. CI/Installer können jetzt `npm ci` nutzen (der Build-Weg über CMake ruft weiterhin `npm install`, funktioniert unverändert).
 
-### 9.26 CachyOS: Installer bricht mit PipeWire-Abhängigkeitskonflikt ab (GELÖST 2026-09-15, `e56d875`)
+### 9.26 CachyOS: Installer bricht mit PipeWire-Abhängigkeitskonflikt ab (GELÖST 2026-09-15, `6c58593`)
 
 **Symptom** (Maintainer-Report, CachyOS, `installer/install.sh`):
 
@@ -2597,7 +2597,7 @@ etwas davon braucht.
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
-e56d875 — fix(installer): skip already-satisfied pacman dependencies — 2026-09-15 (CachyOS PipeWire-Konflikt, §9.26)
+6c58593 — fix(installer): skip already-satisfied pacman dependencies — 2026-09-15 (CachyOS PipeWire-Konflikt, §9.26)
 6468974 — docs(status): record v0.2.9-test release audit — 2026-07-21
 73ea599 — test(deck): satisfy updater shellcheck — 2026-07-21 (v0.2.9-test live)
 c5e1c9f — fix(deck): anchor native streaming and add safe updates — 2026-07-21 (v0.2.9-test candidate)
