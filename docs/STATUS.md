@@ -2551,6 +2551,45 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 
 **Fix**: Zeile aus `.gitignore` entfernt, Lockfile erzeugt und committed. CI/Installer können jetzt `npm ci` nutzen (der Build-Weg über CMake ruft weiterhin `npm install`, funktioniert unverändert).
 
+### 9.26 CachyOS: Installer bricht mit PipeWire-Abhängigkeitskonflikt ab (GELÖST 2026-09-15, `e56d875`)
+
+**Symptom** (Maintainer-Report, CachyOS, `installer/install.sh`):
+
+```
+Fehler: Vorgang konnte nicht vorbereitet werden (Kann Abhängigkeiten nicht erfüllen)
+:: Installation von libpipewire (1:1.6.8-1) verletzt Abhängigkeit »libpipewire=1:1.6.8-1.1«,
+   benötigt von gst-plugin-pipewire
+:: Installation von pipewire (1:1.6.8-1) verletzt Abhängigkeit »pipewire=1:1.6.8-1.1«,
+   benötigt von pipewire-alsa / pipewire-audio / pipewire-pulse
+```
+
+**Ursache**: CachyOS liefert Rebuilds mit angehängtem pkgrel-Suffix (`1:1.6.8-1.1`) gegen Arch' `1:1.6.8-1`.
+Steht das Paket gerade nicht (mehr) in `cachyos-extra-v3`, ist die lokale Version **neuer** als alles im Repo.
+`installer/packages/arch.list` listet `pipewire` explizit, und `pacman -S --needed` überspringt nur bei
+*exakt gleicher* Version — bei ungleicher Version will pacman downgraden. Die Geschwisterpakete
+(`gst-plugin-pipewire`, `pipewire-alsa`, `pipewire-audio`, `pipewire-pulse`) hängen per `=`-Abhängigkeit
+an `-1.1` und bleiben zurück → die Transaktion ist unauflösbar und der ganze Dependency-Schritt scheitert,
+obwohl auf dem System **kein einziges** benötigtes Paket fehlte.
+
+Reproduktion / Diagnose:
+```bash
+pacman -Q pipewire libpipewire          # 1:1.6.8-1.1  (lokal, CachyOS-Rebuild)
+pacman -Sl | grep ' pipewire '          # extra 1:1.6.8-1  [Installiert: 1:1.6.8-1.1]
+```
+
+**Fix** (`installer/lib/packages.sh`): Für `PKG_MANAGER=pacman` wird die Paketliste vor dem Install durch
+`pacman -T` gefiltert. `-T` (deptest) meldet nur die *tatsächlich unerfüllten* Abhängigkeiten und löst dabei
+`provides` korrekt auf (z. B. `udev` → `systemd`), was ein naives `pacman -Qq`-Diff nicht könnte. Ist nichts
+unerfüllt, wird pacman gar nicht erst aufgerufen — kein `-Sy`, kein sudo-Prompt, kein Partial-Upgrade-Risiko.
+Der Installer braucht die Pakete nur *vorhanden*, nicht aktuell; Systempflege bleibt Sache des Nutzers.
+
+Verifiziert auf der CachyOS-Maschine des Maintainers: 31 von 31 Deps erfüllt → „All dependencies already
+satisfied"; Gegentest mit zwei künstlich fehlenden Paketen ruft `pacman -Sy --needed` nur mit diesen beiden auf.
+
+**Nicht getan** (bewusst): kein Downgrade der sechs PipeWire-Pakete auf Arch' `-1.1`-loses Build, kein
+`pacman -Syu` aus dem Installer heraus. Beides fasst den Audio-Stack des Nutzers an, ohne dass Sonnenschein
+etwas davon braucht.
+
 ---
 
 ## 10. Letzte Commits chronologisch
@@ -2558,6 +2597,8 @@ Statische Review der nicht-verifizierten Laufzeit-Fixes (60-Hz v3, Crash-Recover
 (neueste zuerst, Format: `hash` — Beschreibung — Tag)
 
 ```
+e56d875 — fix(installer): skip already-satisfied pacman dependencies — 2026-09-15 (CachyOS PipeWire-Konflikt, §9.26)
+6468974 — docs(status): record v0.2.9-test release audit — 2026-07-21
 73ea599 — test(deck): satisfy updater shellcheck — 2026-07-21 (v0.2.9-test live)
 c5e1c9f — fix(deck): anchor native streaming and add safe updates — 2026-07-21 (v0.2.9-test candidate)
 6ef9772 — docs(status): record native Deck lifecycle fix — 2026-07-21 (v0.2.8-test live)

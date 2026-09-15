@@ -82,6 +82,26 @@ install_packages() {
     fi
   fi
 
+  # Arch-Derivate (CachyOS, Manjaro) shippen Rebuilds mit hoeherem pkgrel
+  # als das Arch-Repo -- z.B. pipewire 1:1.6.8-1.1 lokal gegen 1:1.6.8-1 in
+  # [extra]. `--needed` ueberspringt nur bei *exakt* gleicher Version, also
+  # will pacman solche Pakete downgraden, und die Transaktion zerbricht an
+  # Geschwisterpaketen mit exakter Versionsabhaengigkeit ("Installation von
+  # libpipewire verletzt Abhaengigkeit ..., benoetigt von pipewire-audio").
+  # Wir brauchen die Pakete nur *vorhanden*, nicht aktuell -- also fragen wir
+  # pacman -T nach den tatsaechlich unerfuellten Abhaengigkeiten (loest auch
+  # provides auf, z.B. udev -> systemd) und fassen alles andere nicht an.
+  if [ "$PKG_MANAGER" = "pacman" ]; then
+    local missing=()
+    mapfile -t missing < <(pacman -T "${packages[@]}" 2>/dev/null || true)
+    if [ "${#missing[@]}" -eq 0 ]; then
+      success "All ${#packages[@]} dependencies already satisfied — nothing to install."
+      return 0
+    fi
+    info "$(( ${#packages[@]} - ${#missing[@]} )) of ${#packages[@]} dependencies already present."
+    packages=("${missing[@]}")
+  fi
+
   info "Installing ${#packages[@]} packages for ${DISTRO_FAMILY}..."
   require_sudo
 
